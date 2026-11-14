@@ -98,12 +98,14 @@ ENV PATH=/opt/octane-wine/bin:${PATH} \
     OCTANE_STATE_DIR=/home/wineuser/.octane \
     OCTANE_EVIDENCE_DIR=/home/wineuser/.octane/evidence \
     WINEPREFIX=/home/wineuser/.octane/prefix \
-    WINEARCH=win64
+    WINEARCH=win64 \
+    WINEDLLOVERRIDES="mscoree,mshtml="
 
 LABEL com.octanelab.wine-version="11.21" \
       com.octanelab.wine-source-commit="${WINE_SOURCE_COMMIT}" \
       com.octanelab.wine-staging-commit="${WINE_STAGING_COMMIT}" \
       com.octanelab.wine-variant="${WINE_VARIANT}" \
+      com.octanelab.wine-mono-gecko="disabled-not-required-by-native-workloads" \
       com.octanelab.wine-visrgn-patch-sha256="${WINE_VISRGN_PATCH_SHA256}"
 
 ENTRYPOINT ["/usr/bin/entrypoint"]

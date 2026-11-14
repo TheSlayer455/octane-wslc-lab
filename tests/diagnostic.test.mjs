@@ -7,6 +7,7 @@ const runner=readFileSync(new URL('../lab/octane-webview2-experiment',import.met
 const labCommand=readFileSync(new URL('../lab/octane-lab',import.meta.url),'utf8');
 const controller=readFileSync(new URL('../scripts/Invoke-OctaneExperiment.ps1',import.meta.url),'utf8');
 const reviewer=readFileSync(new URL('../scripts/Review-OctaneExperiment.ps1',import.meta.url),'utf8');
+const stagingImage=readFileSync(new URL('../lab/Dockerfile.wine-staging-11.21',import.meta.url),'utf8');
 
 test('native diagnostic separates DOM activity from animation frames',()=>{
   assert.match(source,/requestAnimationFrame\(animate\)/);
@@ -56,4 +57,9 @@ test('visible review updates the original evidence bundle without rerunning it',
   assert.match(reviewer,/Experiment identity does not match/);
   assert.match(reviewer,/Write-OctaneResultArtifacts/);
   assert.match(reviewer,/Update-OctaneEvidenceChecksums/);
+});
+
+test('source-built Wine profiles suppress unrelated Mono and Gecko prompts explicitly',()=>{
+  assert.match(stagingImage,/WINEDLLOVERRIDES="mscoree,mshtml="/);
+  assert.match(labCommand,/wine_dll_overrides=/);
 });

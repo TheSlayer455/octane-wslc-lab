@@ -57,6 +57,7 @@ record_environment() {
         echo "xdg_runtime_dir=${XDG_RUNTIME_DIR:-unset}"
         echo "wineprefix=$WINEPREFIX"
         echo "winearch=$WINEARCH"
+        echo "wine_dll_overrides=${WINEDLLOVERRIDES:-unset}"
         echo "x_sockets:"
         find /tmp/.X11-unix -maxdepth 1 -type s -printf '%f\n' 2>/dev/null | sort || true
     } > "$evidence/display-environment.txt"
