@@ -104,7 +104,9 @@ foreach ($plannedRunId in $plannedRunIds) {
 
         $scenario = Invoke-OctaneRuntime -Engine Docker -WslDistro $WslDistro -Arguments @(
             'exec','-u','wineuser','-e',"OCTANE_QUALIFICATION_RUN_ID=$plannedRunId",'-e','OCTANE_QUALIFICATION_MODE=locked',
-            '-e',"OCTANE_EXPECTED_WEBVIEW2_VERSION=$($lock.profile.webView2.expectedLoadedVersion)",$container,'octane-lab','qualification-experiment'
+            '-e',"OCTANE_EXPECTED_WEBVIEW2_VERSION=$($lock.profile.webView2.expectedLoadedVersion)",
+            '-e',"OCTANE_DIALOG_FOREGROUND_TIMEOUT_SECONDS=$($lock.automation.dialogForegroundTimeoutSeconds)",
+            $container,'octane-lab','qualification-experiment'
         ) -TimeoutSeconds 900 -AllowFailure
         $scenario.StdOut | Set-Content -LiteralPath (Join-Path $runDirectory 'logs/controller/scenario.stdout.log') -Encoding utf8
         $scenario.StdErr | Set-Content -LiteralPath (Join-Path $runDirectory 'logs/controller/scenario.stderr.log') -Encoding utf8

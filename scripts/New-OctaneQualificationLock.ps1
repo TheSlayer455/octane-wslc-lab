@@ -105,7 +105,7 @@ $lock = [ordered]@{
     }
     fixtures = [ordered]@{expected=[ordered]@{files=8;extensionGroups=6;duplicateSets=1;errors=0;totalBytes=176};files=@($fixtureFiles)}
     security = [ordered]@{desktopBinding='127.0.0.1 only';authenticated=$true;privileged=$false;hostNetwork=$false;dockerSocketMount=$false;hostGpuMapping=$false;noSandboxArgument=$false;rdpCertificateAccommodation='FreeRDP /cert:ignore for container self-signed certificate on loopback only'}
-    automation = [ordered]@{unattended=$true;forcedRepaintAllowed=$false;hiddenRetriesAllowed=0;manualOverridesAllowed=0;initialPresentationTimeoutSeconds=45;scenarioTimeoutSeconds=900;interRunPortAvailabilityTimeoutSeconds=120}
+    automation = [ordered]@{unattended=$true;forcedRepaintAllowed=$false;hiddenRetriesAllowed=0;manualOverridesAllowed=0;initialPresentationTimeoutSeconds=45;dialogForegroundTimeoutSeconds=5;scenarioTimeoutSeconds=900;interRunPortAvailabilityTimeoutSeconds=120}
     contract = [ordered]@{schemaVersion=2;plannedRuns=10;freshContainer=$true;freshWinePrefix=$true;freshWebView2UserData=$true;sequential=$true}
 }
 $parent = Split-Path $LockPath -Parent

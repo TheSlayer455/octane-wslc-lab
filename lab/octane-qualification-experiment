@@ -6,12 +6,17 @@ evidence_root="${OCTANE_EVIDENCE_DIR:-$state_dir/octane-evidence}"
 run_id="${OCTANE_QUALIFICATION_RUN_ID:-qualification-$(date -u +%Y%m%dT%H%M%SZ)}"
 mode="${OCTANE_QUALIFICATION_MODE:-exploratory}"
 expected_webview2_version="${OCTANE_EXPECTED_WEBVIEW2_VERSION:-157.0.4341.60}"
+dialog_foreground_timeout="${OCTANE_DIALOG_FOREGROUND_TIMEOUT_SECONDS:-5}"
 if [[ ! "$run_id" =~ ^[A-Za-z0-9._-]{8,96}$ ]]; then
     echo 'OCTANE_QUALIFICATION_RUN_ID contains invalid characters.' >&2
     exit 2
 fi
 if [[ "$mode" != exploratory && "$mode" != locked ]]; then
     echo 'OCTANE_QUALIFICATION_MODE must be exploratory or locked.' >&2
+    exit 2
+fi
+if [[ ! "$dialog_foreground_timeout" =~ ^[1-9][0-9]*$ ]]; then
+    echo 'OCTANE_DIALOG_FOREGROUND_TIMEOUT_SECONDS must be a positive integer.' >&2
     exit 2
 fi
 
@@ -92,6 +97,14 @@ window_snapshot() {
         xwininfo -id "$id" 2>&1 || true
         xprop -id "$id" WM_CLASS WM_NAME _NET_WM_NAME _NET_WM_PID 2>&1 || true
     } > "$output"
+}
+
+wait_dialog_ready() {
+    local id="$1" label="$2"
+    if wait_active_window "$id" "$dialog_foreground_timeout"; then return 0; fi
+    window_snapshot "$id" "$run_dir/logs/${label}-focus-timeout.txt"
+    capture_root "$run_dir/screenshots/${label}-focus-timeout.png"
+    return 1
 }
 
 measure_client_colors() {
@@ -304,7 +317,7 @@ if [[ "$(gate_status initialVisible)" == PASS ]]; then
     log_action post-initial click-choose-for-cancel
     click_main_fraction 8 26 >> "$interaction_log" 2>&1 || true
     open_dialog=$(wait_visible_title 'Choose files to analyze' 15 || true)
-    if [[ -n "$open_dialog" && "$(xdotool getactivewindow 2>/dev/null || true)" == "$open_dialog" ]]; then
+    if [[ -n "$open_dialog" ]] && wait_dialog_ready "$open_dialog" open-cancel; then
         window_snapshot "$open_dialog" "$run_dir/logs/open-cancel-window.txt"
         capture_root "$run_dir/screenshots/open-cancel-dialog.png"
         log_action post-initial click-visible-open-cancel
@@ -318,7 +331,7 @@ if [[ "$(gate_status initialVisible)" == PASS ]]; then
         log_action post-initial click-choose-for-unicode-selection
         click_main_fraction 8 26 >> "$interaction_log" 2>&1 || true
         open_dialog=$(wait_visible_title 'Choose files to analyze' 15 || true)
-        if [[ -n "$open_dialog" && "$(xdotool getactivewindow 2>/dev/null || true)" == "$open_dialog" ]]; then
+        if [[ -n "$open_dialog" ]] && wait_dialog_ready "$open_dialog" open-unicode; then
             log_action post-initial type-unicode-space-fixture-and-open
             type_filename "$unicode_windows" >> "$interaction_log" 2>&1 || true
             click_common_dialog_button "$open_dialog" accept >> "$interaction_log" 2>&1 || true
@@ -334,7 +347,7 @@ if [[ "$(gate_status initialVisible)" == PASS ]]; then
         log_action post-initial click-choose-for-standard-workload
         click_main_fraction 8 26 >> "$interaction_log" 2>&1 || true
         open_dialog=$(wait_visible_title 'Choose files to analyze' 15 || true)
-        if [[ -n "$open_dialog" && "$(xdotool getactivewindow 2>/dev/null || true)" == "$open_dialog" ]]; then
+        if [[ -n "$open_dialog" ]] && wait_dialog_ready "$open_dialog" open-standard; then
             capture_root "$run_dir/screenshots/open-standard-dialog.png"
             log_action post-initial type-eight-fixtures-and-open
             type_filename "$selection" >> "$interaction_log" 2>&1 || true
@@ -366,7 +379,7 @@ if [[ "$(gate_status workload)" == PASS ]]; then
     log_action post-initial click-export-for-cancel
     click_main_fraction 33 26 >> "$interaction_log" 2>&1 || true
     save_dialog=$(wait_visible_title '^Save$' 15 || true)
-    if [[ -n "$save_dialog" && "$(xdotool getactivewindow 2>/dev/null || true)" == "$save_dialog" ]]; then
+    if [[ -n "$save_dialog" ]] && wait_dialog_ready "$save_dialog" save-cancel; then
         capture_root "$run_dir/screenshots/save-cancel-dialog.png"
         log_action post-initial click-visible-save-cancel
         click_common_dialog_button "$save_dialog" cancel >> "$interaction_log" 2>&1 || true
@@ -377,7 +390,7 @@ if [[ "$(gate_status workload)" == PASS ]]; then
         log_action post-initial click-export-for-new-file
         click_main_fraction 33 26 >> "$interaction_log" 2>&1 || true
         save_dialog=$(wait_visible_title '^Save$' 15 || true)
-        if [[ -n "$save_dialog" && "$(xdotool getactivewindow 2>/dev/null || true)" == "$save_dialog" ]]; then
+        if [[ -n "$save_dialog" ]] && wait_dialog_ready "$save_dialog" save-new; then
             log_action post-initial type-new-export-path-and-save
             type_filename "$report_windows" >> "$interaction_log" 2>&1 || true
             click_common_dialog_button "$save_dialog" accept >> "$interaction_log" 2>&1 || true
@@ -393,7 +406,7 @@ if [[ "$(gate_status workload)" == PASS ]]; then
         log_action post-initial click-export-for-existing-output-attempt
         click_main_fraction 33 26 >> "$interaction_log" 2>&1 || true
         save_dialog=$(wait_visible_title '^Save$' 15 || true)
-        if [[ -n "$save_dialog" ]]; then
+        if [[ -n "$save_dialog" ]] && wait_dialog_ready "$save_dialog" save-existing; then
             log_action post-initial type-existing-output-path-and-save
             type_filename "$protected_windows" >> "$interaction_log" 2>&1 || true
             click_common_dialog_button "$save_dialog" accept >> "$interaction_log" 2>&1 || true
@@ -405,7 +418,7 @@ if [[ "$(gate_status workload)" == PASS ]]; then
                 [[ -n "$confirmation" ]] && break
                 sleep 0.2
             done
-            if [[ -n "$confirmation" ]]; then
+            if [[ -n "$confirmation" ]] && wait_dialog_ready "$confirmation" save-confirmation; then
                 capture_root "$run_dir/screenshots/existing-output-confirmation.png"
                 log_action post-initial click-confirm-replace-to-test-app-protection
                 click_confirmation_yes "$confirmation" >> "$interaction_log" 2>&1 || true
@@ -424,7 +437,7 @@ if [[ "$(gate_status workload)" == PASS ]]; then
         log_action post-initial click-choose-after-existing-output-error
         click_main_fraction 8 26 >> "$interaction_log" 2>&1 || true
         open_dialog=$(wait_visible_title 'Choose files to analyze' 15 || true)
-        if [[ -n "$open_dialog" && "$(xdotool getactivewindow 2>/dev/null || true)" == "$open_dialog" ]]; then
+        if [[ -n "$open_dialog" ]] && wait_dialog_ready "$open_dialog" open-after-error; then
             log_action post-initial click-visible-open-cancel-after-error
             click_common_dialog_button "$open_dialog" cancel >> "$interaction_log" 2>&1 || true
             if wait_window_not_viewable "$open_dialog" 10 && wait_active_window "$window_id" 10; then post_error_open=PASS; fi

@@ -11,6 +11,8 @@ const aggregator=readFileSync(new URL('../scripts/Qualification.ps1',import.meta
 test('strict qualification separates normal readiness from later window behavior',()=>{
   assert.match(qualification,/log_action pre-initial launch-installed-octane-once/);
   assert.match(qualification,/normal-window-activate-once/);
+  assert.match(qualification,/wait_dialog_ready/);
+  assert.match(qualification,/OCTANE_DIALOG_FOREGROUND_TIMEOUT_SECONDS/);
   assert.match(qualification,/forcedRepaintUsed:\$forcedRepaintUsed/);
   assert.match(qualification,/acceptance-resize-to-900x650/);
   assert.match(qualification,/acceptance-minimize-once/);
