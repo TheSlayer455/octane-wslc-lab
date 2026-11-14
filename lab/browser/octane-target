@@ -183,7 +183,7 @@ case "${1:-help}" in
     launch) require_intake; launch_target ;;
     wait-native) require_intake; wait_native ;;
     webview2) require_intake; record_webview2 ;;
-    probe-network) require_intake; probe_network ;;
+    probe-network) [[ -f "$profile" ]] || { echo "Target profile is missing: $profile" >&2; exit 64; }; probe_network ;;
     verify-inputs) verify_inputs ;;
     status)
         pgrep -af 'wine|\.exe' || true
