@@ -6,7 +6,7 @@
   "build": {"frontendDist": "../ui"},
   "app": {
     "withGlobalTauri": true,
-    "windows": [{"title": "Octane · File analysis lab", "width": 1100, "height": 760, "minWidth": 700, "minHeight": 500, "dragDropEnabled": false}],
+    "windows": [{"title": "Octane · File analysis lab", "width": 1100, "height": 760, "minWidth": 700, "minHeight": 500, "dragDropEnabled": false, "additionalBrowserArgs": "--disable-gpu --disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection"}],
     "security": {"csp": "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src ipc: http://ipc.localhost"}
   },
   "bundle": {
