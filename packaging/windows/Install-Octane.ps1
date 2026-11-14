@@ -46,10 +46,6 @@ function Invoke-WslChecked([string[]]$Arguments,[string]$Description){
     return $output
 }
 
-function ConvertTo-BashSingleQuoted([string]$Value){
-    return "'" + $Value.Replace("'", "'\"'\"'") + "'"
-}
-
 $appliance=Assert-PackageFile -RelativePath ([string]$manifest.appliance.path) -ExpectedSha256 ([string]$manifest.appliance.sha256) -ExpectedLength ([int64]$manifest.appliance.length)
 $imageArchive=Assert-PackageFile -RelativePath ([string]$manifest.image.path) -ExpectedSha256 ([string]$manifest.image.sha256) -ExpectedLength ([int64]$manifest.image.length)
 $runtimeChecksums=Assert-PackageFile -RelativePath ([string]$manifest.runtime.checksumsPath) -ExpectedSha256 ([string]$manifest.runtime.checksumsSha256) -ExpectedLength ([int64]$manifest.runtime.checksumsLength)
@@ -110,8 +106,7 @@ try{
     }
     if(-not $ready){throw 'Docker Engine did not become ready inside the imported appliance.'}
     $linuxArchive=(Invoke-WslChecked -Arguments @('-d',$DistributionName,'-u','root','--exec','wslpath','-a','-u',$imageArchive) -Description 'Image archive path conversion' | Select-Object -First 1).Trim()
-    $loadCommand="zstd -dc -- $(ConvertTo-BashSingleQuoted $linuxArchive) | docker load"
-    Invoke-WslChecked -Arguments @('-d',$DistributionName,'-u','root','--exec','bash','-lc',$loadCommand) -Description 'Pinned Octane image load' | Out-Null
+    Invoke-WslChecked -Arguments @('-d',$DistributionName,'-u','root','--exec','bash','-lc','zstd -dc -- "$1" | docker load','octane-image-load',$linuxArchive) -Description 'Pinned Octane image load' | Out-Null
     $loadedId=(Invoke-WslChecked -Arguments @('-d',$DistributionName,'-u','root','--exec','docker','image','inspect','--format','{{.Id}}',[string]$manifest.image.reference) -Description 'Loaded image identity verification' | Select-Object -First 1).Trim()
     if($loadedId -ne [string]$manifest.image.imageId){throw "Loaded image identity mismatch. Expected $($manifest.image.imageId), got $loadedId."}
 
