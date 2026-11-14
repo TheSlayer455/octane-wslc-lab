@@ -6,13 +6,67 @@ Current status is deliberately split:
 
 - Historical Docker/Wine Octane qualification: **PASS 10/10** for the immutable RDP-era lock and retained installer.
 - Browser candidate components: **PASS** for build, clean install, exact executable/WebView2 identity, X11/VNC/Websockify health, loopback publication, authentication configuration, no-RDP enforcement, evidence, and exact cleanup.
+- Self-contained WSL appliance candidate: **PASS** for hash verification, `wsl --import`, pinned Docker 29.6.2 startup, separate image load, deep doctor, unchanged-installer preview/component checks, collection, and exact distro/container cleanup. This still is not browser framebuffer/input acceptance.
 - Manual browser smoke: **NOT_RUN** unless an operator supplies attributable evidence.
 - Automated browser acceptance and browser 10/10 qualification: **BLOCKED** because this execution environment has no approved controllable browser.
 - Browser runtime kit release: **not qualified** while the mandatory browser gates remain blocked.
 
 The canonical AI/operator reference is [docs/OCTANE-AI-HANDOFF.md](docs/OCTANE-AI-HANDOFF.md). The short operator path is [docs/BROWSER-CANDIDATE-QUICKSTART.md](docs/BROWSER-CANDIDATE-QUICKSTART.md). Historical results remain in [docs/compatibility-matrix.md](docs/compatibility-matrix.md) and the comprehensive [PDF guide](docs/Octane-Complete-Guide.pdf).
 
-## Browser candidate quick start
+## Packaged appliance quick start
+
+The private `Octane-v1` candidate packages the management distribution and Wine/browser image separately:
+
+```text
+Octane-v1/
+  Install-Octane.ps1
+  Octane.ps1 / Octane.cmd / Uninstall-Octane.ps1
+  appliance/octane-ubuntu.tar
+  images/octane-wine-image.tar.zst
+  runtime/
+  profiles/ docs/ manifest.json checksums.sha256
+```
+
+From Windows PowerShell 7 in the extracted package:
+
+```powershell
+# Hash/check the whole install plan without changing host state.
+./Install-Octane.ps1 -PackageRoot $PWD -PlanOnly
+
+# One-time import. This does not need an existing Ubuntu distro or Docker install.
+./Install-Octane.ps1 -PackageRoot $PWD
+
+# Open a new terminal after PATH is updated.
+octane doctor -Deep
+octane target -Id example-app `
+  -TargetOutput 'C:\Octane Targets\example-app-octane'
+
+# After reviewing and completing the generated data-only app.json:
+octane open 'C:\Builds\setup.exe' `
+  -Profile 'C:\Octane Targets\example-app-octane\app.json' `
+  -InputDirectory 'C:\TestData\Inputs' `
+  -OutputDirectory 'C:\TestData\Results'
+```
+
+`octane open` hashes and stages the unchanged EXE, creates a fresh container/prefix/install, waits for the viewer and native application identity, copies the run credential to the Windows clipboard, and opens the exact localhost URL in the default browser. It never launches the installer on Windows. If browser opening is blocked, use `-NoBrowser` and the printed URL plus `octane credential -Container <exact-name>`.
+
+Collect before stopping:
+
+```powershell
+octane collect -Container octane-0123456789
+octane stop -Container octane-0123456789
+```
+
+Uninstall is deliberately separate and destructive. It verifies the appliance marker and exact distribution identity before unregistering:
+
+```powershell
+& "$env:LOCALAPPDATA\Octane\Uninstall-Octane.ps1" `
+  -ConfirmDistributionRemoval
+```
+
+The release layout does not bake `/var/lib/docker` into the WSL TAR. Docker Engine lives in the imported Ubuntu appliance; the separately checksum-verified archive is streamed into `docker load`. Wine, WebView2, X11, noVNC, and the unchanged target live in the disposable Docker container.
+
+## Source-tree browser candidate quick start
 
 Run from Windows PowerShell 7 at the repository root. The commands below are locally exercised; replace only the angle-bracket values.
 
@@ -72,6 +126,8 @@ Each run receives a new container, Wine prefix, installation, application data, 
 - Browser: noVNC commit `63107bd06d9e1f6136ff21aeda8cd62cbf0d433e` and Websockify commit `e81894751365afc19fe64fc9d0e5c6fc52655c36`.
 - Display: Xvfb/XFCE `:1`, 1280x800, x11vnc loopback-only inside the container, Websockify as the only published service.
 - Wine: pinned Wine/Staging 11.21 plus the retained visible-region patch; WebView2 Evergreen `157.0.4341.60` for the reference profile.
+
+The measured appliance candidate used executable harness commit `b88db7bafdf129f9727921d27a434a3174998df7`. Its WSL rootfs is 503,298,560 bytes, SHA-256 `56f7445646c6442df301e39d5f4e325dae63b2e85d04a2e7f8d3c70b4cf3c5ae`. The compressed image archive is 2,077,870,568 bytes, SHA-256 `a5876cac7604c47c6e06bcb890f3bc4dedd81aabfb3906a53d9b73929caf8a0e`; its verified uncompressed Docker-save SHA-256 is `6c1f4f9fd364ed970fc1ba1796a71952e2f917ae7603ea3cf10903d6209dbfb5`. These are private local artifacts, not public download claims.
 
 The browser endpoint is plaintext HTTP on loopback only, authenticated with an eight-character per-run RFB password (the protocol limit). Raw VNC is not published. Clipboard and remote desktop resizing are disabled. Do not expose this profile to a LAN or use it as a multi-user gateway.
 

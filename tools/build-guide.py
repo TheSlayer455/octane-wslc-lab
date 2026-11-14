@@ -120,7 +120,7 @@ def image_grid(items):
 page(1, "Octane<br/>Windows installer compatibility lab")
 p(
     "<b>Complete implementation, operation, and measured-validation reference</b><br/>"
-    "Guide revision 7 | November 14, 2026 | Windows x64 + Docker/WSL + Wine 11.21 + browser candidate"
+    "Guide revision 8 | November 14, 2026 | Windows x64 + packaged WSL/Docker + Wine 11.21 + browser candidate"
 )
 p(
     "Octane is a repository-independent, container-runtime-independent lab for a real "
@@ -137,7 +137,7 @@ h("What is delivered")
 p(
     "The private repository contains the Rust/Tauri reference app, fixtures, Windows NSIS "
     "build workflow, explicit WSLC and Docker adapters, WineGUI and Docker-Wine controls, "
-    "a noVNC browser candidate, generic target profiles, a runtime doctor, normalized run-state "
+    "a noVNC browser candidate, an importable WSL/Docker appliance, generic target profiles, a runtime doctor, normalized run-state "
     "and evidence tooling, a source-independent runtime kit, regression checks, and this guide. "
     "The measured installer and matching manifest remain retained in private v0.1.1."
 )
@@ -152,7 +152,8 @@ p(
     "normal repainting, the locked runner, and the final historical ten-run qualification. Pages 29-30 "
     "record historical verification, inventory, sources, and continuing work. Pages 31-36 define "
     "the browser candidate, daily workflow, security/file/network boundaries, runtime kit, blocked "
-    "qualification, and operator handoff. Commands run in "
+    "qualification, and operator handoff. Pages 37-40 define the packaged WSL appliance, one-command "
+    "operator workflow, recovery/test evidence, and exact remaining boundary. Commands run in "
     "<b>PowerShell 7 from the repository root</b> unless a desktop terminal is named."
 )
 
@@ -177,12 +178,14 @@ topics = [
     "Daily unchanged-installer browser workflow", "Viewer, file, network, and security boundaries",
     "Source-independent runtime kit and recovery", "Browser evidence and blocked qualification",
     "Manual browser smoke and qualification resume path",
+    "Packaged WSL appliance architecture", "One-command appliance workflow",
+    "Appliance build, recovery, and live test", "Appliance verdict and maintenance boundary",
 ]
 contents_rows = []
-for offset in range(18):
+for offset in range(20):
     contents_rows.append([
         str(offset + 1), topics[offset],
-        str(offset + 19), topics[offset + 18],
+        str(offset + 21), topics[offset + 20],
     ])
 table(["Page", "Topic", "Page", "Topic"], contents_rows, [27, 214, 27, 224], compact=True)
 p(
@@ -1199,7 +1202,7 @@ table(["Verification", "Observed result"], [
     ["Windows artifact", status.get("windowsBuild", "")],
     ["Node checks", "19 PASS: application, diagnostic, dialog-probe, and qualification contracts."],
     ["Rust core", "4 historical PASS in measured installer build: fixtures/hash, path errors, export/no-overwrite, limits."],
-    ["PowerShell", "48 mocked + 12 qualification-policy + 32 browser/runtime assertions PASS; scripts parse under PowerShell 7."],
+    ["PowerShell", "48 mocked + 12 qualification-policy + 35 browser/runtime + 27 appliance assertions PASS; scripts parse under PowerShell 7."],
     ["Bash / Ansible", "Current helpers pass bash -n; existing SER8 playbooks retain prior syntax evidence."],
     ["Docker doctor", "PASS with real alpine run, known-file copy-out, and managed cleanup."],
     ["Minimal diagnostic", "Hash 82cd1c...; environment/controller/navigation/DOM/input/timers PASS; pixels FAIL in three profiles."],
@@ -1462,7 +1465,7 @@ p(
 )
 h("Available verification")
 p(
-    "Current local checks: 32 browser/runtime assertions, 48 mocked PowerShell assertions, 12 qualification-policy "
+    "Current local checks: 35 browser/runtime assertions, 27 appliance-packaging assertions, 48 mocked PowerShell assertions, 12 qualification-policy "
     "assertions, 19 Node tests, Bash/PowerShell parsing, controlled endpoint positive/negative cases, synthetic 420 MiB "
     "transport, extracted-kit lifecycle, archive export/import, and exact cleanup. These are not browser GUI acceptance."
 )
@@ -1502,6 +1505,151 @@ p(
 )
 
 
+page(37, "Packaged WSL appliance architecture")
+code(r"""
+Windows 11
+  |
+  +-- Install-Octane.ps1 / Octane.cmd / default browser
+  |
+  +-- dedicated imported Octane WSL2 appliance
+        Ubuntu 24.04 + systemd + Docker Engine 29.6.2
+        |
+        +-- fresh Docker container per build
+              patched Wine-Staging 11.21 + WebView2
+              Xvfb/XFCE + x11vnc + Websockify/noVNC
+              unchanged Windows setup.exe and installed application
+""")
+p(
+    "Docker Engine belongs in the imported WSL appliance and remains outside the application container. Wine, WebView2, "
+    "the graphical desktop, viewer services, installer, and target belong inside the disposable container. The Windows "
+    "browser receives pixels and sends normal input; it is not a separately hosted application frontend."
+)
+h("Release layout")
+code(r"""Octane-v1/
+  Install-Octane.ps1  Octane.ps1  Octane.cmd  Uninstall-Octane.ps1
+  appliance/octane-ubuntu.tar
+  images/octane-wine-image.tar.zst
+  runtime/  profiles/  docs/  manifest.json  checksums.sha256""")
+p(
+    "The WSL TAR contains the management userspace and pinned Docker packages, but no populated /var/lib/docker. The "
+    "separate image archive preserves Docker layers/tags and is streamed into docker load only after both package and "
+    "runtime checksums pass. Target installers, credentials, raw evidence, and application state are excluded."
+)
+table(["Measured artifact", "Identity"], [
+    ["WSL rootfs TAR", "503,298,560 bytes; SHA-256 56f7445646c6442df301e39d5f4e325dae63b2e85d04a2e7f8d3c70b4cf3c5ae"],
+    ["Compressed image archive", "2,077,870,568 bytes; SHA-256 a5876cac7604c47c6e06bcb890f3bc4dedd81aabfb3906a53d9b73929caf8a0e"],
+    ["Docker-save source", "2,083,884,032 bytes; SHA-256 6c1f4f9fd364ed970fc1ba1796a71952e2f917ae7603ea3cf10903d6209dbfb5"],
+    ["Loaded image ID", "sha256:243cbc44326d000f26e26dbd0e769b3e300cc1ded51e7543a891d2aebecc15ba"],
+], [145, 347], compact=True)
+
+
+page(38, "One-command appliance workflow")
+h("One-time install")
+code(r"""# Windows PowerShell 7, from extracted Octane-v1
+./Install-Octane.ps1 -PackageRoot $PWD -PlanOnly
+./Install-Octane.ps1 -PackageRoot $PWD
+
+# Open a new terminal after PATH is updated.
+octane doctor -Deep""")
+p(
+    "PlanOnly reads and verifies the rootfs, compressed image, runtime checksum manifest, and every listed runtime file "
+    "without changing the host. Install refuses an existing distro, launcher home, or storage root; imports WSL2; verifies "
+    "the appliance marker; starts its Docker service; loads and inspects the exact image; and installs the launcher."
+)
+h("Everyday new-build preview")
+code(r"""octane target -Id example-app `
+  -TargetOutput 'C:\Octane Targets\example-app-octane'
+
+octane open 'C:\Builds\setup.exe' `
+  -Profile 'C:\Octane Targets\example-app-octane\app.json' `
+  -InputDirectory 'C:\TestData\Inputs' `
+  -OutputDirectory 'C:\TestData\Results' `
+  -BuildLabel 'pipeline-12345'
+
+octane collect -Container octane-0123456789
+octane stop -Container octane-0123456789""")
+p(
+    "Open stages and hashes the exact EXE, starts a fresh container/prefix/install, waits for the viewer and native window, "
+    "copies the per-run password to the Windows clipboard, and opens the exact localhost path in the default browser. "
+    "Use -NoBrowser when policy blocks automatic opening. No target source, Git provider, Rust, Node, Visual Studio, or "
+    "Windows-side target installation is required."
+)
+h("Boundaries")
+p(
+    "The host must already permit WSL import/execution. The installer does not enable Windows features, elevate, weaken "
+    "policy, replace a distro, expose a LAN listener, or mount a broad host tree. Uninstall requires an explicit destructive "
+    "switch and checks the exact appliance marker and approved storage roots before unregistering."
+)
+
+
+page(39, "Appliance build, recovery, and live test")
+h("Pinned build inputs")
+p(
+    "The rootfs uses Ubuntu digest 2198e4c65076... and exact Docker CE 29.6.2, containerd 2.2.6, buildx 0.36.0, and "
+    "Compose 5.3.1 packages. Rootfs source commit is d8654e38f1db10f11c5a96c69502b784b2aebb3a. The browser image remains "
+    "the separately measured Wine candidate; packaging did not rebuild or silently replace it."
+)
+code(r"""./scripts/Build-OctaneWslAppliance.ps1 `
+  -OutputPath 'work\appliance\octane-ubuntu.tar'
+
+./scripts/Compress-OctaneImageArchive.ps1 `
+  -InputPath 'work\recovery\octane-browser-candidate-b227260.tar' `
+  -OutputPath 'work\appliance\octane-wine-image.tar.zst'
+
+./scripts/New-OctaneApplianceRelease.ps1 `
+  -ApplianceTar 'work\appliance\octane-ubuntu.tar' `
+  -ImageArchive 'work\appliance\octane-wine-image.tar.zst' `
+  -RuntimeKitDirectory 'work\runtime-kit' `
+  -OutputDirectory 'work\Octane-v1' `
+  -ImageId 'sha256:243cbc44326d000f26e26dbd0e769b3e300cc1ded51e7543a891d2aebecc15ba' `
+  -UncompressedImageArchiveSha256 6c1f4f9fd364ed970fc1ba1796a71952e2f917ae7603ea3cf10903d6209dbfb5""")
+h("Measured live package lifecycle")
+table(["Stage", "Result"], [
+    ["Package/WSL/Docker/image", "PASS: hashes, unique import, marker, Docker 29.6.2, exact image ID"],
+    ["Doctor", "PASS: host/distro/context/storage/build/run/copy/loopback/exact cleanup"],
+    ["Fresh target preview", "PASS: retained unchanged installer, one executable, loaded WebView2, native X11 window"],
+    ["Browser components", "PASS: loopback publication, auth, no RDP, X11/VNC identity, HTTP, origin rejection"],
+    ["Browser application acceptance", "BLOCKED: negotiation, framebuffer, browser input, workload/dialog/export NOT_RUN"],
+    ["Cleanup", "PASS: exact container, credential, distro, storage, and port removed"],
+], [150, 342], compact=True)
+p(
+    "Live test 3a42ee1ca3 used container octane-88c9d8c718 and executable harness commit "
+    "b88db7bafdf129f9727921d27a434a3174998df7. Evidence checksum manifest SHA-256 is "
+    "a16e375d6e080414039a5574cf14abf48a4d4a4b5e888e02725237f818565061."
+)
+
+
+page(40, "Appliance verdict and maintenance boundary")
+table(["Conclusion", "Status"], [
+    ["Historical Octane/RDP", "QUALIFIED 10/10 for its exact immutable lock"],
+    ["Browser image components", "PASS in the source-tree and imported-appliance paths"],
+    ["Appliance packaging", "PASS for the measured component lifecycle and exact cleanup"],
+    ["Manual browser smoke", "NOT_RUN"],
+    ["Automated browser acceptance", "BLOCKED by unavailable approved browser control"],
+    ["Browser-specific ten-run batch", "BLOCKED; 0/10 executed"],
+    ["Another Windows application", "UNTESTED; never inherits the reference result"],
+], [190, 302], compact=True)
+h("What the appliance changes")
+p(
+    "It makes setup predictable: one verified import, one pinned image load, and one Windows launcher. It does not change "
+    "the target bytes, Wine compatibility, the custom patch maintenance condition, the white minimal WebView2 probe, or "
+    "the need to prove browser-delivered pixels/input."
+)
+h("Environment-specific test note")
+p(
+    "This Codex Windows sandbox projects LocalAppData files into a view invisible to wsl.exe. The package's default "
+    "LocalAppData plan and hashes passed, while the live lifecycle used an explicit project-scoped WSL-visible state root. "
+    "No ACL, policy, or broad security setting was weakened to hide that limitation. A normal unsandboxed default-path "
+    "install and a second-machine cold import remain untested."
+)
+h("Next action")
+p(
+    "Use the retained port-3005 handoff or recreate the same candidate, perform the documented smoke in an approved Windows "
+    "browser, and preserve browser-attributable frame/input evidence. Only after that passes should a final lock and ten "
+    "fresh browser runs begin. Until then the appliance is a private component-tested candidate, not a qualified release."
+)
+
+
 def decorate(canvas, doc):
     canvas.setTitle("Octane - Complete Windows Installer Compatibility Lab Guide")
     canvas.setAuthor("Octane Lab")
@@ -1509,7 +1657,7 @@ def decorate(canvas, doc):
     canvas.line(54, 44, 558, 44)
     canvas.setFont("Helvetica", 8)
     canvas.setFillColor(colors.HexColor("#657989"))
-    canvas.drawString(54, 30, "OCTANE / PRIVATE PROJECT REFERENCE / GUIDE REVISION 7")
+    canvas.drawString(54, 30, "OCTANE / PRIVATE PROJECT REFERENCE / GUIDE REVISION 8")
     canvas.drawRightString(558, 30, str(doc.page))
 
 

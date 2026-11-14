@@ -2,7 +2,48 @@
 
 This is the normal browser workflow for the current **unqualified candidate**. Historical RDP commands are intentionally absent. Browser acceptance remains blocked until an approved browser path supplies real framebuffer and input evidence.
 
-## One-time checks
+## Packaged appliance (recommended operator path)
+
+The extracted private `Octane-v1` package is self-contained at the runtime layer: it carries an importable Ubuntu 24.04 WSL rootfs, pinned Docker management tooling, the checksum-verified compressed Wine/browser image archive, the provider-neutral runtime kit, profiles, and docs. It does not include a target installer or credentials.
+
+Run in Windows PowerShell 7 from the extracted package:
+
+```powershell
+# Verify all declared package/runtime hashes and show the plan only.
+./Install-Octane.ps1 -PackageRoot $PWD -PlanOnly
+
+# Import the dedicated Octane WSL appliance and load the pinned image once.
+./Install-Octane.ps1 -PackageRoot $PWD
+```
+
+The import must already be permitted by organizational WSL policy. It does not enable WSL, install Windows features, elevate the Windows process, alter another distro, or bypass application control. The installer refuses an existing `Octane` distro or launcher directory rather than replacing it.
+
+Open a new PowerShell terminal after PATH changes:
+
+```powershell
+octane doctor -Deep
+octane target -Id example-app `
+  -TargetOutput 'C:\Octane Targets\example-app-octane'
+
+# Review and complete app.json before marking installer arguments verified.
+octane open 'C:\Builds\setup.exe' `
+  -Profile 'C:\Octane Targets\example-app-octane\app.json' `
+  -InputDirectory 'C:\TestData\Inputs' `
+  -OutputDirectory 'C:\TestData\Results' `
+  -BuildLabel 'pipeline-12345'
+```
+
+Normal `open` copies the per-run viewer credential to the Windows clipboard and opens the exact `http://127.0.0.1:<port>/octane.html` URL with the Windows default-browser association. Use `-NoBrowser` when policy blocks automatic opening; the application stays inside Wine either way.
+
+```powershell
+octane status
+octane collect -Container octane-0123456789
+octane stop -Container octane-0123456789
+```
+
+The self-contained appliance component test passed import, Docker 29.6.2, image identity, fresh install, native window/WebView2 identity, authenticated loopback noVNC components, collection, and exact cleanup. Browser negotiation/framebuffer/input remained NOT_RUN, so the package is still a candidate rather than a qualified browser release.
+
+## Source-tree one-time checks
 
 Open Windows PowerShell 7 at the repository or extracted runtime-kit root:
 

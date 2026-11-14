@@ -4,7 +4,7 @@ This is the canonical self-contained handoff for an AI or developer working from
 
 ## 1. Product and current verdicts
 
-Octane accepts an already-built Windows x64 installer, creates a disposable Linux container and Wine prefix through Docker Engine inside WSL2, installs and launches the unchanged Windows program, and exposes the Linux X11 desktop containing that Wine window at an authenticated localhost browser endpoint. The browser transports pixels and normal input; it is not the target frontend.
+Octane accepts an already-built Windows x64 installer, creates a disposable Linux container and Wine prefix through Docker Engine inside WSL2, installs and launches the unchanged Windows program, and exposes the Linux X11 desktop containing that Wine window at an authenticated localhost browser endpoint. The browser transports pixels and normal input; it is not the target frontend. The primary packaging model is now a private self-contained WSL appliance plus a separately loaded pinned Docker image, so an operator does not configure Ubuntu, Docker, Wine, WebView2, X11, and noVNC independently.
 
 Keep these verdicts independent:
 
@@ -12,6 +12,7 @@ Keep these verdicts independent:
 | --- | --- | --- |
 | Historical Octane/RDP qualification | **QUALIFIED 10/10** | Exact retained installer, historical lock, XFCE/Xorgxrdp path, host, schema-v3 scenario, and custom Wine candidate only. |
 | Browser candidate implementation | **IMPLEMENTED; COMPONENT CHECKS PASS** | Image, clean install, native window, loaded WebView2 identity, X11/VNC/Websockify, loopback/auth/no-RDP policy, evidence, cleanup. |
+| WSL appliance package | **IMPLEMENTED; COMPONENT LIFECYCLE PASS** | Hash plan, import, internal Docker, image load, deep doctor, unchanged-installer preview, component evidence, collection, exact stop/unregister. |
 | Manual browser smoke | **NOT_RUN** | No operator evidence was supplied during the candidate checkpoint. |
 | Automated browser acceptance | **BLOCKED** | The active computer-use environment could not control an approved browser with required safeguards. |
 | Browser 10/10 qualification | **BLOCKED / 0 OF 10 EXECUTED** | Historical RDP runs cannot be reused. |
@@ -29,6 +30,7 @@ Do not weaken or reinterpret these:
 - The delivered interface is a localhost browser tab. No RDP client, hidden FreeRDP bootstrap, XRDP-to-browser gateway, or Windows X server belongs in this profile.
 - Each preview starts with a new container, Wine prefix, target install, settings/data, WebView2 user-data directory, and output area.
 - Keep Docker Engine inside the explicitly selected Ubuntu 24.04 WSL2 distribution. Do not silently use Docker Desktop, a remote daemon, another distro, WSLC, or another engine.
+- For the packaged operator path, that selected distribution is the dedicated imported `Octane` appliance. Docker Engine is outside the target container but inside that distro. Wine/WebView2/X11/noVNC are inside the target container.
 - Preserve WSLC and the historical RDP profile as immutable secondary/control material. Do not expand them during browser work.
 - Podman, Proton, CrossOver, VPN work, alternate distributions, host GPU mapping, Windows VMs, Kubernetes, and broad management UI are out of scope.
 - Do not disable URL-policy enforcement or browser safeguards, expose localhost through a tunnel, weaken host security, or switch controllers merely to evade an automation restriction.
@@ -45,9 +47,9 @@ producer pipeline / manual download
               |
   streamed hash + immutable local cache       optional data-only sidecar manifest
               |                                             |
-       PowerShell controller ---------------- application profile
+ Windows Octane launcher -------------------- application profile
               |
- Windows 11 -> explicit Ubuntu WSL2 -> Docker Engine
+ Windows 11 -> imported Octane Ubuntu WSL2 appliance -> Docker Engine
               |
  fresh Linux container + fresh Wine prefix + fresh target/WebView2 data
               |
@@ -101,6 +103,21 @@ Browser candidate:
 - Retained installer SHA-256: `adde062d79c2857cb2f5e676c5d6870986070252ac3cf7ca7a6b78c8d829080a`.
 - Retained installer length: `219,839,154` bytes.
 
+Self-contained appliance candidate:
+
+- Live-tested executable harness commit: `b88db7bafdf129f9727921d27a434a3174998df7`.
+- Rootfs source commit: `d8654e38f1db10f11c5a96c69502b784b2aebb3a`.
+- Ubuntu base: `ubuntu@sha256:2198e4c65076e9cb0b3d695219df667c0e3b0072da64ca3c2648aca17dcecaf5`.
+- Rootfs TAR: 503,298,560 bytes; SHA-256 `56f7445646c6442df301e39d5f4e325dae63b2e85d04a2e7f8d3c70b4cf3c5ae`.
+- Appliance Docker: Docker CE 29.6.2, containerd 2.2.6, buildx 0.36.0, Compose 5.3.1.
+- Compressed browser-image archive: 2,077,870,568 bytes; SHA-256 `a5876cac7604c47c6e06bcb890f3bc4dedd81aabfb3906a53d9b73929caf8a0e`.
+- Uncompressed Docker-save archive: 2,083,884,032 bytes; SHA-256 `6c1f4f9fd364ed970fc1ba1796a71952e2f917ae7603ea3cf10903d6209dbfb5`.
+- Loaded image ID: `sha256:243cbc44326d000f26e26dbd0e769b3e300cc1ded51e7543a891d2aebecc15ba`.
+- Live component run: appliance test `3a42ee1ca3`, container `octane-88c9d8c718`; every package-test lifecycle stage PASS and exact cleanup PASS.
+- Evidence checksum manifest: SHA-256 `a16e375d6e080414039a5574cf14abf48a4d4a4b5e888e02725237f818565061`.
+
+This appliance result is component/lifecycle evidence. noVNC negotiation, browser framebuffer delivery, browser-originated input, and browser-specific application acceptance remained NOT_RUN.
+
 The browser image is a local identity, not an invented public registry reference. The private recovery archive is separate:
 
 - File: `octane-browser-candidate-b227260.tar` outside Git.
@@ -113,6 +130,10 @@ The browser image is a local identity, not an invented public registry reference
 | Path | Contract |
 | --- | --- |
 | `lab/Dockerfile.browser-novnc` | Adds pinned noVNC/Websockify, x11vnc, curl, and browser launch helpers to the exact historical Wine image. |
+| `lab/Dockerfile.wsl-appliance` | Builds the importable Ubuntu 24.04 management rootfs with pinned Docker packages and no populated Docker data root. |
+| `packaging/windows/Install-Octane.ps1` | Verifies package/runtime hashes, imports the exact WSL distro without overwrite, starts internal Docker, streams the separate image archive into `docker load`, and installs the Windows launcher. |
+| `packaging/windows/Octane.ps1` | Installed `doctor/open/status/collect/stop/credential/target` front door; opens the default Windows browser only after startup succeeds. |
+| `packaging/windows/Uninstall-Octane.ps1` | Marker-checks and unregisters only the exact appliance, then removes only journaled approved roots. |
 | `lab/browser/octane-browser-session` | Starts XFCE on Xvfb `:1`, loopback-only x11vnc, origin-checked Websockify, and writes session identity. |
 | `lab/browser/octane.html` | Local noVNC client and observable viewer states; never asserts app readiness. |
 | `lab/browser/octane-target` | Validates staged bytes, prepares prefix/file bridges, installs, discovers exactly one executable, launches, observes a native window, records WebView2, probes declared endpoints, and verifies copied inputs. |
@@ -128,12 +149,80 @@ The browser image is a local identity, not an invented public registry reference
 | `scripts/Collect-OctanePreview.ps1` | Revalidates host/container inputs, copies outputs/evidence, then leaves cleanup explicit. |
 | `scripts/Stop-OctaneLab.ps1` | Removes only the exact asserted managed resource and run secret. |
 | `scripts/New-OctaneRuntimeKit.ps1` | Produces a source-independent private kit with checksums. |
+| `scripts/Build-OctaneWslAppliance.ps1` | Reproducibly builds/exports the pinned management rootfs TAR and manifest. |
+| `scripts/Compress-OctaneImageArchive.ps1` | zstd-compresses and verifies the separate Docker-save archive. |
+| `scripts/New-OctaneApplianceRelease.ps1` | Assembles the private package layout and complete checksum manifest. |
+| `scripts/Test-OctaneAppliancePackage.ps1` | Imports a unique test distro, exercises doctor/preview/components/collection/cleanup, and records the narrow result. |
 | `docs/compatibility-matrix.md` | Dated results; historical observations are never rewritten. |
 | `docs/research-evidence-ledger.md` | Claim/source/version/local-outcome/confidence ledger. |
 
 Ignored `artifacts/`, `runs/`, `evidence/`, and `work/` hold binaries, credentials, raw results, caches, and recovery material. Never add them indiscriminately to Git.
 
-## 6. One-time prerequisite and image setup
+## 6. Self-contained appliance install and operator workflow
+
+The private appliance release has this contract:
+
+```text
+Octane-v1/
+  Install-Octane.ps1
+  Octane.ps1
+  Octane.cmd
+  Uninstall-Octane.ps1
+  appliance/octane-ubuntu.tar
+  images/octane-wine-image.tar.zst
+  runtime/
+  profiles/windows-tauri.json
+  docs/
+  manifest.json
+  checksums.sha256
+```
+
+The WSL TAR contains Ubuntu userspace, systemd, a non-root `octane` operator, and pinned Docker management packages. It deliberately does not contain a populated `/var/lib/docker`. The zstd archive contains the pinned Wine/browser Docker image and is verified independently. This separation keeps the appliance and image recoverable and updateable without pretending a WSL export and Docker archive are the same artifact.
+
+One-time install from Windows PowerShell 7:
+
+```powershell
+# Read every declared package/runtime file and verify hashes; change nothing.
+./Install-Octane.ps1 -PackageRoot $PWD -PlanOnly
+
+# Import the dedicated distro and load the exact image.
+./Install-Octane.ps1 -PackageRoot $PWD
+```
+
+The installer uses supported `wsl.exe --import`, refuses an existing distro/home, verifies the appliance marker, starts Docker with systemd, streams `zstd -dc` into `docker load`, compares the loaded image ID, copies the source-independent runtime, and writes `config.json`. It does not enable WSL, install Windows features, elevate, unregister another distro, modify another Docker context, or execute the target installer.
+
+Normal operator commands after opening a new terminal:
+
+```powershell
+octane doctor -Deep
+octane target -Id example-app `
+  -TargetOutput 'C:\Octane Targets\example-app-octane'
+
+octane open 'C:\Builds\setup.exe' `
+  -Profile 'C:\Octane Targets\example-app-octane\app.json' `
+  -InputDirectory 'C:\TestData\Inputs' `
+  -OutputDirectory 'C:\TestData\Results' `
+  -BuildLabel 'pipeline-12345'
+
+octane status
+octane collect -Container octane-0123456789
+octane stop -Container octane-0123456789
+```
+
+`open` creates a clean run, prints the run/container/artifact/URL identities, copies the per-run RFB password to the Windows clipboard without printing it, and calls the Windows default-browser association. `-NoBrowser` leaves startup intact and prints the explicit credential command for environments where automatic opening is blocked.
+
+Uninstall is never automatic recovery. After collecting every wanted run, invoke the installed script explicitly:
+
+```powershell
+& "$env:LOCALAPPDATA\Octane\Uninstall-Octane.ps1" `
+  -ConfirmDistributionRemoval
+```
+
+It validates the exact distro name, appliance marker, and cleanup roots before terminating/unregistering. It does not remove input/output/evidence outside the installed launcher and distro-storage trees.
+
+The live package test used an explicit WSL-visible project state root because this Codex execution sandbox projects `%LOCALAPPDATA%` into a view that `wsl.exe` cannot see. The production `%LOCALAPPDATA%\Octane` plan and package hashes passed, but a normal unsandboxed operator install at that default path was not separately executed here. This is an execution-environment limitation, not a reason to weaken ACLs or host policy.
+
+## 7. Source-tree prerequisite and image setup
 
 Use Windows PowerShell 7. `wsl.exe` is a Windows command. Do not type `wsl` or `wslc` inside Ubuntu and install an unrelated package when the shell reports “not found.”
 
@@ -157,7 +246,7 @@ Build only if the exact historical base image is present:
 
 Or load the private recovery archive with the exact hash shown in section 4. Do not repull a mutable tag or silently rebuild against a different base after locking.
 
-## 7. Onboard a generic application without source
+## 8. Onboard a generic application without source
 
 Create a sibling overlay:
 
@@ -195,7 +284,7 @@ Validate only data:
 
 Validation rejects traversal, malformed IDs, newline/NUL arguments, mismatched executable paths, unsafe regexes, credentials in endpoint URLs, unsupported schemes, templates marked operational, and unknown schema fields. Arrays are passed as native arguments; no `eval` or `Invoke-Expression` is used.
 
-## 8. Application-profile contract
+## 9. Application-profile contract
 
 `schemaVersion: 1` separates the following:
 
@@ -209,9 +298,21 @@ Validation rejects traversal, malformed IDs, newline/NUL arguments, mismatched e
 
 Never fall back to the reference Octane binary if another target installation or lookup fails. Exactly one executable must be found, and its path/hash is recorded.
 
-## 9. Daily new-build workflow
+## 10. Daily new-build workflow
 
 Acquisition is separate. The developer downloads one explicit pipeline artifact or uses an optional authorized provider adapter. Octane does not watch download folders, poll pipelines, or execute every `setup.exe`.
+
+Installed-appliance command:
+
+```powershell
+octane open 'C:\Builds\setup.exe' `
+  -Profile '..\example-app-octane\app.json' `
+  -InputDirectory 'C:\TestData\Inputs' `
+  -OutputDirectory 'C:\TestData\Results' `
+  -BuildLabel 'opaque-producer-build-12345'
+```
+
+Source-tree equivalent for framework development:
 
 ```powershell
 ./scripts/Start-OctanePreview.ps1 `
@@ -230,7 +331,7 @@ The script performs these bounded steps:
 1. Validates the application profile.
 2. Ensures input/output are distinct and rejects input reparse points.
 3. Opens the EXE read-only, hashes while copying with an 8 MiB buffer, detects source metadata changes, flushes, rehashes the staged copy, and atomically moves it to `installer-<sha256>.exe`.
-4. Creates run identity, input manifest, ignored secret file, and resource journal before dependent resources.
+4. Creates run identity, input manifest, ignored Windows-side credential record, a WSL-native read-only bind source, and resource journal before dependent resources. The secret crosses the WSL boundary over standard input, never a command argument.
 5. Runs deep doctor and verifies the selected image's browser/no-RDP labels.
 6. Creates a fresh container with one `127.0.0.1:PORT:3000` publication, 1 GiB shared memory, and one read-only password-file mount.
 7. Copies the profile, immutable EXE/manifest, and selected inputs into the fresh container; source files are never mounted broadly.
@@ -240,7 +341,7 @@ The script performs these bounded steps:
 
 The 420 MiB synthetic capacity test passed: 440,401,920-byte files streamed/hashed, same filename with different bytes produced different identities, a truncated file failed the authoritative producer hash, and identical bytes reused the immutable cache. This is transport evidence only, not a second executable installer result. A second real installer was unavailable, so two-build application acceptance remains NOT_TESTED.
 
-## 10. Browser viewer and manual operation
+## 11. Browser viewer and manual operation
 
 Credential retrieval defaults to the Windows clipboard:
 
@@ -283,7 +384,7 @@ Manual checklist:
 
 An operator result is a manual smoke test. It never becomes an unattended run or automatic PASS.
 
-## 11. File bridge and clean-state model
+## 12. File bridge and clean-state model
 
 The target's picker sees the Wine filesystem, not the entire Windows laptop.
 
@@ -301,7 +402,7 @@ What is always fresh: container, Wine prefix and registry, installed target, tar
 
 This release does not implement in-place upgrade, profile migration, same-prefix rollback, or persistent target cookies/tokens.
 
-## 12. Network capability model
+## 13. Network capability model
 
 Localhost-only inbound viewer exposure does not disable target egress. A profile declares only endpoints it needs; probes are bounded and never scan a subnet.
 
@@ -317,7 +418,7 @@ The probe is explicitly **Linux container curl only**. It does not prove:
 
 Never copy Windows browser cookies, Credential Manager data, private keys, tickets, certificates, or machine secrets into the container automatically. If a target requires one of those, identify the exact dependency and report PASS, FAIL, BLOCKED, or NOT_TESTED for an approved mechanism.
 
-## 13. Collection, evidence, and status semantics
+## 14. Collection, evidence, and status semantics
 
 ```powershell
 ./scripts/Collect-OctanePreview.ps1 `
@@ -327,6 +428,8 @@ Never copy Windows browser cookies, Credential Manager data, private keys, ticke
 ```
 
 Evidence includes run/environment/results/JUnit metadata, doctor record, target preparation, installer manifest and in-container hash, installed executable identity, WebView2 identity/processes, native X11 window observation, viewer logs/session identity, network probes, input manifests, output checksums, optional operator screenshots/recording, and overall checksum manifest. Only files actually produced are included.
+
+With the installed appliance, `octane collect -Container <exact-name>` and `octane stop -Container <exact-name>` call the same shared scripts against the appliance's internal Docker daemon.
 
 Keep meanings exact:
 
@@ -340,7 +443,7 @@ HTTP 200 proves only static viewer delivery. VNC `connect` proves negotiation, n
 
 Raw evidence may contain paths, filenames, screenshots, and output data. Keep it private and local. Review/redact before any publication. Never log the credential or include it in manifests/checksums intended for sharing.
 
-## 14. Exact cleanup and failure recovery
+## 15. Exact cleanup and failure recovery
 
 ```powershell
 ./scripts/Stop-OctaneLab.ps1 `
@@ -360,7 +463,7 @@ On failure:
 
 If the controller is interrupted, use `runs/octane-<id>.json` and labels `com.octanelab.managed=true`, `com.octanelab.run=<id>` to reconcile. Never match only a loose name substring.
 
-## 15. Troubleshooting decision path
+## 16. Troubleshooting decision path
 
 | Layer | Evidence | Typical classification |
 | --- | --- | --- |
@@ -379,7 +482,7 @@ If the controller is interrupted, use `runs/octane-<id>.json` and labels `com.oc
 
 Do not resume broad GPU/Wine flag searches. The current candidate already uses the qualified Wine build and records effective WebView2 arguments. The minimal native WebView2 probe remains white; that does not erase observed Octane success, and Octane success does not make the probe pass.
 
-## 16. Qualification boundary and blocked ten-run plan
+## 17. Qualification boundary and blocked ten-run plan
 
 The candidate lock status is `candidate-end-to-end-blocked`, not qualified. The declared batch `browser-qbatch-...` lists ten planned runs, each `NOT_RUN` with the same browser-control blocker. This is more accurate than executing the app entirely through X11 and claiming the browser path.
 
@@ -387,7 +490,7 @@ Resume only when an approved browser-control path exists. Freeze the final candi
 
 After changing image, viewer, Wine/patch, WebView2, script, timeout, fixture, browser behavior, or security policy, generate a new lock and start a new batch. Never replace a failed run or manually promote one.
 
-## 17. Runtime kit and recovery
+## 18. Runtime kit and recovery
 
 Create a private source-independent kit:
 
@@ -399,6 +502,27 @@ Create a private source-independent kit:
 ```
 
 The kit includes scripts/modules, profile schemas/templates, browser image layer, reference profile/fixtures, locks, validation helpers, this document, quick start, compatibility/research records, and checksums. It excludes target source, installer bytes, image bytes, credentials, provider tokens, Git metadata, and raw evidence.
+
+Build the larger private appliance release only from verified inputs:
+
+```powershell
+./scripts/Build-OctaneWslAppliance.ps1 `
+  -OutputPath 'work\appliance\octane-ubuntu.tar'
+
+./scripts/Compress-OctaneImageArchive.ps1 `
+  -InputPath 'work\recovery\octane-browser-candidate-b227260.tar' `
+  -OutputPath 'work\appliance\octane-wine-image.tar.zst'
+
+./scripts/New-OctaneApplianceRelease.ps1 `
+  -ApplianceTar 'work\appliance\octane-ubuntu.tar' `
+  -ImageArchive 'work\appliance\octane-wine-image.tar.zst' `
+  -RuntimeKitDirectory 'work\runtime-kit' `
+  -OutputDirectory 'work\Octane-v1' `
+  -ImageId 'sha256:243cbc44326d000f26e26dbd0e769b3e300cc1ded51e7543a891d2aebecc15ba' `
+  -UncompressedImageArchiveSha256 6c1f4f9fd364ed970fc1ba1796a71952e2f917ae7603ea3cf10903d6209dbfb5
+```
+
+The release builder verifies its input manifests before copying and writes a top-level manifest plus checksums for every packaged file. Large archives remain outside Git. Redistribution permission for third-party binaries is not inferred from a successful build; keep this candidate private unless licensing and owner authorization are separately established.
 
 The extracted-kit exercise used a path containing spaces and `ü`, created/validated `example-app-octane`, staged the external retained EXE to the exact hash, started a clean preview without source-tree fallbacks, passed every available component check, collected output/evidence, and removed the exact container. Browser input remained blocked. Re-run this exercise after final docs/kit packaging changes.
 
@@ -413,13 +537,13 @@ Image recovery:
 
 Keep archive/manifest together outside Git. Import verifies archive SHA before Docker reads it and optionally asserts the expected loaded image ID. The image recipe documents inputs but does not prove byte-for-byte reproducibility; the archive checksum is integrity, not authenticity.
 
-## 18. CI/provider independence
+## 19. CI/provider independence
 
 Core commands require only local files and do not call `gh`, `glab`, GitHub, or GitLab. Producer build, Windows reference compilation, static/unit/mock checks, image preparation, and live browser acceptance are separate jobs. Hosted CI is not assumed to provide WSL, nested Docker, interactive display, or a Windows browser.
 
 Provider wrappers may check out, select a trusted runner, invoke shared scripts, and upload private results. They must not duplicate acceptance logic or execute untrusted public pull requests on a runner with desktop/network access. A green build/static job is never GUI qualification. No live GitLab project result is claimed.
 
-## 19. Updating, requalifying, and rolling back
+## 20. Updating, requalifying, and rolling back
 
 Treat these as qualification-sensitive: target installer, Wine/Staging/patch, WebView2, X11/desktop, noVNC/Websockify/x11vnc, browser/controller, controller/scenario code, fixtures, host/WSL/kernel/Docker, ports/security policy, and timeouts.
 
@@ -436,7 +560,7 @@ Update procedure:
 
 Rollback means selecting a retained exact image/profile/installer in a new clean run. It does not mean downgrading a live prefix or deleting later evidence.
 
-## 20. Known limitations
+## 21. Known limitations
 
 - Browser framebuffer/input/manual smoke and ten-run qualification are not yet executed.
 - HTTP/RFB on loopback is not a remote multi-user security design.
@@ -446,14 +570,17 @@ Rollback means selecting a retained exact image/profile/installer in a new clean
 - Only one real retained installer was available. The 420 MiB second-build tests are synthetic transport tests, not app acceptance.
 - Generic network probes establish only Linux curl reachability. Corporate authentication and target protocol behavior remain target-specific.
 - No native Windows control, second laptop restore, public registry digest, live GitLab pipeline, or public release is claimed.
+- A complete self-contained appliance lifecycle passed from a project-scoped WSL-visible state root. The normal `%LOCALAPPDATA%` install was plan/hash tested but could not be live-executed through this Codex sandbox's projected filesystem view.
+- The appliance artifacts are roughly 2.58 GB combined before runtime/docs overhead; importing WSL distributions may require organizational approval and adequate disk space.
 
-## 21. Ready-to-paste AI onboarding task
+## 22. Ready-to-paste AI onboarding task
 
 ```text
 Use docs/OCTANE-AI-HANDOFF.md as the authoritative Octane specification.
-Work in the existing clone/runtime kit. Preserve historical evidence and the
-browser candidate lock. Onboard the unchanged compiled installer at <EXE_PATH>
-as target ID <APP_ID> using a small <APP_ID>-octane data overlay.
+Work in the existing clone/runtime kit or installed Octane appliance. Preserve
+historical evidence and the browser candidate lock. Onboard the unchanged
+compiled installer at <EXE_PATH> as target ID <APP_ID> using a small
+<APP_ID>-octane data overlay.
 
 Do not request target source, recompile or patch the target, change its build
 pipeline, substitute a Linux/browser build, install it on Windows, add RDP,
@@ -472,6 +599,6 @@ screenshots. If approved browser control is unavailable, leave browser
 acceptance BLOCKED and provide the exact manual operator handoff.
 ```
 
-## 22. Smallest next action
+## 23. Smallest next action
 
 With candidate run `octane-c71f9b509b` still present, an authorized operator can run `Show-OctaneManualBrowserHandoff.ps1`, open its verified URL in an approved Windows browser, perform the seven-step smoke checklist, collect attributable browser evidence, and then stop the exact container. If the run is gone, recreate it from the locked image/profile/installer. Only after that smoke succeeds should unattended browser qualification resume.
