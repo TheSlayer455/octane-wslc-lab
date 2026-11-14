@@ -79,6 +79,20 @@ The enhanced native diagnostic is run from the Windows controller so its raw nat
 
 It uses a fresh WebView2 user-data directory, logs initialization and process events, captures actual child command lines and the loaded Wine display driver, records rAF separately from timer callbacks, performs click/input/scroll/resize/minimize/restore actions, captures X11 screenshots/recording, and compares only the application client area. Automated pixel change remains `NOT_RUN` for final visible acceptance until the screenshots are reviewed; a live DOM cannot turn a blank native window into a pass.
 
+Run the installed Octane black-box scenario separately. The experiment uses the actual installed `octane.exe`, requires a visibly non-blank client before later gates, invokes the real Rust backend, validates the fixture/report contract independently, and exercises native open/save/overwrite behavior:
+
+```powershell
+./scripts/Invoke-OctaneApplicationExperiment.ps1 `
+  -Container octane-0123456789 -Engine Docker `
+  -WslDistro Ubuntu-24.04 -ExperimentId octane-clean-01
+
+# Review the native-window screenshots. Status here is the visual review only;
+# workload, dialog, and export stages retain their own automated outcomes.
+./scripts/Review-OctaneApplicationExperiment.ps1 `
+  -Container octane-0123456789 -ExperimentId octane-clean-01 `
+  -Status PASS -Detail 'Native client and interaction evidence reviewed.'
+```
+
 Record visible acceptance outcomes, collect evidence, and remove only the named lab resources:
 
 ```powershell
@@ -113,20 +127,19 @@ The RDP password is generated per run. The upstream Docker-Wine server receives 
 
 ## Measured result
 
-The WSLC timeout is fixed. WSLC 3.0.1 required NAT session networking on this full-tunnel VPN host. Docker 29.6.2 in `Ubuntu-24.04` passed the deep run/copy/cleanup doctor.
+The earlier WSLC timeout is fixed and preserved as historical evidence. The current primary path is Docker Engine 29.6.2 inside `Ubuntu-24.04` WSL2; its deep run/copy/cleanup doctor passed. No VPN, Podman, Proton, Steam, CrossOver, Docker Desktop, host GPU mapping, `--no-sandbox`, privileged mode, or Docker-socket mount was used in this iteration.
 
-For the unchanged installer (`SHA-256 adde062d79c2857cb2f5e676c5d6870986070252ac3cf7ca7a6b78c8d829080a`):
+For the unchanged retained installer (`SHA-256 adde062d79c2857cb2f5e676c5d6870986070252ac3cf7ca7a6b78c8d829080a`):
 
-- WineGUI under WSLC and Docker rendered Wine 11 Notepad, accepted input, and completed the NSIS installer.
-- Docker-Wine over RDP also rendered/repainted Notepad and completed the installer.
-- Native Ubuntu on the SER8, reached through the strict Ansible inventory, independently reproduced those Docker-Wine results outside WSL. The run was collected and removed without touching the 66 pre-existing containers.
-- Evergreen WebView2 157.0.4341.60 installed in every measured fresh prefix.
-- The minimal Win32 diagnostic proved WebView2 could initialize, navigate local HTML, and emit DOM/repaint messages while its real pixels remained blank and child processes failed.
-- Octane's WebView2 content did not render in either Wine environment. The browser/renderer began, GPU subprocesses restarted, all WebView2 children exited, and the installed window remained blank or black.
-- A controlled Wine 11.0 comparison using upstream MR !12477 changed only `ole32`; both control and patched runs failed rendering identically. Both registered and revoked the host drop target and exited 0, so the older `IDropTarget_Release` crash was not reproduced in this controlled pair.
-- The workload, native dialogs, and JSON export are `BLOCKED`, not passed or inferred.
+- The baseline Docker-Wine/Wine 11 run passed desktop, Notepad input, NSIS, and Evergreen WebView2 157.0.4341.60 installation. The enhanced native probe had live DOM/input/timer activity but a zero client-pixel delta and a white client; Octane remained black.
+- The pinned source control uses Wine commit `2528aff26208257fdbf980666a4f0e66d47563ce` plus the complete matching Wine-Staging commit `04414fee61f7d283072d40905816b928875b2d4b`. One fresh control completed the real GUI/workload/dialog/export scenario after a focus/input and three-cycle resize/minimize/restore repaint nudge; the next fresh control remained black after the same bounded procedure. The control is non-repeatable.
+- The candidate adds only the reviewed `win32u` cross-process visible-region patch, SHA-256 `f0ea7e56c4b86ce6e1f99940c4c18ac80f2bee86442c800bc58c2f36bde92752`, from `JustNotesa/solid-edge-wine-fixes` commit `d3fd3268536ed43c7e5c616bc1c98eec07a9d154`.
+- In three fresh candidate containers, the installed Tauri/WebView2 client visibly rendered only after three resize/minimize/restore cycles. All three then completed the real 8-file Rust workload with 6 extension groups, 1 duplicate set, 176 bytes, and 0 errors.
+- Only candidate run 1 completed every executed native-dialog and export/no-overwrite gate. Runs 2 and 3 produced correct first exports but failed the later dialog/no-overwrite sequence. A reused-prefix debug run validated the hardened overwrite synchronizer, but Choose Files returned `Selection canceled` without a visible picker; it is explicitly not clean acceptance.
+- The minimal Win32 probe still rendered a solid-white WebView client with the candidate (rAF 0, timers 114, client-pixel delta 0). The patch is not a general WebView2 fix, and the mandatory window-state nudge is not normal repaint behavior.
+- No current Wine 11.21 run reproduced the historical `IDropTarget_Release` crash. That does not rewrite the earlier observation or prove Wine bug 60225 was the same defect.
 
-These are Wine-compatibility results, not proof of failure on supported Windows. The same installer still needs native Windows GUI qualification.
+**Verdict: NOT YET DEMONSTRATED repeatably.** There is a conditional laboratory rendering/workload result, but the required three complete fresh passes and pinned-rebuild confirmation were not achieved. A disposable native-Windows control was unavailable, and the owner's everyday Windows installation was intentionally untouched.
 
 ## Build locally
 

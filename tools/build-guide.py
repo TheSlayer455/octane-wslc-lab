@@ -119,7 +119,7 @@ def image_grid(items):
 page(1, "Octane<br/>Windows installer compatibility lab")
 p(
     "<b>Complete implementation, operation, and measured-validation reference</b><br/>"
-    "Guide revision 4 | November 13, 2026 | Windows x64 + WSLC/Docker/Ansible + Wine 11"
+    "Guide revision 5 | November 14, 2026 | Windows x64 + Docker/WSLC/Ansible + Wine 11.21"
 )
 p(
     "Octane is a repository-independent, container-runtime-independent lab for a real "
@@ -146,8 +146,8 @@ h("How to read this guide")
 p(
     "Pages 3-9 explain architecture, engine choice, diagnosis, artifact intake, and startup. "
     "Pages 10-17 specify the workload, code, evidence, security, and acceptance protocol. "
-    "Pages 18-24 diagnose failures and show the measured WineGUI, Docker-Wine, controlled "
-    "ole32, and native SER8 results. Pages 25-26 record verification, repository inventory, "
+    "Pages 18-25 diagnose failures and show the measured WineGUI, Docker-Wine, controlled "
+    "ole32, native SER8, and Wine 11.21 candidate results. Pages 26-27 record verification, repository inventory, "
     "sources, and remaining work. Commands run in "
     "<b>PowerShell 7 from the repository root</b> unless a desktop terminal is named."
 )
@@ -166,8 +166,8 @@ topics = [
     "Runtime and desktop troubleshooting", "Wine and WebView2 troubleshooting",
     "Measured environment and comparison", "Controlled Wine ole32 experiment",
     "WineGUI visual evidence", "Docker-Wine RDP visual evidence",
-    "Native SER8 Ansible result", "Verification and repository inventory",
-    "References and roadmap",
+    "Native SER8 Ansible result", "Wine 11.21 control and candidate result",
+    "Verification and repository inventory", "References and roadmap",
 ]
 table(["Page", "Topic"], [[str(i), topic] for i, topic in enumerate(topics, 1)], [38, 454], compact=True)
 p(
@@ -256,9 +256,11 @@ h("Environment profiles")
 table(["Profile", "Desktop / user", "State and evidence"], [
     ["WineGui", "Selkies HTTPS :3001 / octane", "/config; /config/octane-evidence"],
     ["DockerWine", "xrdp RDP :3389 / wineuser", "/home/wineuser/.octane; .octane/evidence"],
+    ["DockerWineStaging1121Control", "same RDP desktop / wineuser", "pinned source control; fresh .octane prefix"],
+    ["DockerWineStaging1121VisRgn", "same RDP desktop / wineuser", "exact control plus one verified win32u patch"],
 ], [92, 184, 216], compact=True)
 p(
-    "Both base images are digest pinned. WineGUI is the browser-streamed baseline. Docker-Wine "
+    "Both upstream base images are digest pinned. WineGUI is the browser-streamed baseline. Docker-Wine "
     "is an interchangeable upstream environment reached through an Octane-owned Dockerfile "
     "adapter; its convenience script is not Octane's public interface. The two profiles may "
     "differ in desktop behavior, but they consume the same installer, manifest, fixtures, "
@@ -267,7 +269,9 @@ p(
 code("""WineGUI digest:
 sha256:2a4b95b7a8bcb0306509b622c44344efb6c3bc6ce671c3adf6cfb569c12284ab
 Docker-Wine index digest:
-sha256:c61cfc490aaee10b96782b88733a0f3d0e7b425d93b4e96617d9ab9a2b6bcfd2""")
+sha256:c61cfc490aaee10b96782b88733a0f3d0e7b425d93b4e96617d9ab9a2b6bcfd2
+Wine / Staging commits: 2528aff26208 / 04414fee61f7
+Candidate patch SHA-256: f0ea7e56c4b86ce6e1f99940c4c18ac80f2bee86442c800bc58c2f36bde92752""")
 
 
 page(5, "Runtime doctor and prerequisites")
@@ -365,7 +369,8 @@ Get-Content ./artifacts/installer-manifest.json
 ./scripts/Build-Octane.ps1""")
 h("Private GitHub delivery")
 p(
-    "The v0.1.1 private prerelease retains the measured EXE, manifest, and this guide. Current "
+    "The v0.1.1 private prerelease retains the measured EXE, manifest, and its historical guide; "
+    "this revision does not replace that release. The last separately verified "
     "application-build run 43560204604 verified implementation commit 6199155 with locked Rust/core and Node "
     "checks, the 37-assertion PowerShell harness, Tauri's NSIS build, and artifact upload. Its "
     "new installer hash is 7a4ee192...e22c22 and is not substituted for the Wine-tested artifact. "
@@ -391,9 +396,9 @@ p(
     "The separate webview2-diagnostic workflow builds Release|x64 and uploads "
     "WebView2Diagnostic.exe plus diagnostic-manifest.json. Before a diagnostic or SER8 run, "
     "download that private workflow artifact into diagnostics/webview2-win32/artifacts and "
-    "verify its manifest hash. The measured diagnostic came from commit "
-    "feea96bd35957401e92560154142fd86a8925224 with SDK 1.0.3856.49; its SHA-256 was "
-    "59213db9a027dada8cb7643cd885473c091b4acbfc4eeccc9390a2d72237f37f. Generated binaries "
+    "verify its manifest hash. The current measured diagnostic came from commit "
+    "0228527976b0ee7b0a8847f453fae37173f46df0 with SDK 1.0.3856.49; its SHA-256 was "
+    "82cd1cab4930ffeb940a27898fabdb30322decd84f681ef3d15264c51e86f5b5. Generated binaries "
     "remain Git-ignored and do not make the source repository self-executing without artifact intake."
 )
 p(
@@ -448,8 +453,13 @@ p(
     "Windows-side HTTPS endpoint. A healthy Selkies endpoint returns HTTP 401 before login; "
     "the endpoint gate correctly treats any 2xx-4xx response as reachable."
 )
-h("Docker + Docker-Wine RDP")
-code("""./scripts/Start-OctaneLab.ps1 -Engine Docker -WslDistro Ubuntu-24.04 -WineProfile DockerWine -Port 3390""")
+h("Docker + Docker-Wine RDP and pinned source profiles")
+code("""# Baseline
+./scripts/Start-OctaneLab.ps1 -Engine Docker -WslDistro Ubuntu-24.04 -WineProfile DockerWine -Port 3390
+# Wine 11.21 + matching Staging control
+./scripts/Start-OctaneLab.ps1 -Engine Docker -WslDistro Ubuntu-24.04 -WineProfile DockerWineStaging1121Control -Port 3392
+# Exact control plus visible-region candidate patch
+./scripts/Start-OctaneLab.ps1 -Engine Docker -WslDistro Ubuntu-24.04 -WineProfile DockerWineStaging1121VisRgn -Port 3393""")
 p(
     "Connect a trusted RDP client to localhost:3390 using the printed wineuser credential. "
     "The profile passes a one-way Unix password hash to the upstream entrypoint and preserves "
@@ -503,16 +513,20 @@ p(
     ".exitcode file. PIPESTATUS captures Wine's result rather than tee's. Exit code zero is "
     "still not a visual acceptance result."
 )
-h("Record outcomes explicitly")
-code("""./scripts/Record-OctaneResult.ps1 -Container octane-0123456789 `
-  -Stage basicWine -Status PASS -Detail 'Notepad visibly repainted.'
+h("Run and review the installed-application scenario")
+code("""./scripts/Invoke-OctaneApplicationExperiment.ps1 `
+  -Container octane-0123456789 -Engine Docker -WslDistro Ubuntu-24.04 `
+  -ExperimentId octane-clean-01
 
-./scripts/Record-OctaneResult.ps1 -Container octane-0123456789 `
-  -Stage application -Status FAIL -BlockRemaining `
-  -Detail 'Visible WebView content did not render.'""")
+./scripts/Review-OctaneApplicationExperiment.ps1 `
+  -Container octane-0123456789 -ExperimentId octane-clean-01 `
+  -Status PASS -Detail 'Native client screenshots reviewed.'""")
 p(
-    "BlockRemaining changes every still-NOT_RUN later stage to BLOCKED and marks the run failed. "
-    "It is allowed only with FAIL. It does not overwrite stages already measured."
+    "The first command runs the installed octane.exe, requires non-blank client pixels, invokes "
+    "the real Rust workload, captures native dialogs, validates JSON independently, and preserves "
+    "every failed gate. The reviewer status is only the native-window visual decision; workload, "
+    "dialog, and export outcomes remain independent. For one-off manual observations, use "
+    "Record-OctaneResult.ps1. BlockRemaining is allowed only with FAIL."
 )
 h("Reference workload")
 p(
@@ -632,6 +646,7 @@ table(["Path", "Responsibility"], [
     ["Doctor-OctaneLab.ps1", "Shallow server/context/port checks and optional real run-copy-cleanup probe."],
     ["Start-OctaneLab.ps1", "Artifact hash, doctor, build, labeled run, endpoint gate, credential output."],
     ["Record-OctaneResult.ps1", "Public PASS/FAIL/BLOCKED/NOT_RUN recorder for visible acceptance."],
+    ["Invoke/Review experiment scripts", "Native WebView2 probe and installed-Octane black-box run, visual review, independent fixture/report validation."],
     ["Collect-Evidence.ps1", "Logs/copy-out, environment, results, JUnit, optional screenshots/recording, checksums."],
     ["Stop-OctaneLab.ps1", "Exact labeled removal, anonymous volumes, optional run image, final evidence synchronization."],
     ["lab/octane-lab", "Display discovery, fresh prefix, logged Notepad/install/launch stages."],
@@ -664,7 +679,9 @@ code("""evidence/octane-<run>-<utc>/
   logs/                    container and Wine stage logs
   screenshots/             optional visible desktop evidence
   recording.mp4            optional actual-display capture
-  report.json              present only after a successful app export""")
+  report.json              present only after a successful app export
+  experiments/<id>/        native WebView2 probe evidence
+  applications/<id>/       installed-Octane scenario and visual review""")
 table(["Status", "Meaning"], [
     ["PASS", "The stated gate was directly observed and its evidence exists."],
     ["FAIL", "The gate ran and did not meet its pass condition."],
@@ -810,66 +827,70 @@ p(
     "Application/VERSION directory and msedgewebview2.exe. Then test installer handoff and a "
     "clean standalone launch separately."
 )
-h("Measured failure signature")
+h("Measured signatures are now distinct")
 p(
-    "The final installer disables Tauri drag/drop and passes --disable-gpu. Under WineGUI and "
-    "Docker-Wine, the WebView browser process, crashpad, utilities, renderer, and GPU process "
-    "started. GPU processes restarted and WebView2 children later exited while octane.exe "
-    "remained with blank or black content. A separate minimal Win32 diagnostic sharpened the "
-    "result: environment/controller creation and local navigation succeeded, JavaScript reported "
-    "DOM-ready plus changing repaint ticks, yet the actual desktop pixels remained blank."
+    "The retained installer disables Tauri drag/drop and passes --disable-gpu. Baseline Wine 11.0 "
+    "still launched the WebView browser, renderer, utilities and restarting GPU processes while "
+    "the native client stayed blank/black. The enhanced Win32 probe separately proved environment "
+    "creation, local navigation, DOM messages, input events and timers; reviewed client pixels "
+    "remained solid white with pixel delta zero. A live DOM or process is not visible acceptance."
 )
 p(
-    "A live DOM, process, or internal repaint signal does not satisfy the visible-application gate. "
-    "The repeated blank pixels make application=FAIL, not installer or desktop FAIL. Reproduction "
-    "under WSLC, Docker-in-WSL, and native Linux on the SER8, using both Selkies and RDP, rules out "
-    "WSL and either display transport as necessary conditions for the failure."
+    "Pinned Wine 11.21 plus matching Staging changed the Tauri-host result: Octane sometimes "
+    "presented after three resize/minimize/restore cycles. The control passed one full clean run "
+    "and stayed black in the next. The visible-region candidate rendered Octane and its real "
+    "workload in three fresh runs, but completed every dialog/export gate only once. The minimal "
+    "probe remained white even with that patch. Rendering, repaint reliability, and native-dialog "
+    "behavior are therefore separate failure layers."
 )
-h("Controlled comparison and next experiments")
+h("Research conclusions and next experiment")
 p(
-    "Wine 11.0 control and MR !12477 ole32 builds were compared with the same image, installer, "
-    "runtime, diagnostic, display, and fresh-prefix procedure. The patch did not change rendering, "
-    "and neither run reproduced the older IDropTarget_Release crash. The next authority is the "
-    "unchanged installer on supported Windows. A separately hashed Fixed Version WebView2 build "
-    "can later isolate Evergreen installation/servicing from webview execution."
+    "Wine bug 60225 remains a close historical crash lead, not an established cause of the current "
+    "result. The Wine 11.0 MR !12477 pair and current 11.21 runs did not reproduce the old "
+    "IDropTarget_Release crash. WebView2Feedback 5720 correctly motivated independent DOM/pixel "
+    "measurement, but its macOS and Linux reports are not universal claims. The Solid Edge patch "
+    "is a measured application-specific candidate, not a general WebView2 repair."
 )
 p(
-    "Do not accumulate DLL overrides, old runtimes, no-sandbox flags, privileged mode, or broad "
-    "host mounts until something appears. Any compatibility adjustment must be explicit in "
-    "environment metadata and justified by a measured difference."
+    "The smallest next experiment is a native IFileOpenDialog/GetOpenFileName probe in the same "
+    "candidate prefix, recording HRESULT and window lifecycle. Then rerun one fresh candidate with "
+    "the committed input synchronizer. Do not add no-sandbox, privileged mode, broad mounts, opaque "
+    "DLLs, or old runtimes without one explicit hypothesis and a separately named profile."
 )
 
 
 page(20, "Measured environment and comparison")
 p(status.get("evidenceSummary", "Measured evidence unavailable."))
-table(["Combination", "Runtime/desktop", "Wine + installer", "Application / later gates"], [
-    ["WSLC + WineGUI", "PASS / PASS", "Notepad PASS; NSIS + WebView2 PASS", "WebView FAIL; workload/dialog/export BLOCKED"],
-    ["Docker + WineGUI", "Doctor PASS; HTTPS PASS", "Notepad PASS; NSIS + WebView2 PASS", "White blank; application FAIL; later BLOCKED"],
-    ["Docker + Docker-Wine", "Doctor PASS; RDP PASS", "Notepad PASS; NSIS + WebView2 PASS", "Blank/black; application FAIL; later BLOCKED"],
-    ["SER8 native Docker + Docker-Wine", "Ansible + RDP PASS", "Notepad PASS; NSIS + WebView2 PASS", "Diagnostic/Octane blank; application FAIL; later BLOCKED"],
-    ["WineGUI + MR !12477 ole32", "Docker + HTTPS PASS", "Notepad PASS; NSIS + WebView2 PASS", "Same blank diagnostic/Octane result; later BLOCKED"],
-], [102, 112, 152, 126], compact=True)
+table(["Run/profile", "Desktop + install", "Visible application / workload", "Dialogs + export / repeatability"], [
+    ["Historical WSLC/WineGUI", "PASS", "FAIL blank/black; later BLOCKED", "BLOCKED; historical observation"],
+    ["40f739755a baseline Wine 11", "PASS", "Probe white; Octane black", "BLOCKED; one fresh baseline"],
+    ["17e5fdec70 Staging control", "PASS", "PASS after 3-cycle nudge; 8/6/1/176/0", "PASS; first clean control"],
+    ["615d1bca1e Staging control", "PASS", "FAIL black after same nudge", "BLOCKED; control now 1/2"],
+    ["d2cc660dbe visrgn candidate", "PASS", "PASS after 3 cycles; workload PASS", "PASS; candidate full run 1"],
+    ["c5c34187fa visrgn candidate", "PASS", "GUI/workload PASS after 3 cycles", "FAIL later sequence; full run 2 failed"],
+    ["aef06bc9fa visrgn candidate", "PASS", "GUI/workload PASS after 3 cycles", "FAIL picker/no-overwrite; full run 3 failed"],
+], [112, 104, 152, 124], compact=True)
 h("Exact measured identity")
 table(["Item", "Value"], [
     ["Installer", status.get("installerSha256", "")],
     ["Source commit", status.get("sourceCommit", "")],
-    ["Diagnostic", "59213db9a027dada8cb7643cd885473c091b4acbfc4eeccc9390a2d72237f37f"],
+    ["Installed executable", status.get("installedExecutableSha256", "")],
+    ["Diagnostic", status.get("diagnosticSha256", "")],
     ["WSLC", status.get("wslcVersion", "")],
     ["Docker", f'{status.get("dockerVersion", "")}; {status.get("dockerOperatingSystem", "")}; {status.get("dockerArchitecture", "")}'],
     ["Docker execution", f'rootless={status.get("dockerRootless", "")}; {status.get("dockerStorageDriver", "")}; {status.get("dockerMemoryGiB", "")} GiB'],
     ["SER8", f'{status.get("ser8Hostname", "")}; Docker {status.get("ser8DockerVersion", "")}; {status.get("ser8OperatingSystem", "")}; run {status.get("ser8RunId", "")}'],
-    ["Wine", status.get("wineVersion", "")],
+    ["Wine source / Staging", f'{status.get("wineSourceCommit", "")[:12]} / {status.get("wineStagingCommit", "")[:12]}'],
     ["WebView2", f'Evergreen {status.get("webview2Version", "")}'],
-    ["ole32 experiment", "Wine MR !12477 commit 22a16b053991f95e8bbf91e4784e73f833835b72"],
-    ["Docker/WineGUI run", "octane-78047fb0ca; endpoint 1.110 s; cleanup 0.882 s"],
-    ["Docker-Wine run", "octane-08a0b3f5c3; endpoint 1.022 s; cleanup 0.921 s"],
+    ["Visible-region patch", status.get("visibleRegionPatchSha256", "")],
+    ["Application report", status.get("reportSha256", "")],
+    ["Harness commits", "cf6baba (fresh 1-2); a84bab1 (fresh 3); 17683ea final synchronizer"],
 ], [126, 366], compact=True)
 p(
-    "The first Docker/WineGUI attempt was a false-negative endpoint gate: Selkies returned "
-    "HTTP 401 because it was healthy but unauthenticated. Wait-OctaneEndpoint was corrected "
-    "to accept reachable 2xx-4xx responses. A separate initial Docker-Wine image build exposed "
-    "that the upstream wineuser is created at runtime; the adapter no longer chowns to that "
-    "user during image build."
+    "The candidate's native probe remained white (rAF 0, timer callbacks 114, pixel delta 0) "
+    "while the Tauri host later rendered after a window-state nudge. Candidate GUI/workload was "
+    "3/3, but full native-dialog/export acceptance was 1/3. The result is conditional and not "
+    "repeatably demonstrated. Each named container/image was removed after evidence collection."
 )
 
 
@@ -998,18 +1019,59 @@ p(
 )
 
 
-page(25, "Verification and repository inventory")
+page(25, "Wine 11.21 control and candidate result")
+p(
+    "The current experiment kept the retained installer and Evergreen WebView2 157.0.4341.60 "
+    "fixed while changing only the pinned Wine environment. The source control is Wine "
+    "2528aff... plus the complete matching Staging 04414f... patch set. The candidate adds one "
+    "canonical win32u cross-process visible-region patch, SHA-256 f0ea7e56..., from the reviewed "
+    "Solid Edge repository. No Solid Edge D2D/SVG changes, fixed runtime, no-sandbox flag, Proton, "
+    "Steam, or opaque DLL were imported."
+)
+table(["Profile / run", "Visible client", "Real workload", "Dialogs / export"], [
+    ["Control 17e5fdec70", "PASS after 3-cycle repaint nudge", "PASS 8/6/1/176/0 plus Unicode path", "PASS including cancel/no-overwrite"],
+    ["Control 615d1bca1e", "FAIL solid black after 3 cycles", "BLOCKED for acceptance", "BLOCKED"],
+    ["Candidate d2cc660dbe", "PASS after 3 cycles (15.432 s)", "PASS 8/6/1/176/0", "PASS including cancel/no-overwrite"],
+    ["Candidate c5c34187fa", "PASS after 3 cycles (15.437 s)", "PASS 8/6/1/176/0", "FAIL later sequence; first JSON valid"],
+    ["Candidate aef06bc9fa", "PASS after 3 cycles (15.432 s)", "PASS 8/6/1/176/0", "FAIL visible picker/no-overwrite repeat"],
+    ["Candidate native probe", "FAIL solid-white client; pixel delta 0", "DOM/input/timers only", "Not applicable"],
+], [124, 126, 116, 126], compact=True)
+p(
+    "Evidence bundle checksum-manifest SHA-256: d2cc660dbe 7301d3b9...c868f6bf; "
+    "c5c34187fa f5577280...27fb215; aef06bc9fa 379a035a...a3ca73b. "
+    "The full values are in docs/validation.json and each bundle's checksums.sha256.",
+    "CompactNote",
+)
+image_grid([
+    (
+        "docs/evidence/wine1121-candidate-workload.png",
+        "Fresh candidate run 1: real installed Octane visibly reports 8 files, 6 groups, 1 duplicate set and 176 bytes.",
+    ),
+    (
+        "docs/evidence/wine1121-control-black.png",
+        "Fresh control run 2: the client remained solid black after the same three bounded repaint cycles; application FAIL.",
+    ),
+])
+p(
+    "Every visible control/candidate result required the same intrusive three-cycle window-state "
+    "helper. The candidate is GUI/workload 3/3 but full acceptance 1/3; the control is full "
+    "acceptance 1/2. Verdict: NOT YET DEMONSTRATED repeatably. The evidence supports conditional "
+    "laboratory feasibility, not a default environment or a claim about another proprietary app."
+)
+
+
+page(26, "Verification and repository inventory")
 table(["Verification", "Observed result"], [
     ["Private repository", "TheSlayer455/octane-wslc-lab; private main and private v0.1.1 prerelease."],
     ["Windows artifact", status.get("windowsBuild", "")],
-    ["Node checks", "6 PASS: formatting, summary, literal paths, cancellation, native failure recovery, export state."],
-    ["Rust core", "4 PASS in measured installer build: fixtures/hash, path errors, export/no-overwrite, resource limits."],
-    ["PowerShell", "37 mocked assertions PASS; every script parses in PowerShell 7."],
-    ["Bash / Ansible", "Container helpers pass bash -n; all five SER8 playbooks pass strict-inventory syntax checks."],
+    ["Node checks", "15 PASS: app/probe contracts, formatting, summary, literal paths, cancellation, failures, export state."],
+    ["Rust core", "4 historical PASS in measured installer build: fixtures/hash, path errors, export/no-overwrite, limits."],
+    ["PowerShell", "48 mocked assertions PASS; adapter/lifecycle/schema/cleanup behavior checked."],
+    ["Bash / Ansible", "Current application/probe helpers pass bash -n; existing SER8 playbooks retain prior syntax evidence."],
     ["Docker doctor", "PASS with real alpine run, known-file copy-out, and managed cleanup."],
-    ["Minimal diagnostic", "Environment/controller/navigation/DOM ticks PASS; visible pixels FAIL across tested Wine profiles."],
+    ["Minimal diagnostic", "Hash 82cd1c...; environment/controller/navigation/DOM/input/timers PASS; pixels FAIL in three profiles."],
     ["Controlled ole32", "Control/MR !12477 comparison completed; rendering unchanged; no crash in either member."],
-    ["Live GUI", "WSLC, Docker-in-WSL, and native SER8 paths passed Notepad/installer; WebView application failed."],
+    ["Live GUI", "Wine 11.21 control 1/2 full; candidate GUI/workload 3/3 but complete scenario 1/3."],
     ["Cleanup", "No Octane-managed Docker container remained after measured runs; unrelated resources untouched."],
 ], [112, 380], compact=True)
 h("Repository map")
@@ -1021,6 +1083,7 @@ table(["Path", "Purpose"], [
     ["scripts/Runtime*.ps1", "Engine adapter and Wine environment profiles."],
     ["scripts/RunState.ps1", "Atomic state, normalized results, JUnit, checksum synchronization."],
     ["scripts/Doctor/Start/Record/Collect/Stop", "Public operator lifecycle."],
+    ["scripts/Invoke/Review/Validate", "Native probe, installed-app scenario, visual review, and independent report contract."],
     ["lab/", "Pinned profile Dockerfiles, helpers, and strict native-SER8 Ansible lifecycle."],
     ["tests/", "Node behavior tests and mocked adapter/lifecycle harness."],
     [".github/workflows/", "Private Windows installer build and artifact upload."],
@@ -1033,7 +1096,7 @@ p(
 )
 
 
-page(26, "References and roadmap")
+page(27, "References and roadmap")
 p(
     "Primary sources define supported interfaces and upstream behavior; they do not prove this "
     "particular Wine/WebView combination. Measured claims come from the retained run metadata, "
@@ -1053,8 +1116,12 @@ for label, url in [
     ("Microsoft: WebView2 Win32 getting started", "https://learn.microsoft.com/en-us/microsoft-edge/webview2/get-started/win32"),
     ("Microsoft: WebView2 process-related events", "https://learn.microsoft.com/en-us/microsoft-edge/webview2/concepts/process-related-events"),
     ("MicrosoftEdge: WebView2Samples", "https://github.com/MicrosoftEdge/WebView2Samples"),
+    ("Wine bug 60225: cross-process IDropTarget_Release report", "https://bugs.winehq.org/show_bug.cgi?id=60225"),
     ("Wine MR !12477: revoke foreign drop targets in their own process", "https://gitlab.winehq.org/wine/wine/-/merge_requests/12477"),
     ("G6rm0k: wine-ole32-fix proof of concept", "https://github.com/G6rm0k/wine-ole32-fix"),
+    ("WebView2Feedback 5720: rendering/composition reports", "https://github.com/MicrosoftEdge/WebView2Feedback/issues/5720"),
+    ("JustNotesa: Solid Edge Wine fixes reviewed source", "https://github.com/JustNotesa/solid-edge-wine-fixes"),
+    ("khoipm06: wuwa-tappo-wine community implementation", "https://github.com/khoipm06/wuwa-tappo-wine"),
     ("Source conversation: Run Windows App Containers", "chatgpt-conversation://6af79ffb-6048-83ea-b689-8269484af53d"),
 ]:
     link(label, url)
@@ -1082,7 +1149,7 @@ def decorate(canvas, doc):
     canvas.line(54, 44, 558, 44)
     canvas.setFont("Helvetica", 8)
     canvas.setFillColor(colors.HexColor("#657989"))
-    canvas.drawString(54, 30, "OCTANE / PRIVATE PROJECT REFERENCE / GUIDE REVISION 4")
+    canvas.drawString(54, 30, "OCTANE / PRIVATE PROJECT REFERENCE / GUIDE REVISION 5")
     canvas.drawRightString(558, 30, str(doc.page))
 
 
