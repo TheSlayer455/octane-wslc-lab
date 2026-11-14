@@ -24,5 +24,11 @@ if($runRecord){
     if($RemoveImage){Set-OctaneRunResource -Path $metadata -Resource imageCreated -Value $false}
     Set-OctaneRunState -Path $metadata -State REMOVED
     Sync-OctaneEvidenceBundles -EvidenceRoot (Join-Path $root 'evidence') -Container $Container -RunPath $metadata
+    $secretDirectory=Join-Path $root "runs/secrets/$Container"
+    $allowedSecretRoot=[IO.Path]::GetFullPath((Join-Path $root 'runs/secrets'))
+    $resolvedSecretDirectory=[IO.Path]::GetFullPath($secretDirectory)
+    if($resolvedSecretDirectory.StartsWith($allowedSecretRoot+[IO.Path]::DirectorySeparatorChar,[StringComparison]::OrdinalIgnoreCase) -and (Test-Path -LiteralPath $resolvedSecretDirectory)){
+        Remove-Item -LiteralPath $resolvedSecretDirectory -Recurse -Force
+    }
 }
 Write-Output "Removed $Container and its anonymous volumes$(if($RemoveImage){' plus its run image'}else{''})."

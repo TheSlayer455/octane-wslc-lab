@@ -1,0 +1,9 @@
+{
+  "autoconnect": true,
+  "resize": "scale",
+  "reconnect": false,
+  "shared": false,
+  "show_dot": true,
+  "view_clip": false,
+  "view_only": false
+}

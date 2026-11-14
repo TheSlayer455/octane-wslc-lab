@@ -3,11 +3,33 @@ Set-StrictMode -Version Latest
 function Get-OctaneWineProfile {
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory=$true)][ValidateSet('WineGui','DockerWine','WineGuiOle32Control','WineGuiOle32Mr12477','DockerWineStaging1121Control','DockerWineStaging1121VisRgn')][string]$WineProfile,
+        [Parameter(Mandatory=$true)][ValidateSet('WineGui','DockerWine','WineGuiOle32Control','WineGuiOle32Mr12477','DockerWineStaging1121Control','DockerWineStaging1121VisRgn','DockerWineStaging1121VisRgnBrowser')][string]$WineProfile,
         [string]$BaseImage
     )
 
     $wineGuiBase = 'lscr.io/linuxserver/winegui@sha256:2a4b95b7a8bcb0306509b622c44344efb6c3bc6ce671c3adf6cfb569c12284ab'
+    if ($WineProfile -eq 'DockerWineStaging1121VisRgnBrowser') {
+        return [pscustomobject]@{
+            Name = $WineProfile
+            ProfileKind = 'DockerWineBrowser'
+            BaseImage = if ($BaseImage) { $BaseImage } else { 'octane-lab:qualification-7181a47ee47a' }
+            Dockerfile = 'lab/Dockerfile.browser-novnc'
+            BuildArguments = [ordered]@{
+                NOVNC_COMMIT = '63107bd06d9e1f6136ff21aeda8cd62cbf0d433e'
+                WEBSOCKIFY_COMMIT = 'e81894751365afc19fe64fc9d0e5c6fc52655c36'
+            }
+            BuildTimeoutSeconds = 1800
+            Experiment = 'Browser candidate over the retained qualified Wine 11.21 visible-region image; browser acceptance remains independent.'
+            EndpointKind = 'Http'
+            EndpointPath = '/octane.html'
+            ContainerPort = 3000
+            Username = $null
+            ExecUser = 'wineuser'
+            StateDirectory = '/home/wineuser/.octane'
+            EvidenceDirectory = '/home/wineuser/.octane/evidence'
+            DesktopLabel = 'authenticated noVNC browser viewer'
+        }
+    }
     if ($WineProfile -in @('WineGui','WineGuiOle32Control','WineGuiOle32Mr12477')) {
         $experimental = $WineProfile -ne 'WineGui'
         $variant = if ($WineProfile -eq 'WineGuiOle32Mr12477') { 'mr12477' } elseif ($WineProfile -eq 'WineGuiOle32Control') { 'control' } else { $null }

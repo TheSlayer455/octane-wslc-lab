@@ -1,0 +1,54 @@
+ARG BASE_IMAGE=octane-lab:qualification-7181a47ee47a
+FROM ${BASE_IMAGE}
+
+ARG NOVNC_COMMIT=63107bd06d9e1f6136ff21aeda8cd62cbf0d433e
+ARG WEBSOCKIFY_COMMIT=e81894751365afc19fe64fc9d0e5c6fc52655c36
+
+USER root
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        git iproute2 python3-jwcrypto python3-numpy python3-redis python3-requests x11vnc \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN git init /opt/novnc \
+    && git -C /opt/novnc remote add origin https://github.com/novnc/noVNC.git \
+    && git -C /opt/novnc fetch --depth 1 origin "${NOVNC_COMMIT}" \
+    && git -C /opt/novnc checkout --detach FETCH_HEAD \
+    && test "$(git -C /opt/novnc rev-parse HEAD)" = "${NOVNC_COMMIT}" \
+    && git init /opt/websockify \
+    && git -C /opt/websockify remote add origin https://github.com/novnc/websockify.git \
+    && git -C /opt/websockify fetch --depth 1 origin "${WEBSOCKIFY_COMMIT}" \
+    && git -C /opt/websockify checkout --detach FETCH_HEAD \
+    && test "$(git -C /opt/websockify rev-parse HEAD)" = "${WEBSOCKIFY_COMMIT}" \
+    && rm -rf /opt/novnc/.git /opt/websockify/.git
+
+COPY lab/browser/mandatory.json /opt/novnc/mandatory.json
+COPY lab/browser/defaults.json /opt/novnc/defaults.json
+COPY lab/browser/octane.html /opt/novnc/octane.html
+COPY lab/browser/octane-browser-session /usr/local/bin/octane-browser-session
+COPY lab/browser/octane-target /usr/local/bin/octane-target
+RUN touch /opt/novnc/octane-session.json \
+    && chown wineuser:wineuser /opt/novnc/octane-session.json \
+    && chmod 644 /opt/novnc/octane-session.json \
+    && chmod 755 /usr/local/bin/octane-browser-session /usr/local/bin/octane-target \
+    && printf '{\n  "schemaVersion": 1,\n  "transport": "noVNC",\n  "noVncCommit": "%s",\n  "websockifyCommit": "%s",\n  "vncServer": "x11vnc",\n  "desktop": "Xvfb/XFCE",\n  "resolution": "1280x800x24",\n  "httpTls": false,\n  "authentication": "per-run RFB password",\n  "clipboard": false,\n  "remoteResize": false\n}\n' \
+       "${NOVNC_COMMIT}" "${WEBSOCKIFY_COMMIT}" > /opt/octane/browser-transport.json
+
+ENV RDP_SERVER=no \
+    USE_XVFB=yes \
+    XVFB_SERVER=:1 \
+    XVFB_SCREEN=0 \
+    XVFB_RESOLUTION=1280x800x24 \
+    DISPLAY=:1 \
+    USER_SUDO=no \
+    OCTANE_BROWSER_CONTAINER_PORT=3000 \
+    OCTANE_VIEWER_PASSWORD_FILE=/run/octane/viewer-password \
+    OCTANE_VIEWER_ORIGINS="http://127.0.0.1:3000 http://localhost:3000"
+
+LABEL com.octanelab.browser-transport="novnc" \
+      com.octanelab.browser-rdp-required="false" \
+      com.octanelab.browser-novnc-commit="${NOVNC_COMMIT}" \
+      com.octanelab.browser-websockify-commit="${WEBSOCKIFY_COMMIT}"
+
+ENTRYPOINT ["/usr/bin/entrypoint"]
+CMD ["/usr/local/bin/octane-browser-session"]

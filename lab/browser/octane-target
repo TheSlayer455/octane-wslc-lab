@@ -1,0 +1,193 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+state_dir="${OCTANE_STATE_DIR:-/home/wineuser/.octane}"
+target_dir="$state_dir/target"
+profile="$target_dir/app.json"
+artifact_dir="$target_dir/artifact"
+input_dir="$state_dir/input"
+output_dir="$state_dir/output"
+evidence_dir="${OCTANE_EVIDENCE_DIR:-$state_dir/evidence}/target"
+export WINEPREFIX="${WINEPREFIX:-$state_dir/prefix}"
+export WINEARCH="${WINEARCH:-win64}"
+mkdir -p "$target_dir" "$artifact_dir" "$input_dir" "$output_dir" "$evidence_dir/logs" "$evidence_dir/screenshots"
+
+require_intake() {
+    [[ -f "$profile" ]] || { echo "Target profile is missing: $profile" >&2; exit 64; }
+    mapfile -t manifests < <(find "$artifact_dir" -maxdepth 1 -type f -name 'installer-*.manifest.json' -print)
+    [[ ${#manifests[@]} -eq 1 ]] || { echo 'Expected exactly one staged installer manifest.' >&2; exit 65; }
+    manifest="${manifests[0]}"
+    installer="$artifact_dir/$(jq -r '.stagedFileName' "$manifest")"
+    [[ -f "$installer" ]] || { echo "Staged installer is missing: $installer" >&2; exit 66; }
+    actual_hash=$(sha256sum "$installer" | cut -d' ' -f1)
+    expected_hash=$(jq -r '.sha256' "$manifest")
+    [[ "$actual_hash" = "$expected_hash" ]] || { echo 'Staged installer hash mismatch inside the container.' >&2; exit 67; }
+}
+
+prepare() {
+    require_intake
+    wineboot -u >"$evidence_dir/logs/wineboot.log" 2>&1
+    wineserver -w
+    mkdir -p "$WINEPREFIX/drive_c"
+    rm -rf "$WINEPREFIX/drive_c/octane-input" "$WINEPREFIX/drive_c/octane-output"
+    ln -s "$input_dir" "$WINEPREFIX/drive_c/octane-input"
+    ln -s "$output_dir" "$WINEPREFIX/drive_c/octane-output"
+    find "$input_dir" -type f -print0 | sort -z | xargs -0 -r sha256sum > "$evidence_dir/input-before.sha256"
+    cp "$profile" "$evidence_dir/application-profile.json"
+    cp "$manifest" "$evidence_dir/installer-manifest.json"
+    cp /opt/octane/browser-transport.json "$evidence_dir/browser-transport.json"
+    printf '%s\n' "$actual_hash" > "$evidence_dir/installer-inside-container.sha256"
+    jq -n \
+        --arg preparedAtUtc "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+        --arg wine "$(wine --version)" \
+        --arg display "${DISPLAY:-unset}" \
+        --arg prefix "$WINEPREFIX" \
+        '{schemaVersion:1,preparedAtUtc:$preparedAtUtc,wine:$wine,display:$display,winePrefix:$prefix,inputWinePath:"C:\\octane-input",outputWinePath:"C:\\octane-output"}' \
+        > "$evidence_dir/preparation.json"
+}
+
+install_target() {
+    require_intake
+    [[ "$(jq -r '.installer.argumentsVerified' "$profile")" = true ]] || { echo 'Installer arguments are not marked verified.' >&2; exit 68; }
+    mapfile -t args < <(jq -r '.installer.installArguments[]' "$profile")
+    timeout_seconds=$(jq -r '.installer.timeoutSeconds' "$profile")
+    set +e
+    timeout --signal=TERM --kill-after=15 "$timeout_seconds" wine "$installer" "${args[@]}" >"$evidence_dir/logs/install.log" 2>&1
+    rc=$?
+    set -e
+    printf '%s\n' "$rc" > "$evidence_dir/install.exitcode"
+    if [[ "$rc" -eq 124 || "$rc" -eq 137 ]]; then echo 'Installer timed out.' >&2; exit 69; fi
+    jq -e --argjson rc "$rc" '.installer.successCodes | index($rc) != null' "$profile" >/dev/null || { echo "Installer exit code $rc is not approved by the profile." >&2; exit 70; }
+    # WebView2 updater descendants can remain alive after the NSIS parent has
+    # returned. Waiting for the entire Wine server here would turn a completed
+    # install into an unbounded lifecycle wait. Executable discovery below is
+    # the bounded postcondition for this stage.
+    discover_executable
+}
+
+discover_executable() {
+    exe_name=$(jq -r '.application.executableFileName' "$profile")
+    expected=$(jq -r '.application.expectedRelativePath // empty' "$profile")
+    candidates=()
+    if [[ -n "$expected" ]]; then
+        expected="${expected//\\//}"
+        candidate="$WINEPREFIX/drive_c/$expected"
+        [[ -f "$candidate" ]] && candidates+=("$candidate")
+    else
+        while IFS= read -r -d '' candidate; do candidates+=("$candidate"); done < <(find "$WINEPREFIX/drive_c/users" -type f -iname "$exe_name" -print0)
+    fi
+    [[ ${#candidates[@]} -eq 1 ]] || { printf 'Expected exactly one installed %s, found %s.\n' "$exe_name" "${#candidates[@]}" >&2; exit 71; }
+    app="${candidates[0]}"
+    app_hash=$(sha256sum "$app" | cut -d' ' -f1)
+    app_windows=$(winepath -w "$app")
+    jq -n \
+        --arg unixPath "$app" --arg windowsPath "$app_windows" --arg sha256 "$app_hash" \
+        --arg discoveredAtUtc "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+        '{schemaVersion:1,unixPath:$unixPath,windowsPath:$windowsPath,sha256:$sha256,discoveredAtUtc:$discoveredAtUtc}' \
+        > "$evidence_dir/installed-executable.json"
+    printf '%s' "$app"
+}
+
+launch_target() {
+    app=$(discover_executable)
+    mapfile -t args < <(jq -r '.application.launchArguments[]' "$profile")
+    cd "$(dirname "$app")"
+    nohup wine "$app" "${args[@]}" >"$evidence_dir/logs/launch.log" 2>&1 &
+    printf '%s\n' "$!" > "$evidence_dir/launch-linux-pid.txt"
+}
+
+wait_native() {
+    pattern=$(jq -r '.application.windowTitleRegex' "$profile")
+    timeout_seconds=$(jq -r '.application.readinessTimeoutSeconds' "$profile")
+    deadline=$((SECONDS + timeout_seconds))
+    window=''
+    until [[ -n "$window" ]]; do
+        window=$(xdotool search --onlyvisible --name "$pattern" 2>/dev/null | tail -n 1 || true)
+        if (( SECONDS >= deadline )); then echo 'Native application window did not match the declared title before the deadline.' >&2; exit 72; fi
+        sleep 0.25
+    done
+    xdotool getwindowname "$window" > "$evidence_dir/native-window-title.txt"
+    xdotool getwindowgeometry --shell "$window" > "$evidence_dir/native-window-geometry.txt"
+    import -window "$window" "$evidence_dir/screenshots/native-window-container-side.png" 2>"$evidence_dir/logs/import.log" || true
+    jq -n --arg windowId "$window" --arg observedAtUtc "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+        '{schemaVersion:1,status:"PASS",scope:"native X11 observer only; not browser delivery evidence",windowId:$windowId,observedAtUtc:$observedAtUtc}' \
+        > "$evidence_dir/native-window-observation.json"
+}
+
+record_webview2() {
+    required=$(jq -r '.application.webView2.required' "$profile")
+    [[ "$required" = true ]] || { jq -n '{schemaVersion:1,status:"NOT_REQUIRED"}' > "$evidence_dir/webview2-runtime.json"; return 0; }
+    process_file="$evidence_dir/webview2-processes.ndjson"
+    : > "$process_file"
+    runtime_windows=''
+    while IFS= read -r pid; do
+        [[ -r "/proc/$pid/cmdline" ]] || continue
+        mapfile -d '' -t argv < "/proc/$pid/cmdline" || true
+        [[ ${#argv[@]} -gt 0 ]] || continue
+        joined=$(printf '%s ' "${argv[@]}")
+        [[ "$joined" == *msedgewebview2.exe* ]] || continue
+        jq -n --argjson pid "$pid" --arg commandLine "$joined" '{pid:$pid,commandLine:$commandLine}' >> "$process_file"
+        if [[ -z "$runtime_windows" && "$joined" != *'--type='* ]]; then runtime_windows="${argv[0]}"; fi
+    done < <(pgrep -f 'msedgewebview2\.exe' || true)
+    [[ -n "$runtime_windows" ]] || { echo 'Required WebView2 browser process was not identified.' >&2; return 74; }
+    runtime_unix=$(winepath -u "$runtime_windows" 2>/dev/null || true)
+    [[ -f "$runtime_unix" ]] || { echo "Loaded WebView2 path could not be resolved: $runtime_windows" >&2; return 75; }
+    actual_version=$(basename "$(dirname "$runtime_unix")")
+    expected_version=$(jq -r '.application.webView2.expectedVersion // empty' "$profile")
+    [[ -z "$expected_version" || "$actual_version" = "$expected_version" ]] || { echo "WebView2 drift: expected $expected_version, loaded $actual_version." >&2; return 76; }
+    runtime_hash=$(sha256sum "$runtime_unix" | cut -d' ' -f1)
+    jq -s \
+        --arg status PASS --arg windowsPath "$runtime_windows" --arg unixPath "$runtime_unix" \
+        --arg version "$actual_version" --arg expectedVersion "$expected_version" --arg sha256 "$runtime_hash" \
+        '{schemaVersion:1,status:$status,windowsPath:$windowsPath,unixPath:$unixPath,version:$version,expectedVersion:($expectedVersion|if length>0 then . else null end),sha256:$sha256,processes:.}' \
+        "$process_file" > "$evidence_dir/webview2-runtime.json"
+    rm -f "$process_file"
+}
+
+probe_network() {
+    result_file="$evidence_dir/network-probes.ndjson"
+    : > "$result_file"
+    failed=0
+    jq -c '.network.requiredEndpoints[]' "$profile" | while IFS= read -r endpoint; do
+        id=$(jq -r '.id' <<<"$endpoint")
+        url=$(jq -r '.url' <<<"$endpoint")
+        set +e
+        result=$(curl --silent --show-error --location --max-time 20 --output /dev/null --write-out '%{http_code} %{remote_ip} %{time_total}' "$url" 2>&1)
+        rc=$?
+        set -e
+        http_status=$(awk '{print $1}' <<<"$result")
+        expected=$(jq -c '.expectedStatusCodes' <<<"$endpoint")
+        accepted=false
+        if [[ "$rc" -eq 0 ]] && jq -e --argjson status "${http_status:-0}" 'index($status) != null' <<<"$expected" >/dev/null; then accepted=true; fi
+        jq -n --arg id "$id" --arg url "$url" --arg result "$result" --argjson exitCode "$rc" \
+            --argjson expectedStatusCodes "$expected" --argjson accepted "$accepted" \
+            '{id:$id,url:$url,probeLayer:"Linux container curl only",exitCode:$exitCode,result:$result,expectedStatusCodes:$expectedStatusCodes,accepted:$accepted}' \
+            >> "$result_file"
+    done
+    if grep -q '"accepted":false' "$result_file"; then failed=1; fi
+    jq -s '{schemaVersion:1,scope:"These probes do not prove Wine/WebView2/application authentication or protocol behavior.",endpoints:.}' \
+        "$result_file" > "$evidence_dir/network-probes.json"
+    rm -f "$result_file"
+    return "$failed"
+}
+
+verify_inputs() {
+    find "$input_dir" -type f -print0 | sort -z | xargs -0 -r sha256sum > "$evidence_dir/input-after.sha256"
+    cmp -s "$evidence_dir/input-before.sha256" "$evidence_dir/input-after.sha256" || { echo 'Input contents changed.' >&2; exit 73; }
+}
+
+case "${1:-help}" in
+    prepare) prepare ;;
+    install) install_target ;;
+    discover) require_intake; discover_executable; echo ;;
+    launch) require_intake; launch_target ;;
+    wait-native) require_intake; wait_native ;;
+    webview2) require_intake; record_webview2 ;;
+    probe-network) require_intake; probe_network ;;
+    verify-inputs) verify_inputs ;;
+    status)
+        pgrep -af 'wine|\.exe' || true
+        xwininfo -root -tree || true
+        ;;
+    *) echo 'Usage: octane-target {prepare|install|discover|launch|wait-native|webview2|probe-network|verify-inputs|status}' >&2; exit 64 ;;
+esac

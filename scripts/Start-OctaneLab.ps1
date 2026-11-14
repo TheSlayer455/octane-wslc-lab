@@ -2,11 +2,12 @@
 param(
     [ValidateSet('Wslc','Docker')][string]$Engine = 'Wslc',
     [string]$WslDistro,
-    [ValidateSet('WineGui','DockerWine','WineGuiOle32Control','WineGuiOle32Mr12477','DockerWineStaging1121Control','DockerWineStaging1121VisRgn')][string]$WineProfile = 'WineGui',
+    [ValidateSet('WineGui','DockerWine','WineGuiOle32Control','WineGuiOle32Mr12477','DockerWineStaging1121Control','DockerWineStaging1121VisRgn','DockerWineStaging1121VisRgnBrowser')][string]$WineProfile = 'WineGui',
     [ValidateRange(1024,65535)][int]$Port = 3001,
     [string]$BaseImage,
     [ValidateRange(30,900)][int]$StartupTimeoutSeconds = 240,
-    [switch]$SkipDeepDoctor
+    [switch]$SkipDeepDoctor,
+    [switch]$OpenBrowser
 )
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
@@ -26,6 +27,12 @@ $manifestPath = Join-Path $root 'artifacts/installer-manifest.json'
 $installerPath = Join-Path $root 'artifacts/Octane-setup.exe'
 $manifest = if (Test-Path -LiteralPath $manifestPath) { Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json } else { $null }
 $expectedHash = if ($manifest) { [string]$manifest.sha256 } else { $null }
+$viewerSecretDirectory = $null
+$viewerPassword = $null
+
+if ($profile.ProfileKind -eq 'DockerWineBrowser' -and $Engine -ne 'Docker') {
+    throw 'The browser candidate is a Docker-only profile. Historical WSLC support remains separate.'
+}
 
 Initialize-OctaneRunState -Path $statePath -Identity @{
     runId=$id;container=$name;image=$image;engine=$Engine;engineContext=$runtimeContext
@@ -75,6 +82,18 @@ try {
     foreach ($argument in @('run','-d','--name',$name,'--label','com.octanelab.managed=true','--label',"com.octanelab.engine=$($Engine.ToLowerInvariant())",'--label',"com.octanelab.profile=$WineProfile",'--shm-size=1gb','-p',"127.0.0.1:${Port}:$($profile.ContainerPort)",'-e','TZ=America/Chicago')) { $runArguments.Add($argument) }
     if ($profile.ProfileKind -eq 'WineGui') {
         foreach ($argument in @('-e','CUSTOM_USER=octane','-e',"PASSWORD=$password")) { $runArguments.Add($argument) }
+    } elseif ($profile.ProfileKind -eq 'DockerWineBrowser') {
+        $viewerPassword = [Convert]::ToHexString([Security.Cryptography.RandomNumberGenerator]::GetBytes(4)).ToLowerInvariant()
+        $viewerSecretDirectory = Join-Path $runs "secrets/$name"
+        New-Item -ItemType Directory -Path $viewerSecretDirectory -Force | Out-Null
+        $viewerSecretPath = Join-Path $viewerSecretDirectory 'viewer-password'
+        [IO.File]::WriteAllText($viewerSecretPath,$viewerPassword,[Text.UTF8Encoding]::new($false))
+        $runtimeSecretPath = ConvertTo-OctaneRuntimePath -Engine $Engine -WslDistro $WslDistro -Path $viewerSecretPath
+        foreach ($argument in @(
+            '--platform','linux/amd64','--mount',"type=bind,src=$runtimeSecretPath,dst=/run/octane/viewer-password,readonly",
+            '-e','RDP_SERVER=no','-e','USE_XVFB=yes','-e','USER_SUDO=no','-e',"OCTANE_RUN_ID=$id",
+            '-e',"OCTANE_VIEWER_ORIGINS=http://127.0.0.1:$Port http://localhost:$Port"
+        )) { $runArguments.Add($argument) }
     } else {
         $passwordHash = New-OctaneUnixPasswordHash -Password $password -WslDistro $WslDistro
         foreach ($argument in @('--platform','linux/amd64','-e','RDP_SERVER=yes','-e','USER_SUDO=no','-e',"USER_PASSWD=$passwordHash")) { $runArguments.Add($argument) }
@@ -87,8 +106,9 @@ try {
     Update-OctaneRunStage -Path $statePath -Stage containerCreate -Status PASS -Detail "Created with $Engine using profile $WineProfile" -DurationMs $run.DurationMs
 
     $activeStage = 'desktopEndpoint'
-    $endpointMs = Wait-OctaneEndpoint -Kind $profile.EndpointKind -Port $Port -TimeoutSeconds $StartupTimeoutSeconds
-    $address = if ($profile.EndpointKind -eq 'Https') { "https://localhost:$Port" } else { "localhost:$Port" }
+    $endpointPath = if ($profile.PSObject.Properties['EndpointPath']) { [string]$profile.EndpointPath } else { '/' }
+    $endpointMs = Wait-OctaneEndpoint -Kind $profile.EndpointKind -Port $Port -Path $endpointPath -TimeoutSeconds $StartupTimeoutSeconds
+    $address = if ($profile.EndpointKind -eq 'Https') { "https://localhost:$Port$endpointPath" } elseif ($profile.EndpointKind -eq 'Http') { "http://127.0.0.1:$Port$endpointPath" } else { "localhost:$Port" }
     Update-OctaneRunStage -Path $statePath -Stage desktopEndpoint -Status PASS -Detail "$($profile.DesktopLabel) reachable at $address" -DurationMs $endpointMs
     Set-OctaneRunMetadata -Path $statePath -Values @{desktopAddress=$address;desktopUsername=$profile.Username;stateDirectory=$profile.StateDirectory;evidenceDirectory=$profile.EvidenceDirectory}
     Set-OctaneRunState -Path $statePath -State RUNNING
@@ -98,14 +118,26 @@ try {
     Write-Output "Wine profile: $WineProfile"
     if ($profile.Experiment) { Write-Output "Experiment: $($profile.Experiment)" }
     Write-Output "Desktop: $address"
-    Write-Output "Username: $($profile.Username)"
-    Write-Output "Password: $password"
+    if ($profile.Username) { Write-Output "Username: $($profile.Username)" }
+    if($profile.ProfileKind -eq 'DockerWineBrowser') {
+        Write-Output "Credential: ./scripts/Get-OctaneViewerCredential.ps1 -Container $name"
+    } else {
+        Write-Output "Password: $password"
+    }
     Write-Output 'Keep the password local. It is not stored in run metadata.'
     Write-Output "Run metadata: runs/$name.json"
-    Write-Output 'Inside the desktop terminal run: octane-lab environment; octane-lab notepad; octane-lab install; octane-lab diagnostic; octane-lab launch-ole (one at a time).'
+    if ($profile.ProfileKind -eq 'DockerWineBrowser') {
+        Write-Output 'Enter the per-run password only in the viewer form. It is not embedded in the URL or run metadata.'
+        if ($OpenBrowser) { Start-Process $address }
+    } else {
+        Write-Output 'Inside the desktop terminal run: octane-lab environment; octane-lab notepad; octane-lab install; octane-lab diagnostic; octane-lab launch-ole (one at a time).'
+    }
     Write-Output "From the controller, run: ./scripts/Invoke-OctaneExperiment.ps1 -Container $name -Engine $Engine$(if($WslDistro){" -WslDistro '$WslDistro'"})"
 } catch {
     try { Update-OctaneRunStage -Path $statePath -Stage $activeStage -Status FAIL -Detail $_.Exception.Message } catch { }
     try { Block-OctaneRunStages -Path $statePath -Detail "Blocked after $activeStage failed." } catch { }
+    if ($viewerSecretDirectory -and -not (Get-Content -LiteralPath $statePath -Raw | ConvertFrom-Json).resources.containerCreated) {
+        Remove-Item -LiteralPath $viewerSecretDirectory -Recurse -Force -ErrorAction SilentlyContinue
+    }
     Write-Error "Octane lab start failed at $activeStage. Run metadata: $statePath. Any created resource was preserved for diagnosis. $($_.Exception.Message)"
 }

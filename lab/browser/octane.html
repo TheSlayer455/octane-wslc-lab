@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Octane browser viewer</title>
+  <style>
+    :root { color-scheme: dark; font: 14px/1.4 system-ui, sans-serif; }
+    * { box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: #111827; }
+    body { display: grid; grid-template-rows: auto 1fr; }
+    header { display: flex; align-items: center; gap: 1rem; min-height: 52px; padding: .6rem 1rem; background: #172033; border-bottom: 1px solid #334155; }
+    h1 { margin: 0; font-size: 1rem; white-space: nowrap; }
+    #state { border-radius: 999px; padding: .25rem .65rem; background: #334155; font-weight: 650; }
+    #state[data-state="vnc-negotiated"] { color: #052e16; background: #86efac; }
+    #state[data-state$="failed"], #state[data-state="disconnected-unclean"] { color: #450a0a; background: #fca5a5; }
+    #session { margin-left: auto; color: #cbd5e1; font-size: .8rem; text-align: right; }
+    #screen { position: relative; min-width: 0; min-height: 0; overflow: hidden; background: #020617; }
+    #login { position: absolute; z-index: 5; inset: 0; display: grid; place-items: center; background: rgb(2 6 23 / .78); }
+    #login[hidden] { display: none; }
+    form { width: min(430px, calc(100% - 2rem)); padding: 1.4rem; border: 1px solid #475569; border-radius: .75rem; background: #172033; box-shadow: 0 1rem 3rem #0008; }
+    label { display: block; margin-bottom: .45rem; font-weight: 650; }
+    input, button { width: 100%; min-height: 42px; border: 1px solid #64748b; border-radius: .4rem; padding: .55rem .7rem; font: inherit; }
+    input { color: #f8fafc; background: #0f172a; }
+    button { margin-top: .75rem; border-color: #38bdf8; color: #082f49; background: #7dd3fc; font-weight: 750; cursor: pointer; }
+    .note { color: #cbd5e1; font-size: .85rem; }
+    #history { max-height: 7rem; overflow: auto; margin: .9rem 0 0; padding-left: 1.25rem; color: #94a3b8; font-size: .78rem; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Octane browser viewer</h1>
+    <span id="state" data-state="viewer-page-loaded">Viewer page loaded</span>
+    <span id="session">Loading session identity…</span>
+  </header>
+  <main id="screen" aria-label="Remote desktop canvas">
+    <div id="login">
+      <form id="login-form" autocomplete="off">
+        <label for="password">Per-run viewer password</label>
+        <input id="password" type="password" required autocomplete="off" spellcheck="false">
+        <button type="submit">Connect to this run</button>
+        <p class="note">The password remains in browser memory only and is never placed in the URL. A VNC connection does not, by itself, establish application readiness.</p>
+        <ol id="history" aria-label="Viewer state history"></ol>
+      </form>
+    </div>
+  </main>
+  <script type="module">
+    import RFB from './core/rfb.js';
+
+    const stateNode = document.querySelector('#state');
+    const historyNode = document.querySelector('#history');
+    const loginNode = document.querySelector('#login');
+    const form = document.querySelector('#login-form');
+    const passwordNode = document.querySelector('#password');
+    const sessionNode = document.querySelector('#session');
+    const screenNode = document.querySelector('#screen');
+    let rfb = null;
+
+    function record(state, label) {
+      stateNode.dataset.state = state;
+      stateNode.textContent = label;
+      const item = document.createElement('li');
+      item.dataset.state = state;
+      item.textContent = `${new Date().toISOString()} — ${label}`;
+      historyNode.append(item);
+      console.info('octane-viewer-state', { state, label });
+    }
+
+    async function loadSession() {
+      try {
+        const response = await fetch('./octane-session.json', { cache: 'no-store' });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const value = await response.json();
+        sessionNode.textContent = `run ${value.runId} · ${value.display} · ${value.resolution}`;
+      } catch (error) {
+        sessionNode.textContent = 'Session identity unavailable';
+      }
+    }
+
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const password = passwordNode.value;
+      passwordNode.value = '';
+      if (rfb) rfb.disconnect();
+      record('websocket-attempted', 'WebSocket connection attempted');
+      const scheme = location.protocol === 'https:' ? 'wss' : 'ws';
+      const url = `${scheme}://${location.host}/websockify`;
+      rfb = new RFB(screenNode, url, { credentials: { password } });
+      rfb.scaleViewport = true;
+      rfb.resizeSession = false;
+      rfb.viewOnly = false;
+      rfb.clipViewport = false;
+      rfb.addEventListener('credentialsrequired', () => {
+        loginNode.hidden = false;
+        record('credentials-required', 'Authentication required');
+        passwordNode.focus();
+      });
+      rfb.addEventListener('securityfailure', (event) => {
+        loginNode.hidden = false;
+        record('security-negotiation-failed', `Security negotiation failed${event.detail?.reason ? `: ${event.detail.reason}` : ''}`);
+      });
+      rfb.addEventListener('connect', () => {
+        loginNode.hidden = true;
+        record('vnc-negotiated', 'VNC negotiated; application readiness unverified');
+      });
+      rfb.addEventListener('disconnect', (event) => {
+        loginNode.hidden = false;
+        record(event.detail.clean ? 'disconnected-clean' : 'disconnected-unclean', event.detail.clean ? 'Disconnected' : 'Disconnected unexpectedly');
+      });
+      rfb.addEventListener('desktopname', (event) => {
+        document.title = `Octane viewer — ${event.detail.name}`;
+      });
+    });
+
+    record('viewer-page-loaded', 'Viewer page loaded');
+    loadSession();
+    passwordNode.focus();
+  </script>
+</body>
+</html>

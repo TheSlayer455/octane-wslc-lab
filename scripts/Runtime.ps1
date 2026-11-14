@@ -160,15 +160,19 @@ if (-not (Get-Command Wait-OctaneEndpoint -CommandType Function -ErrorAction Sil
     function Wait-OctaneEndpoint {
         [CmdletBinding()]
         param(
-            [Parameter(Mandatory=$true)][ValidateSet('Https','Rdp')][string]$Kind,
+            [Parameter(Mandatory=$true)][ValidateSet('Http','Https','Rdp')][string]$Kind,
             [Parameter(Mandatory=$true)][ValidateRange(1024,65535)][int]$Port,
+            [ValidatePattern('^/[A-Za-z0-9._~!$&''()*+,;=:@%/-]*$')][string]$Path = '/',
             [ValidateRange(5,900)][int]$TimeoutSeconds = 180
         )
         $watch = [Diagnostics.Stopwatch]::StartNew()
         while ($watch.Elapsed.TotalSeconds -lt $TimeoutSeconds) {
-            if ($Kind -eq 'Https') {
+            if ($Kind -in @('Http','Https')) {
                 try {
-                    $response = Invoke-WebRequest -Uri "https://127.0.0.1:$Port" -SkipCertificateCheck -SkipHttpErrorCheck -TimeoutSec 5
+                    $scheme = $Kind.ToLowerInvariant()
+                    $request = @{Uri="$scheme`://127.0.0.1:$Port$Path";SkipHttpErrorCheck=$true;TimeoutSec=5}
+                    if ($Kind -eq 'Https') { $request.SkipCertificateCheck = $true }
+                    $response = Invoke-WebRequest @request
                     if ($response.StatusCode -ge 200 -and $response.StatusCode -lt 500) { $watch.Stop(); return [int64]$watch.ElapsedMilliseconds }
                 } catch { }
             } else {
@@ -180,7 +184,7 @@ if (-not (Get-Command Wait-OctaneEndpoint -CommandType Function -ErrorAction Sil
             }
             Start-Sleep -Milliseconds 750
         }
-        throw "$Kind endpoint on 127.0.0.1:$Port did not become reachable within $TimeoutSeconds seconds."
+        throw "$Kind endpoint on 127.0.0.1:$Port$Path did not become reachable within $TimeoutSeconds seconds."
     }
 }
 

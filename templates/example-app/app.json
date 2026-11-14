@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "id": "example-app",
+  "status": "template",
+  "runtime": {
+    "octaneRelease": "browser-runtime-kit-v1-candidate",
+    "wineProfile": "DockerWineStaging1121VisRgnBrowser"
+  },
+  "installer": {
+    "kind": "nsis",
+    "architecture": "x64",
+    "installArguments": [],
+    "argumentsVerified": false,
+    "timeoutSeconds": 900,
+    "successCodes": [0],
+    "scope": "current-user"
+  },
+  "application": {
+    "executableFileName": "example-app.exe",
+    "expectedRelativePath": null,
+    "launchArguments": [],
+    "windowTitleRegex": "^Example App$",
+    "readinessTimeoutSeconds": 180,
+    "webView2": {
+      "required": true,
+      "distribution": "installer-managed",
+      "expectedVersion": null
+    }
+  },
+  "fileAccess": {
+    "mode": "copy",
+    "wineInputPath": "C:\\octane-input",
+    "wineOutputPath": "C:\\octane-output",
+    "inputReadOnly": true
+  },
+  "network": {
+    "requiredEndpoints": []
+  },
+  "scenario": {
+    "status": "manual-only",
+    "trustedScenarioId": null
+  }
+}

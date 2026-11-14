@@ -46,7 +46,8 @@ if($runRecord){
 
 $versionArgs=if($Engine -eq 'Wslc'){@('version')}else{@('version','--format','{{json .}}')}
 $runtimeVersion=(Invoke-OctaneRuntime -Engine $Engine -WslDistro $WslDistro -Arguments $versionArgs -TimeoutSeconds 30).StdOut.Trim()
-[ordered]@{schemaVersion=1;engine=$Engine;engineContext=(Get-OctaneRuntimeCommand -Engine $Engine -WslDistro $WslDistro).Context;wslDistro=$WslDistro;runtimeVersion=$runtimeVersion;wineProfile=$profile.Name;baseImage=$profile.BaseImage;resolvedBaseImage=if($runRecord){$runRecord.resolvedBaseImage}else{$null};collectedAtUtc=[DateTime]::UtcNow.ToString('o')} | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath (Join-Path $out 'environment.json') -Encoding utf8
+$resolvedBaseImage=if($runRecord -and $runRecord.PSObject.Properties['resolvedBaseImage']){$runRecord.resolvedBaseImage}else{$null}
+[ordered]@{schemaVersion=1;engine=$Engine;engineContext=(Get-OctaneRuntimeCommand -Engine $Engine -WslDistro $WslDistro).Context;wslDistro=$WslDistro;runtimeVersion=$runtimeVersion;wineProfile=$profile.Name;baseImage=$profile.BaseImage;resolvedBaseImage=$resolvedBaseImage;collectedAtUtc=[DateTime]::UtcNow.ToString('o')} | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath (Join-Path $out 'environment.json') -Encoding utf8
 
 if($ScreenshotDirectory){
     $screenshots=Join-Path $out 'screenshots'

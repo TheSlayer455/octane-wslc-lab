@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://octane.invalid/schemas/browser-candidate-lock-v1.json",
+  "title": "Octane browser candidate lock",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "kind", "status", "createdAtUtc", "identities", "runtime", "browser", "host", "security", "qualification"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "kind": { "const": "browser-candidate-lock" },
+    "status": { "const": "candidate-end-to-end-blocked" },
+    "createdAtUtc": { "type": "string", "format": "date-time" },
+    "identities": { "type": "object" },
+    "runtime": { "type": "object" },
+    "browser": { "type": "object" },
+    "host": { "type": "object" },
+    "security": { "type": "object" },
+    "qualification": { "type": "object" }
+  }
+}
