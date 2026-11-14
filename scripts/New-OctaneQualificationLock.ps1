@@ -60,6 +60,9 @@ $embeddedResult = Invoke-OctaneRuntime -Engine Docker -WslDistro $WslDistro -Arg
 $embedded = $embeddedResult.StdOut | ConvertFrom-Json
 
 $wslVersionResult = Invoke-OctaneNativeProcess -FileName 'wsl.exe' -Arguments @('--version') -TimeoutSeconds 30
+$wslVersionText = ($wslVersionResult.StdOut -replace "`0",'').Trim()
+$windowsBuild = Get-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion'
+$windowsVersion = "10.0.$($windowsBuild.CurrentBuildNumber).$($windowsBuild.UBR)"
 $distroResult = Invoke-OctaneNativeProcess -FileName 'wsl.exe' -Arguments @('-d',$WslDistro,'--exec','bash','-lc','source /etc/os-release; printf "%s|%s|%s" "$PRETTY_NAME" "$(uname -r)" "$(uname -m)"') -TimeoutSeconds 30
 $distroParts = $distroResult.StdOut.Trim().Split('|')
 $dockerContext = (Invoke-OctaneRuntime -Engine Docker -WslDistro $WslDistro -Arguments @('context','show') -TimeoutSeconds 30).StdOut.Trim()
@@ -95,7 +98,7 @@ $lock = [ordered]@{
         browserArguments=[ordered]@{expectedMainProcess=@('--disable-gpu');observedFromProcessCommandLine=$true}
     }
     host = [ordered]@{
-        windowsVersion=[Environment]::OSVersion.Version.ToString();wslVersionText=$wslVersionResult.StdOut.Trim();wslDistro=$WslDistro
+        windowsVersion=$windowsVersion;wslVersionText=$wslVersionText;wslDistro=$WslDistro
         distroPrettyName=$distroParts[0];kernel=$distroParts[1];architecture=$distroParts[2]
         docker=[ordered]@{context=$dockerContext;serverVersion=$dockerVersion;operatingSystem=[string]$dockerInfo.OperatingSystem;rootless=([string]$dockerInfo.SecurityOptions -match 'rootless');daemonLocation='inside selected WSL distribution'}
         doctorContext=$doctor.context
