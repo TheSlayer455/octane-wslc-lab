@@ -1,0 +1,12 @@
+{
+  "summary": "Windows x64 NSIS installer compiled successfully with the offline WebView2 package. Four Rust tests passed in GitHub Actions; six JavaScript checks and eight mocked PowerShell assertions passed locally. WSLC returned ERROR_TIMEOUT, so Wine GUI acceptance remains untested.",
+  "windowsBuild": "PASS: Windows 2022 runner; 4 Rust core tests and 2 initial JavaScript tests passed; optimized EXE and NSIS installer built. Current expanded UI/script checks passed locally.",
+  "runUrl": "https://github.com/TheSlayer455/octane-wslc-lab/actions/runs/43533598979",
+  "sourceCommit": "727dd0f351f5dbef671d137474ba14d83a3ce346",
+  "installerSha256": "dd57d10623ab63800f3cb164b1c4688bc71b9033ecaa43530bae4cc6712e4b65",
+  "installerBytes": 219838079,
+  "builtAtUtc": "2026-11-14T00:31:37.6557594Z",
+  "artifactId": 14089416618,
+  "wslcVersion": "3.0.1.0",
+  "wineAcceptance": "NOT TESTED - WSLC ERROR_TIMEOUT"
+}

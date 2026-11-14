@@ -2,11 +2,11 @@
 
 Separate Rust/Tauri Windows test application, NSIS installer build, and disposable Linux Wine desktop running through Microsoft's `wslc.exe`.
 
-The single comprehensive guide is **docs/Octane-Complete-Guide.docx**. It covers the architecture, every component and command, build and lab operation, data format, security, acceptance criteria, troubleshooting, actual verification results, and future work.
+The single comprehensive guide is **docs/Octane-Complete-Guide.pdf**. It covers the architecture, every component and command, build and lab operation, data format, security, acceptance criteria, troubleshooting, actual verification results, and future work.
 
 ## Quick start
 
-Download `Octane-windows-x64` from the repository's **Actions → Windows installer** successful run. Put its `artifacts/Octane-setup.exe` and `artifacts/installer-manifest.json` in this checkout's `artifacts/` directory.
+Download `Octane-setup.exe` and `installer-manifest.json` from the private **Releases → v0.1.0** page and put them in this checkout's `artifacts/` directory. For later builds, download `Octane-windows-x64` from **Actions → Windows installer**; keep the EXE and manifest from the same run.
 
 ```powershell
 ./scripts/Start-OctaneLab.ps1

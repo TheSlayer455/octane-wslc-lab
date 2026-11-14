@@ -11,6 +11,7 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Core tests failed' }
     pnpm test
     if ($LASTEXITCODE -ne 0) { throw 'Frontend tests failed' }
+    & (Join-Path $root 'tests/scripts.test.ps1')
     pnpm exec tauri build --bundles nsis
     if ($LASTEXITCODE -ne 0) { throw 'Tauri build failed' }
     $installers = @(Get-ChildItem -LiteralPath (Join-Path $root 'target/release/bundle/nsis') -Filter '*-setup.exe')
