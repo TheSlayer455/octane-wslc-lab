@@ -68,6 +68,8 @@ report_path=''
 report_sha_before=''
 report_sha_after=''
 pixel_difference=0
+repaint_nudge='not-needed'
+repaint_nudge_ms=0
 
 if [[ -n "$window_id" ]]; then
     native_window=PASS
@@ -89,6 +91,28 @@ if [[ -n "$window_id" ]]; then
         set -e
         if [[ "$pixel_difference" =~ ^[0-9]+$ ]] && (( pixel_difference > 1000 )); then
             screen_changed=PASS
+        fi
+    fi
+
+    if [[ "$screen_changed" != PASS ]]; then
+        repaint_nudge='resize-minimize-restore'
+        nudge_started_ms=$(date -u +%s%3N)
+        xdotool windowsize --sync "$window_id" 900 650 >> "$run_dir/logs/interaction.log" 2>&1 || true
+        sleep 1
+        xdotool windowminimize "$window_id" >> "$run_dir/logs/interaction.log" 2>&1 || true
+        sleep 1
+        xdotool windowmap "$window_id" >> "$run_dir/logs/interaction.log" 2>&1 || true
+        xdotool windowactivate --sync "$window_id" >> "$run_dir/logs/interaction.log" 2>&1 || true
+        sleep 3
+        repaint_nudge_ms=$(( $(date -u +%s%3N) - nudge_started_ms ))
+        import -window "$window_id" "$run_dir/screenshots/octane-after-repaint-nudge.png" 2> "$run_dir/logs/import-after-repaint-nudge.log" || true
+        if [[ -s "$run_dir/screenshots/octane-initial.png" && -s "$run_dir/screenshots/octane-after-repaint-nudge.png" ]]; then
+            set +e
+            pixel_difference=$(compare -metric AE "$run_dir/screenshots/octane-initial.png" "$run_dir/screenshots/octane-after-repaint-nudge.png" null: 2>&1)
+            set -e
+            if [[ "$pixel_difference" =~ ^[0-9]+$ ]] && (( pixel_difference > 1000 )); then
+                screen_changed=PASS
+            fi
         fi
     fi
 
@@ -205,6 +229,8 @@ jq -n \
     --arg overwriteDecline "$overwrite_decline" \
     --arg reportSha256 "$report_sha_before" \
     --arg pixelDifference "$pixel_difference" \
+    --arg repaintNudge "$repaint_nudge" \
+    --argjson repaintNudgeDurationMs "$repaint_nudge_ms" \
     '{
       schemaVersion: 1,
       runId: $runId,
@@ -215,6 +241,8 @@ jq -n \
         nativeWindow: $nativeWindow,
         focusRepaintPixelChange: $screenChanged,
         pixelDifference: (if ($pixelDifference | test("^[0-9]+$")) then ($pixelDifference | tonumber) else null end),
+        repaintNudge: $repaintNudge,
+        repaintNudgeDurationMs: $repaintNudgeDurationMs,
         workload: $workload,
         nativeDialogs: $nativeDialogs,
         export: $exportStatus,

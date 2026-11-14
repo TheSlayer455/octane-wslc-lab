@@ -24,7 +24,7 @@ $scenario | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $scenarioPath -E
 [ordered]@{schemaVersion=1;status=$Status;reviewedAtUtc=[DateTime]::UtcNow.ToString('o');detail=$Detail} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $directory 'visual-review.json') -Encoding utf8
 
 if($Status -eq 'PASS'){
-    Update-OctaneRunStage -Path $metadataPath -Stage application -Status PASS -Detail "experiment=$ExperimentId; visible native Octane client repainted and remained responsive; $Detail"
+    Update-OctaneRunStage -Path $metadataPath -Stage application -Status PASS -Detail "experiment=$ExperimentId; visible native Octane client repainted and remained responsive; repaintNudge=$($scenario.observations.repaintNudge); repaintNudgeMs=$($scenario.observations.repaintNudgeDurationMs); $Detail"
     Update-OctaneRunStage -Path $metadataPath -Stage workload -Status PASS -Detail "experiment=$ExperimentId; fixture contract and independent report validator PASS."
     Update-OctaneRunStage -Path $metadataPath -Stage nativeDialogs -Status PASS -Detail "experiment=$ExperimentId; native open/save/overwrite dialogs captured; cancellation and decline paths PASS."
     Update-OctaneRunStage -Path $metadataPath -Stage export -Status PASS -Detail "experiment=$ExperimentId; exported JSON parsed, matched fixtures, and remained unchanged after overwrite decline."
