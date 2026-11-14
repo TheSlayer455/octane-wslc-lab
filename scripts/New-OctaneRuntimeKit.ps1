@@ -12,7 +12,7 @@ if(Test-Path -LiteralPath $destination){throw "Runtime-kit destination already e
 New-Item -ItemType Directory -Path $destination | Out-Null
 try{
     $directories=@(
-        'lab/browser','profiles/applications','profiles/candidates','profiles/qualification','schemas','templates','fixtures'
+        'lab/browser','packaging/appliance','packaging/windows','profiles/applications','profiles/candidates','profiles/qualification','schemas','templates','fixtures'
     )
     foreach($relative in $directories){
         $target=Join-Path $destination $relative
@@ -21,12 +21,13 @@ try{
     }
     New-Item -ItemType Directory -Path (Join-Path $destination 'lab') -Force | Out-Null
     Copy-Item -LiteralPath (Join-Path $root 'lab/Dockerfile.browser-novnc') -Destination (Join-Path $destination 'lab/Dockerfile.browser-novnc')
+    Copy-Item -LiteralPath (Join-Path $root 'lab/Dockerfile.wsl-appliance') -Destination (Join-Path $destination 'lab/Dockerfile.wsl-appliance')
     New-Item -ItemType Directory -Path (Join-Path $destination 'scripts') -Force | Out-Null
     $scripts=@(
-        'Build-OctaneBrowserImage.ps1','Collect-Evidence.ps1','Collect-OctanePreview.ps1','Doctor-OctaneLab.ps1','FileAccess.ps1',
+        'Build-OctaneBrowserImage.ps1','Build-OctaneWslAppliance.ps1','Collect-Evidence.ps1','Collect-OctanePreview.ps1','Compress-OctaneImageArchive.ps1','Doctor-OctaneLab.ps1','FileAccess.ps1',
         'Export-OctaneBrowserImage.ps1','Get-OctaneViewerCredential.ps1','Import-OctaneBrowserImage.ps1','New-OctaneBrowserCandidateLock.ps1','New-OctaneBrowserQualificationPlan.ps1','New-OctaneTarget.ps1','RunState.ps1','Runtime.ps1','RuntimeProfiles.ps1',
-        'Show-OctaneManualBrowserHandoff.ps1','Stage-OctaneArtifact.ps1','Start-OctanePreview.ps1','Stop-OctaneLab.ps1',
-        'Test-OctaneArtifactTransport.ps1','Test-OctaneBrowserComponents.ps1','Test-OctaneTargetProfile.ps1'
+        'New-OctaneApplianceRelease.ps1','Show-OctaneManualBrowserHandoff.ps1','Stage-OctaneArtifact.ps1','Start-OctanePreview.ps1','Stop-OctaneLab.ps1',
+        'Test-OctaneAppliancePackage.ps1','Test-OctaneArtifactTransport.ps1','Test-OctaneBrowserComponents.ps1','Test-OctaneTargetProfile.ps1'
     )
     foreach($script in $scripts){Copy-Item -LiteralPath (Join-Path $root "scripts/$script") -Destination (Join-Path $destination "scripts/$script")}
     New-Item -ItemType Directory -Path (Join-Path $destination 'docs') -Force | Out-Null

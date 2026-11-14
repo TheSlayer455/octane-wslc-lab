@@ -8,6 +8,8 @@ try{
     if($Scope -in @('All','PowerShell','PowerShellPortable')){
         & pwsh -NoProfile -File (Join-Path $root 'tests/browser-runtime.test.ps1')
         if($LASTEXITCODE -ne 0){throw 'Browser/runtime PowerShell contract tests failed.'}
+        & pwsh -NoProfile -File (Join-Path $root 'tests/appliance-packaging.test.ps1')
+        if($LASTEXITCODE -ne 0){throw 'WSL appliance packaging contract tests failed.'}
     }
     if($Scope -in @('All','PowerShell')){
         & pwsh -NoProfile -File (Join-Path $root 'tests/scripts.test.ps1')

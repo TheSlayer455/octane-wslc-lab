@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+case "${1:-status}" in
+  version)
+    cat /etc/octane-appliance.json
+    ;;
+  status)
+    cat /etc/octane-appliance.json
+    systemctl is-active docker.service
+    docker version --format 'Docker client {{.Client.Version}} / server {{.Server.Version}}'
+    ;;
+  *)
+    echo 'Usage: octane-appliance [version|status]' >&2
+    exit 64
+    ;;
+esac

@@ -1,0 +1,37 @@
+$ErrorActionPreference='Stop'
+$root=Split-Path $PSScriptRoot -Parent
+$count=0
+function Assert-True([bool]$Value,[string]$Message){if(-not $Value){throw $Message};$script:count++}
+function Read([string]$Relative){Get-Content -LiteralPath (Join-Path $root $Relative) -Raw}
+
+$dockerfile=Read 'lab/Dockerfile.wsl-appliance'
+$install=Read 'packaging/windows/Install-Octane.ps1'
+$launcher=Read 'packaging/windows/Octane.ps1'
+$uninstall=Read 'packaging/windows/Uninstall-Octane.ps1'
+$release=Read 'scripts/New-OctaneApplianceRelease.ps1'
+$testPackage=Read 'scripts/Test-OctaneAppliancePackage.ps1'
+
+Assert-True ($dockerfile -match 'ubuntu@sha256:2198e4c65076') 'WSL appliance base must be digest pinned.'
+Assert-True ($dockerfile -match 'DOCKER_CE_VERSION=5:29\.6\.2') 'Docker Engine version must be pinned.'
+Assert-True ($dockerfile -match 'systemd=true') 'WSL appliance must enable systemd.'
+Assert-True ($dockerfile -match 'default=octane') 'WSL appliance must use its non-root operator account.'
+Assert-True ($dockerfile -notmatch '(?m)^\s*(COPY|ADD)\s+.*var/lib/docker') 'Populated Docker state must not be baked into the appliance.'
+Assert-True ($install -match "Get-FileHash.+SHA256") 'Installer must verify package hashes.'
+Assert-True ($install -match "--import") 'Installer must use the supported WSL import interface.'
+Assert-True ($install -match 'refusing to replace or unregister') 'Installer must not overwrite an existing distribution.'
+Assert-True ($install -match 'zstd -dc') 'Installer must stream the separately packaged image archive into Docker.'
+Assert-True ($install -match 'Loaded image identity mismatch') 'Installer must validate the loaded image ID.'
+Assert-True ($install -notmatch 'Invoke-Expression') 'Installer must not evaluate constructed commands.'
+Assert-True ($launcher -match "'open'") 'Launcher must expose the open command.'
+Assert-True ($launcher -match 'Start-OctanePreview\.ps1') 'Launcher must reuse the provider-neutral preview lifecycle.'
+Assert-True ($launcher -match 'Get-OctaneViewerCredential\.ps1') 'Launcher must retrieve the per-run credential safely.'
+Assert-True ($launcher -match 'Start-Process \$viewer') 'Launcher must invoke the Windows default browser only after readiness.'
+Assert-True ($launcher -notmatch 'Invoke-Expression') 'Launcher must not evaluate profile or installer strings.'
+Assert-True ($uninstall -match 'ConfirmDistributionRemoval') 'Uninstall must require an explicit destructive switch.'
+Assert-True ($uninstall -match 'octane-wsl-appliance') 'Uninstall must verify the appliance marker.'
+Assert-True ($release -match 'appliance/octane-ubuntu\.tar') 'Release builder must keep the appliance separate.'
+Assert-True ($release -match 'images/octane-wine-image\.tar\.zst') 'Release builder must keep the image archive separate.'
+Assert-True ($testPackage -match 'RemoveAfterTest') 'Package test must support exact cleanup.'
+Assert-True ($testPackage -match 'Test-OctaneBrowserComponents\.ps1') 'Package test must check the browser candidate components.'
+
+Write-Output "WSL appliance packaging contract: $count assertions passed (static/unit scope; not browser GUI acceptance)."
