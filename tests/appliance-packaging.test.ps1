@@ -32,9 +32,11 @@ Assert-True ($launcher -notmatch 'Invoke-Expression') 'Launcher must not evaluat
 Assert-True ($uninstall -match 'ConfirmDistributionRemoval') 'Uninstall must require an explicit destructive switch.'
 Assert-True ($uninstall -match 'octane-wsl-appliance') 'Uninstall must verify the appliance marker.'
 Assert-True ($uninstall -match 'distributionInstallRoot') 'Uninstall must remove the exact separately journaled WSL storage root.'
+Assert-True ($uninstall -match 'AdditionalAllowedRoot cannot be a filesystem root') 'Non-default test roots must be explicit and cannot broaden cleanup to a filesystem root.'
 Assert-True ($release -match 'appliance/octane-ubuntu\.tar') 'Release builder must keep the appliance separate.'
 Assert-True ($release -match 'images/octane-wine-image\.tar\.zst') 'Release builder must keep the image archive separate.'
 Assert-True ($testPackage -match 'RemoveAfterTest') 'Package test must support exact cleanup.'
+Assert-True ($testPackage -match 'work/appliance-package-tests') 'Package tests must use a WSL-visible project-scoped state root rather than sandbox-projected LocalAppData.'
 Assert-True ($testPackage -match 'Test-OctaneBrowserComponents\.ps1') 'Package test must check the browser candidate components.'
 
 Write-Output "WSL appliance packaging contract: $count assertions passed (static/unit scope; not browser GUI acceptance)."

@@ -1,6 +1,7 @@
 [CmdletBinding(SupportsShouldProcess=$true,ConfirmImpact='High')]
 param(
     [string]$OctaneHome=$PSScriptRoot,
+    [string]$AdditionalAllowedRoot,
     [switch]$ConfirmDistributionRemoval
 )
 
@@ -13,6 +14,21 @@ $config=Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
 $distribution=[string]$config.distribution
 $distributionRoot=[IO.Path]::GetFullPath([string]$config.distributionInstallRoot)
 if($distribution -notmatch '^Octane(?:[-A-Za-z0-9.]*)$'){throw "Refusing unsafe distribution identity: $distribution"}
+$localAppData=[IO.Path]::GetFullPath($env:LOCALAPPDATA)
+$allowedRoots=[Collections.Generic.List[string]]::new()
+$allowedRoots.Add($localAppData)
+if($AdditionalAllowedRoot){
+    $extra=[IO.Path]::GetFullPath($AdditionalAllowedRoot)
+    if($extra.Equals([IO.Path]::GetPathRoot($extra),[StringComparison]::OrdinalIgnoreCase)){throw 'AdditionalAllowedRoot cannot be a filesystem root.'}
+    $allowedRoots.Add($extra)
+}
+foreach($target in @($octaneRoot,$distributionRoot)){
+    $allowed=$false
+    foreach($allowedRoot in $allowedRoots){
+        if($target.StartsWith($allowedRoot+[IO.Path]::DirectorySeparatorChar,[StringComparison]::OrdinalIgnoreCase)){$allowed=$true;break}
+    }
+    if(-not $allowed){throw "Refusing to remove a path outside the approved roots: $target"}
+}
 if(-not $ConfirmDistributionRemoval){throw 'Re-run with -ConfirmDistributionRemoval after collecting outputs. This permanently unregisters the exact Octane WSL distribution.'}
 $marker=@(& wsl.exe -d $distribution -u root --exec cat /etc/octane-appliance.json 2>$null)
 if($LASTEXITCODE -ne 0 -or (($marker -join "`n") | ConvertFrom-Json).kind -ne 'octane-wsl-appliance'){throw 'The selected WSL distribution does not carry the Octane appliance marker.'}
@@ -24,12 +40,6 @@ $userPath=[Environment]::GetEnvironmentVariable('Path','User')
 if($userPath){
     $parts=@($userPath -split ';' | Where-Object {$_ -and -not $_.Equals($octaneRoot,[StringComparison]::OrdinalIgnoreCase)})
     [Environment]::SetEnvironmentVariable('Path',($parts -join ';'),'User')
-}
-$localAppData=[IO.Path]::GetFullPath($env:LOCALAPPDATA)
-foreach($target in @($octaneRoot,$distributionRoot)){
-    if(-not $target.StartsWith($localAppData+[IO.Path]::DirectorySeparatorChar,[StringComparison]::OrdinalIgnoreCase)){
-        throw "Distribution was removed, but the custom path must be removed manually: $target"
-    }
 }
 Remove-Item -LiteralPath $octaneRoot -Recurse -Force
 if(Test-Path -LiteralPath $distributionRoot){Remove-Item -LiteralPath $distributionRoot -Recurse -Force}

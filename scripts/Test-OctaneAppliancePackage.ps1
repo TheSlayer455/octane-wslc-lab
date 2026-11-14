@@ -4,6 +4,7 @@ param(
     [string]$Installer,
     [ValidateRange(1024,65535)][int]$Port=3010,
     [string]$EvidenceDirectory,
+    [string]$StateRoot,
     [switch]$RemoveAfterTest
 )
 
@@ -11,10 +12,13 @@ $ErrorActionPreference='Stop'
 $package=[IO.Path]::GetFullPath($PackageRoot)
 $id=[Guid]::NewGuid().ToString('N').Substring(0,10)
 $distribution="Octane-Test-$id"
-$octaneRoot=Join-Path $env:LOCALAPPDATA "Octane-Test-$id"
 if(-not $EvidenceDirectory){$EvidenceDirectory=Join-Path (Get-Location) "evidence/appliance-test-$id"}
 $evidence=[IO.Path]::GetFullPath($EvidenceDirectory)
+if(-not $StateRoot){$StateRoot=Join-Path (Get-Location) 'work/appliance-package-tests'}
+$state=[IO.Path]::GetFullPath($StateRoot)
+$octaneRoot=Join-Path $state "Octane-Test-$id"
 New-Item -ItemType Directory -Path $evidence -Force | Out-Null
+New-Item -ItemType Directory -Path $state -Force | Out-Null
 $container=$null
 $result=[ordered]@{schemaVersion=1;testId=$id;distribution=$distribution;startedAtUtc=[DateTime]::UtcNow.ToString('o');stages=[ordered]@{};container=$null;cleanup='NOT_RUN'}
 try{
@@ -51,7 +55,7 @@ try{
     }
     if($RemoveAfterTest -and (Test-Path -LiteralPath (Join-Path $octaneRoot 'config.json'))){
         try{
-            & (Join-Path $octaneRoot 'Uninstall-Octane.ps1') -OctaneHome $octaneRoot -ConfirmDistributionRemoval -Confirm:$false
+            & (Join-Path $octaneRoot 'Uninstall-Octane.ps1') -OctaneHome $octaneRoot -AdditionalAllowedRoot $state -ConfirmDistributionRemoval -Confirm:$false
             $result.cleanup='PASS'
         }catch{
             $result.cleanup="FAIL: $($_.Exception.Message)"
