@@ -15,6 +15,27 @@ if [[ -e "$run_dir" ]]; then
     exit 2
 fi
 mkdir -p "$run_dir/logs" "$run_dir/screenshots"
+interaction_log="$run_dir/logs/interaction.log"
+: > "$interaction_log"
+
+log_step() {
+    printf '%s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*" >> "$interaction_log"
+}
+
+window_is_viewable() {
+    xwininfo -id "$1" 2>/dev/null | grep -q 'Map State: IsViewable'
+}
+
+wait_window_not_viewable() {
+    local id="$1"
+    local timeout_seconds="$2"
+    local deadline=$((SECONDS + timeout_seconds))
+    while (( SECONDS < deadline )); do
+        window_is_viewable "$id" || return 0
+        sleep 0.25
+    done
+    return 1
+}
 
 mapfile -d '' apps < <(find "$WINEPREFIX/drive_c/users" -type f -iname 'octane.exe' -print0)
 if [[ ${#apps[@]} -ne 1 ]]; then
@@ -156,6 +177,7 @@ if [[ -n "$window_id" ]]; then
         sleep 0.25
     done
     if [[ -n "$save_dialog" ]]; then
+        log_step "first save dialog id=$save_dialog"
         import -window root "$run_dir/screenshots/native-save-dialog.png" 2> "$run_dir/logs/import-save-dialog.log" || true
         xdotool windowactivate --sync "$save_dialog" >> "$run_dir/logs/interaction.log" 2>&1 || true
         xdotool key --window "$save_dialog" ctrl+a >> "$run_dir/logs/interaction.log" 2>&1 || true
@@ -170,6 +192,19 @@ if [[ -n "$window_id" ]]; then
             [[ -n "$report_path" ]] && break
             sleep 0.25
         done
+        if [[ -n "$report_path" ]]; then
+            log_step "first export created report=$report_path"
+        else
+            log_step 'first export did not create a report before the deadline'
+        fi
+        # The file can become visible before Wine destroys the native dialog.
+        # Wait for that exact dialog to disappear so the next activation cannot
+        # accidentally target the stale first-save window.
+        if wait_window_not_viewable "$save_dialog" 5; then
+            log_step "first save dialog closed id=$save_dialog"
+        else
+            log_step "first save dialog remained viewable id=$save_dialog"
+        fi
     fi
 
     if [[ -n "$report_path" && -s "$report_path" ]] && jq -e '
@@ -185,6 +220,7 @@ if [[ -n "$window_id" ]]; then
         cp "$report_path" "$run_dir/report.json"
         report_sha_before=$(sha256sum "$report_path" | cut -d' ' -f1)
 
+        xdotool windowactivate --sync "$window_id" >> "$run_dir/logs/interaction.log" 2>&1 || true
         xdotool mousemove --window "$window_id" 225 190 click 1 >> "$run_dir/logs/interaction.log" 2>&1 || true
         xdotool key --window "$window_id" Tab Return >> "$run_dir/logs/interaction.log" 2>&1 || true
         deadline=$((SECONDS + 15))
@@ -195,26 +231,47 @@ if [[ -n "$window_id" ]]; then
             sleep 0.25
         done
         if [[ -n "$save_dialog" ]]; then
+            log_step "second save dialog id=$save_dialog"
+            xdotool windowactivate --sync "$save_dialog" >> "$run_dir/logs/interaction.log" 2>&1 || true
             xdotool key --window "$save_dialog" Return >> "$run_dir/logs/interaction.log" 2>&1 || true
-            sleep 1
-            confirm_dialog=$(xdotool search --onlyvisible --name '^Save$' 2>/dev/null | tail -n 1 || true)
+            deadline=$((SECONDS + 10))
+            confirm_dialog=''
+            while (( SECONDS < deadline )); do
+                while IFS= read -r candidate; do
+                    if [[ -n "$candidate" && "$candidate" != "$save_dialog" ]]; then
+                        confirm_dialog="$candidate"
+                    fi
+                done < <(xdotool search --onlyvisible --name '^Save$' 2>/dev/null || true)
+                [[ -n "$confirm_dialog" ]] && break
+                sleep 0.25
+            done
             if [[ -n "$confirm_dialog" ]]; then
+                log_step "overwrite confirmation id=$confirm_dialog"
                 import -window root "$run_dir/screenshots/native-overwrite-confirmation.png" 2> "$run_dir/logs/import-overwrite.log" || true
+                xdotool windowactivate --sync "$confirm_dialog" >> "$run_dir/logs/interaction.log" 2>&1 || true
                 xdotool key --window "$confirm_dialog" Tab Return >> "$run_dir/logs/interaction.log" 2>&1 || true
-                sleep 0.5
-                remaining_save=$(xdotool search --onlyvisible --name '^Save$' 2>/dev/null | head -n 1 || true)
-                [[ -z "$remaining_save" ]] || xdotool key --window "$remaining_save" Escape >> "$run_dir/logs/interaction.log" 2>&1 || true
+                wait_window_not_viewable "$confirm_dialog" 5 || log_step "overwrite confirmation remained viewable id=$confirm_dialog"
+                if window_is_viewable "$save_dialog"; then
+                    xdotool key --window "$save_dialog" Escape >> "$run_dir/logs/interaction.log" 2>&1 || true
+                    wait_window_not_viewable "$save_dialog" 5 || log_step "second save dialog remained viewable id=$save_dialog"
+                fi
                 sleep 1
                 report_sha_after=$(sha256sum "$report_path" | cut -d' ' -f1)
                 if [[ "$report_sha_before" = "$report_sha_after" ]]; then
                     overwrite_decline=PASS
+                    log_step 'overwrite decline preserved the existing report hash'
                 fi
+            else
+                log_step 'overwrite confirmation did not appear before the deadline'
             fi
+        else
+            log_step 'second save dialog did not appear before the deadline'
         fi
     fi
 
     # Exercise a native open dialog and cancellation without changing the
     # validated report or the visible workload results.
+    xdotool windowactivate --sync "$window_id" >> "$run_dir/logs/interaction.log" 2>&1 || true
     xdotool mousemove --window "$window_id" 95 190 click 1 >> "$run_dir/logs/interaction.log" 2>&1 || true
     deadline=$((SECONDS + 15))
     open_dialog=''
@@ -224,10 +281,13 @@ if [[ -n "$window_id" ]]; then
         sleep 0.25
     done
     if [[ -n "$open_dialog" ]]; then
+        log_step "native open dialog id=$open_dialog"
         import -window root "$run_dir/screenshots/native-open-dialog.png" 2> "$run_dir/logs/import-open-dialog.log" || true
         xdotool key --window "$open_dialog" Escape >> "$run_dir/logs/interaction.log" 2>&1 || true
         native_dialogs=PASS
         sleep 1
+    else
+        log_step 'native open dialog did not appear before the deadline'
     fi
 
     xdotool windowsize --sync "$window_id" 900 650 >> "$run_dir/logs/interaction.log" 2>&1 || true

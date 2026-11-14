@@ -76,11 +76,15 @@ test('installed application experiment requires visible repaint and real exporte
   assert.match(appRunner,/compare -metric AE/);
   assert.match(appRunner,/Choose files to analyze/);
   assert.match(appRunner,/native-overwrite-confirmation/);
+  assert.match(appRunner,/wait_window_not_viewable/);
+  assert.match(appRunner,/first save dialog closed/);
   assert.match(appRunner,/\.files \| length\) == 8/);
   assert.match(appRunner,/wineserver -k/);
   assert.doesNotMatch(appRunner,/--no-sandbox|--privileged/);
   assert.match(appController,/Validate-OctaneReport\.ps1/);
   assert.match(appReviewer,/visual review cannot pass/i);
+  assert.match(appReviewer,/Stage nativeDialogs -Status FAIL/);
+  assert.match(appReviewer,/overwriteDecline=.*required export contract did not fully pass/);
 });
 
 test('report validator independently checks hashes and the fixture contract',()=>{

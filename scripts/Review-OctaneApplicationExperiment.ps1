@@ -15,8 +15,8 @@ $directory=Join-Path $root "evidence/$($metadata.runId)/applications/$Experiment
 $scenarioPath=Join-Path $directory 'scenario.json'
 if(-not (Test-Path -LiteralPath $scenarioPath)){throw "Scenario not found: $scenarioPath"}
 $scenario=Get-Content -LiteralPath $scenarioPath -Raw | ConvertFrom-Json
-$automationPass=$scenario.observations.nativeWindow -eq 'PASS' -and $scenario.observations.focusRepaintPixelChange -eq 'PASS' -and $scenario.observations.workload -eq 'PASS' -and $scenario.observations.nativeDialogs -eq 'PASS' -and $scenario.observations.export -eq 'PASS' -and $scenario.observations.overwriteDecline -eq 'PASS'
-if($Status -eq 'PASS' -and -not $automationPass){throw 'Visual review cannot pass when an automated scenario gate failed.'}
+$visibleAutomationPass=$scenario.observations.nativeWindow -eq 'PASS' -and $scenario.observations.focusRepaintPixelChange -eq 'PASS'
+if($Status -eq 'PASS' -and -not $visibleAutomationPass){throw 'Visual review cannot pass when the automated native-window or repaint gate failed.'}
 
 $scenario.observations.visualReview=$Status
 $scenario.qualification='Native-window screenshots were reviewed; the result applies only to this run/profile/artifact identity.'
@@ -25,9 +25,21 @@ $scenario | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $scenarioPath -E
 
 if($Status -eq 'PASS'){
     Update-OctaneRunStage -Path $metadataPath -Stage application -Status PASS -Detail "experiment=$ExperimentId; visible native Octane client repainted and remained responsive; repaintNudge=$($scenario.observations.repaintNudge); repaintAttempts=$($scenario.observations.repaintNudgeAttempts); repaintNudgeMs=$($scenario.observations.repaintNudgeDurationMs); clientColors=$($scenario.observations.clientColorCount); $Detail"
-    Update-OctaneRunStage -Path $metadataPath -Stage workload -Status PASS -Detail "experiment=$ExperimentId; fixture contract and independent report validator PASS."
-    Update-OctaneRunStage -Path $metadataPath -Stage nativeDialogs -Status PASS -Detail "experiment=$ExperimentId; native open/save/overwrite dialogs captured; cancellation and decline paths PASS."
-    Update-OctaneRunStage -Path $metadataPath -Stage export -Status PASS -Detail "experiment=$ExperimentId; exported JSON parsed, matched fixtures, and remained unchanged after overwrite decline."
+    if($scenario.observations.workload -eq 'PASS'){
+        Update-OctaneRunStage -Path $metadataPath -Stage workload -Status PASS -Detail "experiment=$ExperimentId; fixture contract and independent report validator PASS."
+    }else{
+        Update-OctaneRunStage -Path $metadataPath -Stage workload -Status FAIL -Detail "experiment=$ExperimentId; workload automation did not complete the fixture contract."
+    }
+    if($scenario.observations.nativeDialogs -eq 'PASS'){
+        Update-OctaneRunStage -Path $metadataPath -Stage nativeDialogs -Status PASS -Detail "experiment=$ExperimentId; native open/save/overwrite dialogs captured; cancellation and decline paths PASS."
+    }else{
+        Update-OctaneRunStage -Path $metadataPath -Stage nativeDialogs -Status FAIL -Detail "experiment=$ExperimentId; required native dialog capture/cancellation sequence did not complete."
+    }
+    if($scenario.observations.export -eq 'PASS' -and $scenario.observations.overwriteDecline -eq 'PASS'){
+        Update-OctaneRunStage -Path $metadataPath -Stage export -Status PASS -Detail "experiment=$ExperimentId; exported JSON parsed, matched fixtures, and remained unchanged after overwrite decline."
+    }else{
+        Update-OctaneRunStage -Path $metadataPath -Stage export -Status FAIL -Detail "experiment=$ExperimentId; export=$($scenario.observations.export); overwriteDecline=$($scenario.observations.overwriteDecline); required export contract did not fully pass."
+    }
 }else{
     Update-OctaneRunStage -Path $metadataPath -Stage application -Status FAIL -Detail "experiment=$ExperimentId; visual review FAIL; $Detail"
     foreach($stage in @('workload','nativeDialogs','export')){Update-OctaneRunStage -Path $metadataPath -Stage $stage -Status BLOCKED -Detail "Blocked because application visual review failed for $ExperimentId."}
