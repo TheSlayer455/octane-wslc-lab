@@ -35,6 +35,8 @@ test('batch declares ten runs before execution and requires exact cleanup and ev
   assert.match(batch,/rm','-f','-v',\$container/);
   assert.match(batch,/cleanupStatus='PASS'/);
   assert.match(batch,/requiredEvidence/);
+  assert.match(batch,/Wait-QualificationPortAvailable/);
+  assert.match(batch,/interRunPortAvailabilityTimeoutSeconds/);
   assert.match(batch,/127\.0\.0\.1:\$\{Port\}:3389/);
   assert.doesNotMatch(batch,/--privileged|--network[= ]host|docker\.sock|--device/);
   assert.doesNotMatch(batch,/Podman|podman/);

@@ -44,6 +44,15 @@ function Get-DeterministicContainerName([string]$Value) {
     return 'octane-' + ([Convert]::ToHexString($hash).ToLowerInvariant().Substring(0,10))
 }
 
+function Wait-QualificationPortAvailable([int]$Port,[int]$TimeoutSeconds) {
+    $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
+    do {
+        if (Test-OctanePortAvailable -Port $Port) { return $true }
+        Start-Sleep -Milliseconds 500
+    } while ([DateTime]::UtcNow -lt $deadline)
+    return $false
+}
+
 foreach ($plannedRunId in $plannedRunIds) {
     $runDirectory = Join-Path $runsDirectory $plannedRunId
     New-Item -ItemType Directory -Path (Join-Path $runDirectory 'logs/controller') -Force | Out-Null
@@ -56,7 +65,10 @@ foreach ($plannedRunId in $plannedRunIds) {
     $forcedRepaint = $false; $hiddenRetries = 0; $manualOverrides = 0; $failure = $null
     $watch = [Diagnostics.Stopwatch]::StartNew()
     try {
-        if (-not (Test-OctanePortAvailable -Port $Port)) { throw "Loopback port $Port is unavailable before $plannedRunId." }
+        $portWaitSeconds = [int]$lock.automation.interRunPortAvailabilityTimeoutSeconds
+        if (-not (Wait-QualificationPortAvailable -Port $Port -TimeoutSeconds $portWaitSeconds)) {
+            throw "Loopback port $Port did not become available within $portWaitSeconds seconds before $plannedRunId."
+        }
         $password = [Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(24))
         $passwordHash = New-OctaneUnixPasswordHash -Password $password -WslDistro $WslDistro
         $runArguments = @(
