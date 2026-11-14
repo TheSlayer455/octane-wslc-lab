@@ -9,5 +9,11 @@
 !diagnostics/webview2-win32/artifacts/
 !diagnostics/webview2-win32/artifacts/WebView2Diagnostic.exe
 !diagnostics/webview2-win32/artifacts/diagnostic-manifest.json
+!diagnostics/win32-file-dialog/
+!diagnostics/win32-file-dialog/artifacts/
+!diagnostics/win32-file-dialog/artifacts/FileDialogProbe.exe
+!diagnostics/win32-file-dialog/artifacts/dialog-probe-manifest.json
+!diagnostics/win32-file-dialog/fixtures/
+!diagnostics/win32-file-dialog/fixtures/**
 !fixtures/
 !fixtures/**

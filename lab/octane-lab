@@ -67,8 +67,10 @@ record_environment() {
     if command -v vulkaninfo >/dev/null 2>&1; then timeout 30 vulkaninfo --summary > "$evidence/vulkaninfo.txt" 2>&1 || true; fi
     cp /opt/octane/installer-manifest.json "$evidence/"
     [[ ! -f /opt/octane/diagnostic-manifest.json ]] || cp /opt/octane/diagnostic-manifest.json "$evidence/"
+    [[ ! -f /opt/octane/dialog-probe-manifest.json ]] || cp /opt/octane/dialog-probe-manifest.json "$evidence/"
     sha256sum /opt/octane/Octane-setup.exe > "$evidence/installer-actual.sha256"
     [[ ! -f /opt/octane/WebView2Diagnostic.exe ]] || sha256sum /opt/octane/WebView2Diagnostic.exe > "$evidence/diagnostic-actual.sha256"
+    [[ ! -f /opt/octane/FileDialogProbe.exe ]] || sha256sum /opt/octane/FileDialogProbe.exe > "$evidence/dialog-probe-actual.sha256"
     {
         df -h / "$state_dir" /dev/shm 2>/dev/null || true
         echo
@@ -178,7 +180,23 @@ case "${1:-help}" in
         fi
         record_environment
         exec /usr/local/bin/octane-application-experiment ;;
+    repaint-observation)
+        ensure_display
+        if [[ ! -x /usr/local/bin/octane-repaint-observation ]]; then
+            echo 'The no-nudge repaint observer is not present in this image.' >&2
+            exit 1
+        fi
+        record_environment
+        exec /usr/local/bin/octane-repaint-observation ;;
+    qualification-experiment)
+        ensure_display
+        if [[ ! -x /usr/local/bin/octane-qualification-experiment ]]; then
+            echo 'The strict installed-application qualification runner is not present in this image.' >&2
+            exit 1
+        fi
+        record_environment
+        exec /usr/local/bin/octane-qualification-experiment ;;
     help|*)
-        echo 'Usage: octane-lab {environment|notepad|install|install-silent|diagnostic|experiment|application-experiment|launch|launch-ole}'
+        echo 'Usage: octane-lab {environment|notepad|install|install-silent|diagnostic|experiment|application-experiment|repaint-observation|qualification-experiment|launch|launch-ole}'
         echo "Run as the desktop user. Export JSON beneath Z:${evidence//\//\\}." ;;
 esac

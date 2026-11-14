@@ -1,0 +1,552 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+state_dir="${OCTANE_STATE_DIR:-/config}"
+evidence_root="${OCTANE_EVIDENCE_DIR:-$state_dir/octane-evidence}"
+run_id="${OCTANE_QUALIFICATION_RUN_ID:-qualification-$(date -u +%Y%m%dT%H%M%SZ)}"
+mode="${OCTANE_QUALIFICATION_MODE:-exploratory}"
+expected_webview2_version="${OCTANE_EXPECTED_WEBVIEW2_VERSION:-157.0.4341.60}"
+if [[ ! "$run_id" =~ ^[A-Za-z0-9._-]{8,96}$ ]]; then
+    echo 'OCTANE_QUALIFICATION_RUN_ID contains invalid characters.' >&2
+    exit 2
+fi
+if [[ "$mode" != exploratory && "$mode" != locked ]]; then
+    echo 'OCTANE_QUALIFICATION_MODE must be exploratory or locked.' >&2
+    exit 2
+fi
+
+run_dir="$evidence_root/qualification/$run_id"
+[[ ! -e "$run_dir" ]] || { echo "Qualification run already exists: $run_dir" >&2; exit 2; }
+mkdir -p "$run_dir/gates" "$run_dir/logs" "$run_dir/screenshots" "$run_dir/output"
+interaction_log="$run_dir/logs/interaction.log"
+pre_initial_log="$run_dir/logs/pre-initial-actions.log"
+samples="$run_dir/presentation-samples.jsonl"
+: > "$interaction_log"
+: > "$pre_initial_log"
+: > "$samples"
+
+write_gate() {
+    local name="$1" status="$2" reason="$3" path
+    path="$run_dir/gates/$name.json"
+    [[ ! -e "$path" ]] || { echo "Gate already recorded: $name" >&2; exit 2; }
+    jq -n --arg name "$name" --arg status "$status" --arg reason "$reason" \
+        --arg recordedAtUtc "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+        '{name:$name,status:$status,reason:$reason,recordedAtUtc:$recordedAtUtc}' > "$path"
+}
+
+gate_status() {
+    local name="$1"
+    [[ -f "$run_dir/gates/$name.json" ]] && jq -r '.status' "$run_dir/gates/$name.json" || printf 'NOT_RUN'
+}
+
+log_action() {
+    local phase="$1" action="$2"
+    printf '%s phase=%s action=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$phase" "$action" >> "$interaction_log"
+    [[ "$phase" != pre-initial ]] || printf '%s\n' "$action" >> "$pre_initial_log"
+}
+
+window_is_viewable() {
+    xwininfo -id "$1" 2>/dev/null | grep -q 'Map State: IsViewable'
+}
+
+wait_window_not_viewable() {
+    local id="$1" timeout_seconds="$2" deadline
+    deadline=$((SECONDS + timeout_seconds))
+    while (( SECONDS < deadline )); do
+        window_is_viewable "$id" || return 0
+        sleep 0.2
+    done
+    return 1
+}
+
+wait_visible_title() {
+    local pattern="$1" timeout_seconds="$2" deadline id=''
+    deadline=$((SECONDS + timeout_seconds))
+    while (( SECONDS < deadline )); do
+        id=$(xdotool search --onlyvisible --name "$pattern" 2>/dev/null | tail -n 1 || true)
+        [[ -n "$id" ]] && { printf '%s' "$id"; return 0; }
+        sleep 0.2
+    done
+    return 1
+}
+
+wait_active_window() {
+    local expected="$1" timeout_seconds="$2" deadline
+    deadline=$((SECONDS + timeout_seconds))
+    while (( SECONDS < deadline )); do
+        [[ "$(xdotool getactivewindow 2>/dev/null || true)" == "$expected" ]] && return 0
+        sleep 0.2
+    done
+    return 1
+}
+
+window_snapshot() {
+    local id="$1" output="$2"
+    {
+        echo "utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+        echo "window_id=$id"
+        echo "active_window=$(xdotool getactivewindow 2>/dev/null || true)"
+        echo "focus_window=$(xdotool getwindowfocus 2>/dev/null || true)"
+        echo "window_pid=$(xdotool getwindowpid "$id" 2>/dev/null || true)"
+        echo "window_name=$(xdotool getwindowname "$id" 2>/dev/null || true)"
+        xwininfo -id "$id" 2>&1 || true
+        xprop -id "$id" WM_CLASS WM_NAME _NET_WM_NAME _NET_WM_PID 2>&1 || true
+    } > "$output"
+}
+
+measure_client_colors() {
+    local image="$1" width height crop_y=40
+    [[ -s "$image" ]] || { printf '0'; return; }
+    read -r width height < <(identify -format '%w %h\n' "$image")
+    if (( height <= crop_y )); then printf '0'; return; fi
+    convert "$image" -crop "${width}x$((height-crop_y))+0+$crop_y" +repage -format '%k' info:
+}
+
+client_difference() {
+    local before="$1" after="$2" output="$3" width height crop_y=40 result
+    [[ -s "$before" && -s "$after" ]] || { printf '0'; return; }
+    read -r width height < <(identify -format '%w %h\n' "$before")
+    convert "$before" -crop "${width}x$((height-crop_y))+0+$crop_y" +repage "$run_dir/output/before-client.png"
+    read -r width height < <(identify -format '%w %h\n' "$after")
+    convert "$after" -crop "${width}x$((height-crop_y))+0+$crop_y" +repage "$run_dir/output/after-client.png"
+    set +e
+    result=$(compare -metric AE "$run_dir/output/before-client.png" "$run_dir/output/after-client.png" "$output" 2>&1)
+    set -e
+    [[ "$result" =~ ^[0-9]+$ ]] && printf '%s' "$result" || printf '0'
+}
+
+primary_button_enabled() {
+    local image="$1" width height x y pixel green_hex green
+    [[ -s "$image" ]] || return 1
+    read -r width height < <(identify -format '%w %h\n' "$image")
+    x=$((width * 8 / 100)); y=$((height * 26 / 100))
+    pixel=$(convert "$image" -crop "1x1+$x+$y" +repage -depth 8 -format '%[hex:p{0,0}]' info: 2>/dev/null || true)
+    pixel=${pixel:0:6}
+    [[ "$pixel" =~ ^[0-9A-Fa-f]{6}$ ]] || return 1
+    green_hex=${pixel:2:2}
+    green=$((16#$green_hex))
+    (( green > 160 ))
+}
+
+wait_client_change() {
+    local reference="$1" output="$2" timeout_seconds="$3" deadline colors difference
+    deadline=$((SECONDS + timeout_seconds))
+    while (( SECONDS < deadline )); do
+        import -window "$window_id" "$output" 2>> "$run_dir/logs/import.log" || true
+        colors=$(measure_client_colors "$output")
+        difference=$(client_difference "$reference" "$output" "$run_dir/output/client-difference.png")
+        if [[ "$colors" =~ ^[0-9]+$ && "$difference" =~ ^[0-9]+$ ]] &&
+           (( colors > 100 && difference > 1000 )) && primary_button_enabled "$output"; then
+            printf '%s %s\n' "$colors" "$difference"
+            return 0
+        fi
+        sleep 0.5
+    done
+    return 1
+}
+
+click_main_fraction() {
+    local x_percent="$1" y_percent="$2" geometry width height x y
+    geometry=$(xdotool getwindowgeometry --shell "$window_id")
+    width=$(sed -n 's/^WIDTH=//p' <<< "$geometry")
+    height=$(sed -n 's/^HEIGHT=//p' <<< "$geometry")
+    [[ "$width" =~ ^[0-9]+$ && "$height" =~ ^[0-9]+$ ]] || return 1
+    x=$((width * x_percent / 100)); y=$((height * y_percent / 100))
+    xdotool mousemove --window "$window_id" "$x" "$y" click 1
+}
+
+type_filename() {
+    local value="$1"
+    xdotool key --clearmodifiers ctrl+a
+    xdotool type --clearmodifiers --delay 8 "$value"
+}
+
+click_common_dialog_button() {
+    local dialog="$1" button="$2" geometry width height x y
+    geometry=$(xdotool getwindowgeometry --shell "$dialog")
+    width=$(sed -n 's/^WIDTH=//p' <<< "$geometry")
+    height=$(sed -n 's/^HEIGHT=//p' <<< "$geometry")
+    [[ "$width" =~ ^[0-9]+$ && "$height" =~ ^[0-9]+$ ]] || return 1
+    y=$((height - 18))
+    if [[ "$button" == accept ]]; then x=$((width - 95)); else x=$((width - 30)); fi
+    xdotool mousemove --window "$dialog" "$x" "$y" click 1
+}
+
+click_confirmation_yes() {
+    local dialog="$1" geometry width height
+    geometry=$(xdotool getwindowgeometry --shell "$dialog")
+    width=$(sed -n 's/^WIDTH=//p' <<< "$geometry")
+    height=$(sed -n 's/^HEIGHT=//p' <<< "$geometry")
+    [[ "$width" =~ ^[0-9]+$ && "$height" =~ ^[0-9]+$ ]] || return 1
+    xdotool mousemove --window "$dialog" $((width * 35 / 100)) $((height * 78 / 100)) click 1
+}
+
+capture_root() {
+    import -window root "$1" 2>> "$run_dir/logs/import.log" || true
+}
+
+mapfile -d '' apps < <(find "$WINEPREFIX/drive_c/users" -type f -iname 'octane.exe' -print0)
+if [[ ${#apps[@]} -ne 1 ]]; then
+    write_gate installedIdentity FAIL 'Expected exactly one installed octane.exe.'
+    app=''
+else
+    app="${apps[0]}"
+    app_sha=$(sha256sum "$app" | cut -d' ' -f1)
+    write_gate installedIdentity PASS "Exactly one installed executable; SHA-256 $app_sha."
+fi
+
+fixture_dir=/opt/octane/fixtures
+find "$fixture_dir" -maxdepth 1 -type f -print0 | sort -z | xargs -0 sha256sum > "$run_dir/fixture-checksums-before.sha256"
+mkdir -p "$WINEPREFIX/drive_c/octane-qualification/output"
+report_path="$WINEPREFIX/drive_c/octane-qualification/output/octane-report.json"
+protected_path="$WINEPREFIX/drive_c/octane-qualification/output/protected.json"
+printf 'protected-existing-output\n' > "$protected_path"
+protected_before=$(sha256sum "$protected_path" | cut -d' ' -f1)
+report_windows='C:\octane-qualification\output\octane-report.json'
+protected_windows='C:\octane-qualification\output\protected.json'
+unicode_windows=$(winepath -w '/opt/octane/dialog-fixtures/Space Ω/sample one.txt')
+selection=''
+while IFS= read -r -d '' fixture; do
+    selection+="\"$(winepath -w "$fixture")\" "
+done < <(find "$fixture_dir" -maxdepth 1 -type f -print0 | sort -z)
+
+started_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+started_ms=$(date -u +%s%3N)
+app_pid=''
+recorder_pid=''
+
+stop_recorder() {
+    if [[ -n "$recorder_pid" ]] && kill -0 "$recorder_pid" 2>/dev/null; then
+        kill -INT "$recorder_pid" 2>/dev/null || true
+        wait "$recorder_pid" 2>/dev/null || true
+    fi
+    recorder_pid=''
+}
+
+finish_processes() {
+    stop_recorder
+    if [[ -n "$app_pid" ]] && kill -0 "$app_pid" 2>/dev/null; then kill -TERM "$app_pid" 2>/dev/null || true; fi
+    WINEPREFIX="$WINEPREFIX" wineserver -k >/dev/null 2>&1 || true
+}
+trap finish_processes EXIT INT TERM
+
+dimensions=$(xdpyinfo | awk '/dimensions:/{print $2; exit}')
+if [[ "$dimensions" =~ ^[0-9]+x[0-9]+$ ]]; then
+    ffmpeg -y -loglevel warning -f x11grab -framerate 3 -video_size "$dimensions" -i "$DISPLAY" \
+        -c:v libx264 -preset ultrafast -pix_fmt yuv420p "$run_dir/recording.mp4" > "$run_dir/logs/ffmpeg.log" 2>&1 &
+    recorder_pid=$!
+fi
+
+window_id=''
+first_visible_ms=-1
+max_colors=0
+pre_initial_action_valid=false
+if [[ -n "$app" ]]; then
+    log_action pre-initial launch-installed-octane-once
+    WINEDEBUG="${OCTANE_APPLICATION_WINEDEBUG:--all,+timestamp,+seh}" wine "$app" > "$run_dir/logs/wine.log" 2>&1 &
+    app_pid=$!
+    echo "$app_pid" > "$run_dir/launcher-linux-pid.txt"
+    deadline=$((SECONDS + 75))
+    while (( SECONDS < deadline )); do
+        window_id=$(xdotool search --onlyvisible --name 'Octane.*File analysis lab' 2>/dev/null | tail -n 1 || true)
+        [[ -n "$window_id" ]] && break
+        kill -0 "$app_pid" 2>/dev/null || break
+        sleep 0.5
+    done
+fi
+
+if [[ -z "$window_id" ]]; then
+    write_gate initialVisible FAIL 'Installed Octane did not expose its expected native top-level window before the deadline.'
+else
+    echo "$window_id" > "$run_dir/native-window-id.txt"
+    window_snapshot "$window_id" "$run_dir/logs/main-window-initial.txt"
+    log_action pre-initial normal-window-activate-once
+    xdotool windowactivate --sync "$window_id" >> "$interaction_log" 2>&1 || true
+    sample_deadline=$((SECONDS + 45)); sample_index=0
+    while (( SECONDS <= sample_deadline )); do
+        image="$run_dir/screenshots/readiness-$(printf '%03d' "$sample_index").png"
+        import -window "$window_id" "$image" 2>> "$run_dir/logs/import.log" || true
+        colors=$(measure_client_colors "$image"); [[ "$colors" =~ ^[0-9]+$ ]] || colors=0
+        (( colors > max_colors )) && max_colors=$colors
+        elapsed_ms=$(( $(date -u +%s%3N) - started_ms ))
+        jq -cn --argjson index "$sample_index" --argjson elapsedMs "$elapsed_ms" --argjson clientColorCount "$colors" \
+            '{index:$index,elapsedMs:$elapsedMs,clientColorCount:$clientColorCount}' >> "$samples"
+        if (( colors > 100 )); then
+            first_visible_ms=$elapsed_ms
+            cp "$image" "$run_dir/screenshots/initial-visible.png"
+            break
+        fi
+        sample_index=$((sample_index + 1)); sleep 1
+    done
+    if grep -Evq '^(launch-installed-octane-once|normal-window-activate-once)$' "$pre_initial_log"; then
+        write_gate initialVisible FAIL 'A forbidden pre-readiness action was present in the execution trace.'
+    elif (( first_visible_ms < 0 )); then
+        write_gate initialVisible FAIL "Client remained visually blank/flat; max client colors=$max_colors."
+    else
+        pre_initial_action_valid=true
+        write_gate initialVisible PASS "Visible client presented after ${first_visible_ms} ms with max client colors=$max_colors; no forced repaint action preceded readiness."
+    fi
+fi
+
+open_cancel=FAIL
+open_unicode=FAIL
+open_standard=FAIL
+workload_visual=FAIL
+save_cancel=FAIL
+save_success=FAIL
+overwrite_protection=FAIL
+post_error_open=FAIL
+post_dialog_render=FAIL
+normal_window_behavior=FAIL
+
+if [[ "$(gate_status initialVisible)" == PASS ]]; then
+    # Open cancellation.
+    log_action post-initial click-choose-for-cancel
+    click_main_fraction 8 26 >> "$interaction_log" 2>&1 || true
+    open_dialog=$(wait_visible_title 'Choose files to analyze' 15 || true)
+    if [[ -n "$open_dialog" && "$(xdotool getactivewindow 2>/dev/null || true)" == "$open_dialog" ]]; then
+        window_snapshot "$open_dialog" "$run_dir/logs/open-cancel-window.txt"
+        capture_root "$run_dir/screenshots/open-cancel-dialog.png"
+        log_action post-initial click-visible-open-cancel
+        click_common_dialog_button "$open_dialog" cancel >> "$interaction_log" 2>&1 || true
+        if wait_window_not_viewable "$open_dialog" 10 && wait_active_window "$window_id" 10; then open_cancel=PASS; fi
+    fi
+
+    # Reopen and select the bounded Unicode/space fixture.
+    if [[ "$open_cancel" == PASS ]]; then
+        baseline="$run_dir/screenshots/before-unicode-selection.png"; import -window "$window_id" "$baseline" 2>> "$run_dir/logs/import.log" || true
+        log_action post-initial click-choose-for-unicode-selection
+        click_main_fraction 8 26 >> "$interaction_log" 2>&1 || true
+        open_dialog=$(wait_visible_title 'Choose files to analyze' 15 || true)
+        if [[ -n "$open_dialog" && "$(xdotool getactivewindow 2>/dev/null || true)" == "$open_dialog" ]]; then
+            log_action post-initial type-unicode-space-fixture-and-open
+            type_filename "$unicode_windows" >> "$interaction_log" 2>&1 || true
+            click_common_dialog_button "$open_dialog" accept >> "$interaction_log" 2>&1 || true
+            if wait_window_not_viewable "$open_dialog" 15 && wait_active_window "$window_id" 15; then
+                if read -r unicode_colors unicode_difference < <(wait_client_change "$baseline" "$run_dir/screenshots/after-unicode-selection.png" 30); then open_unicode=PASS; fi
+            fi
+        fi
+    fi
+
+    # Reopen again and select the immutable standard eight-file fixture set.
+    if [[ "$open_unicode" == PASS ]]; then
+        baseline="$run_dir/screenshots/before-standard-selection.png"; import -window "$window_id" "$baseline" 2>> "$run_dir/logs/import.log" || true
+        log_action post-initial click-choose-for-standard-workload
+        click_main_fraction 8 26 >> "$interaction_log" 2>&1 || true
+        open_dialog=$(wait_visible_title 'Choose files to analyze' 15 || true)
+        if [[ -n "$open_dialog" && "$(xdotool getactivewindow 2>/dev/null || true)" == "$open_dialog" ]]; then
+            capture_root "$run_dir/screenshots/open-standard-dialog.png"
+            log_action post-initial type-eight-fixtures-and-open
+            type_filename "$selection" >> "$interaction_log" 2>&1 || true
+            click_common_dialog_button "$open_dialog" accept >> "$interaction_log" 2>&1 || true
+            if wait_window_not_viewable "$open_dialog" 20 && wait_active_window "$window_id" 15; then
+                open_standard=PASS
+                if read -r workload_colors workload_difference < <(wait_client_change "$baseline" "$run_dir/screenshots/workload-visible.png" 30); then workload_visual=PASS; fi
+            fi
+        fi
+    fi
+fi
+
+if [[ "$open_cancel" == PASS && "$open_unicode" == PASS && "$open_standard" == PASS ]]; then
+    write_gate nativeOpenDialog PASS 'Cancel returned, Unicode/space selection returned, and a repeated eight-file selection returned through the installed application.'
+else
+    write_gate nativeOpenDialog FAIL "cancel=$open_cancel; unicodeSelection=$open_unicode; repeatedStandardSelection=$open_standard"
+fi
+
+if [[ "$open_standard" == PASS && "$workload_visual" == PASS ]]; then
+    write_gate workload PASS 'The installed GUI visibly changed after the eight-file native-dialog selection; exported data is validated by the export gate.'
+elif [[ "$(gate_status initialVisible)" != PASS ]]; then
+    write_gate workload BLOCKED 'Blocked because normal initial presentation failed.'
+else
+    write_gate workload FAIL "standardSelection=$open_standard; visibleResultUpdate=$workload_visual"
+fi
+
+# Save cancellation, successful export, and existing-output attempt.
+if [[ "$(gate_status workload)" == PASS ]]; then
+    log_action post-initial click-export-for-cancel
+    click_main_fraction 33 26 >> "$interaction_log" 2>&1 || true
+    save_dialog=$(wait_visible_title '^Save$' 15 || true)
+    if [[ -n "$save_dialog" && "$(xdotool getactivewindow 2>/dev/null || true)" == "$save_dialog" ]]; then
+        capture_root "$run_dir/screenshots/save-cancel-dialog.png"
+        log_action post-initial click-visible-save-cancel
+        click_common_dialog_button "$save_dialog" cancel >> "$interaction_log" 2>&1 || true
+        if wait_window_not_viewable "$save_dialog" 10 && wait_active_window "$window_id" 10; then save_cancel=PASS; fi
+    fi
+
+    if [[ "$save_cancel" == PASS ]]; then
+        log_action post-initial click-export-for-new-file
+        click_main_fraction 33 26 >> "$interaction_log" 2>&1 || true
+        save_dialog=$(wait_visible_title '^Save$' 15 || true)
+        if [[ -n "$save_dialog" && "$(xdotool getactivewindow 2>/dev/null || true)" == "$save_dialog" ]]; then
+            log_action post-initial type-new-export-path-and-save
+            type_filename "$report_windows" >> "$interaction_log" 2>&1 || true
+            click_common_dialog_button "$save_dialog" accept >> "$interaction_log" 2>&1 || true
+            deadline=$((SECONDS + 30))
+            while (( SECONDS < deadline )); do
+                if [[ -s "$report_path" ]] && ! window_is_viewable "$save_dialog"; then save_success=PASS; break; fi
+                sleep 0.2
+            done
+        fi
+    fi
+
+    if [[ "$save_success" == PASS ]] && wait_active_window "$window_id" 10; then
+        log_action post-initial click-export-for-existing-output-attempt
+        click_main_fraction 33 26 >> "$interaction_log" 2>&1 || true
+        save_dialog=$(wait_visible_title '^Save$' 15 || true)
+        if [[ -n "$save_dialog" ]]; then
+            log_action post-initial type-existing-output-path-and-save
+            type_filename "$protected_windows" >> "$interaction_log" 2>&1 || true
+            click_common_dialog_button "$save_dialog" accept >> "$interaction_log" 2>&1 || true
+            confirmation=''; deadline=$((SECONDS + 10))
+            while (( SECONDS < deadline )); do
+                while IFS= read -r candidate; do
+                    [[ -n "$candidate" && "$candidate" != "$save_dialog" ]] && confirmation="$candidate"
+                done < <(xdotool search --onlyvisible --name '^Save$' 2>/dev/null || true)
+                [[ -n "$confirmation" ]] && break
+                sleep 0.2
+            done
+            if [[ -n "$confirmation" ]]; then
+                capture_root "$run_dir/screenshots/existing-output-confirmation.png"
+                log_action post-initial click-confirm-replace-to-test-app-protection
+                click_confirmation_yes "$confirmation" >> "$interaction_log" 2>&1 || true
+                wait_window_not_viewable "$confirmation" 10 || true
+                wait_window_not_viewable "$save_dialog" 15 || true
+                wait_active_window "$window_id" 15 || true
+                protected_after=$(sha256sum "$protected_path" | cut -d' ' -f1)
+                [[ "$protected_before" == "$protected_after" ]] && overwrite_protection=PASS
+            fi
+        fi
+    fi
+
+    # Prove that the app remains responsive after the backend rejects the
+    # existing destination. This is one deliberate trigger, not a retry.
+    if [[ "$overwrite_protection" == PASS ]]; then
+        log_action post-initial click-choose-after-existing-output-error
+        click_main_fraction 8 26 >> "$interaction_log" 2>&1 || true
+        open_dialog=$(wait_visible_title 'Choose files to analyze' 15 || true)
+        if [[ -n "$open_dialog" && "$(xdotool getactivewindow 2>/dev/null || true)" == "$open_dialog" ]]; then
+            log_action post-initial click-visible-open-cancel-after-error
+            click_common_dialog_button "$open_dialog" cancel >> "$interaction_log" 2>&1 || true
+            if wait_window_not_viewable "$open_dialog" 10 && wait_active_window "$window_id" 10; then post_error_open=PASS; fi
+        fi
+    fi
+fi
+
+if [[ "$save_cancel" == PASS && "$save_success" == PASS ]]; then
+    write_gate nativeSaveDialog PASS 'Save cancellation returned and a later new-file save returned through the installed application.'
+elif [[ "$(gate_status workload)" != PASS ]]; then
+    write_gate nativeSaveDialog BLOCKED 'Blocked because the workload did not establish an exportable report.'
+else
+    write_gate nativeSaveDialog FAIL "cancel=$save_cancel; newFile=$save_success"
+fi
+
+if [[ "$save_success" == PASS && -s "$report_path" ]] && jq -e '
+    .schemaVersion == 1 and (.files|length) == 8 and (.groups|length) == 6 and
+    (.duplicateSets|length) == 1 and (.errors|length) == 0 and .totalBytes == 176
+' "$report_path" >/dev/null; then
+    cp "$report_path" "$run_dir/report.json"
+    write_gate export PASS 'JSON exists, parses, and matches the 8-file/6-group/1-duplicate/0-error/176-byte contract.'
+elif [[ "$(gate_status nativeSaveDialog)" == BLOCKED ]]; then
+    write_gate export BLOCKED 'Blocked because native save-dialog acceptance was blocked.'
+else
+    write_gate export FAIL 'Export file was missing or failed the independent structural fixture contract.'
+fi
+
+find "$fixture_dir" -maxdepth 1 -type f -print0 | sort -z | xargs -0 sha256sum > "$run_dir/fixture-checksums-after.sha256"
+inputs_unchanged=FAIL
+cmp -s "$run_dir/fixture-checksums-before.sha256" "$run_dir/fixture-checksums-after.sha256" && inputs_unchanged=PASS
+if [[ "$overwrite_protection" == PASS && "$post_error_open" == PASS && "$inputs_unchanged" == PASS ]]; then
+    write_gate existingOutputAndInputs PASS 'The application attempted the confirmed existing path; its prior hash and all input hashes remained unchanged, and the app accepted a subsequent dialog interaction.'
+elif [[ "$(gate_status export)" != PASS ]]; then
+    write_gate existingOutputAndInputs BLOCKED 'Blocked because successful export was not established first.'
+else
+    write_gate existingOutputAndInputs FAIL "existingProtection=$overwrite_protection; subsequentResponsiveness=$post_error_open; inputsUnchanged=$inputs_unchanged"
+fi
+
+# These window operations are acceptance checks only after initial rendering,
+# workload, dialogs, and export. They can never make initialVisible pass.
+if [[ "$(gate_status existingOutputAndInputs)" == PASS ]]; then
+    geometry=$(xdotool getwindowgeometry --shell "$window_id")
+    original_width=$(sed -n 's/^WIDTH=//p' <<< "$geometry")
+    original_height=$(sed -n 's/^HEIGHT=//p' <<< "$geometry")
+    log_action post-initial acceptance-resize-to-900x650
+    xdotool windowsize --sync "$window_id" 900 650 >> "$interaction_log" 2>&1 || true
+    sleep 1
+    import -window "$window_id" "$run_dir/screenshots/post-dialog-resized.png" 2>> "$run_dir/logs/import.log" || true
+    resized_colors=$(measure_client_colors "$run_dir/screenshots/post-dialog-resized.png")
+    log_action post-initial acceptance-scroll-down
+    xdotool mousemove --window "$window_id" 600 500 click 5 click 5 click 5 click 5 >> "$interaction_log" 2>&1 || true
+    sleep 1
+    import -window "$window_id" "$run_dir/screenshots/post-dialog-scrolled.png" 2>> "$run_dir/logs/import.log" || true
+    scroll_difference=$(client_difference "$run_dir/screenshots/post-dialog-resized.png" "$run_dir/screenshots/post-dialog-scrolled.png" "$run_dir/output/scroll-difference.png")
+    log_action post-initial acceptance-minimize-once
+    xdotool windowminimize "$window_id" >> "$interaction_log" 2>&1 || true
+    sleep 1
+    log_action post-initial acceptance-restore-once
+    xdotool windowmap "$window_id" >> "$interaction_log" 2>&1 || true
+    xdotool windowactivate --sync "$window_id" >> "$interaction_log" 2>&1 || true
+    xdotool windowsize --sync "$window_id" "$original_width" "$original_height" >> "$interaction_log" 2>&1 || true
+    sleep 2
+    import -window "$window_id" "$run_dir/screenshots/post-dialog-restored.png" 2>> "$run_dir/logs/import.log" || true
+    restored_colors=$(measure_client_colors "$run_dir/screenshots/post-dialog-restored.png")
+    if [[ "$resized_colors" =~ ^[0-9]+$ && "$restored_colors" =~ ^[0-9]+$ && "$scroll_difference" =~ ^[0-9]+$ ]] &&
+       (( resized_colors > 100 && restored_colors > 100 && scroll_difference > 1000 )); then
+        post_dialog_render=PASS; normal_window_behavior=PASS
+    fi
+fi
+
+if [[ "$post_dialog_render" == PASS && "$normal_window_behavior" == PASS ]]; then
+    write_gate continuingPresentation PASS 'Client remained visibly rendered after dialogs, resize, scrolling, one post-readiness minimize/restore, and restoration to its original size.'
+elif [[ "$(gate_status existingOutputAndInputs)" != PASS ]]; then
+    write_gate continuingPresentation BLOCKED 'Blocked because the dialog/export sequence did not finish.'
+else
+    write_gate continuingPresentation FAIL "postDialogRender=$post_dialog_render; normalWindowBehavior=$normal_window_behavior"
+fi
+
+ps -ww -eo pid,ppid,etimes,args > "$run_dir/logs/processes.txt"
+grep -i 'msedgewebview2.exe' "$run_dir/logs/processes.txt" > "$run_dir/logs/webview2-process-command-lines.txt" || true
+xwininfo -root -tree > "$run_dir/logs/x-window-tree-final.txt" 2>&1 || true
+wine --version > "$run_dir/logs/wine-version.txt"
+xdpyinfo > "$run_dir/logs/xdpyinfo.txt" 2>&1 || true
+glxinfo -B > "$run_dir/logs/glxinfo.txt" 2>&1 || true
+for maps in /proc/[0-9]*/maps; do
+    grep -H 'winex11' "$maps" 2>/dev/null || true
+done > "$run_dir/logs/winex11-driver-maps.txt"
+
+actual_webview2_version=$(grep -m1 -- '--embedded-browser-webview=1' "$run_dir/logs/webview2-process-command-lines.txt" | grep -oE 'Application\\[0-9.]+\\msedgewebview2\.exe' | sed -E 's/^Application\\([^\\]+)\\.*$/\1/' || true)
+display_dimensions=$(sed -nE 's/.*dimensions:[[:space:]]+([0-9]+x[0-9]+).*/\1/p' "$run_dir/logs/xdpyinfo.txt" | head -n1)
+renderer=$(sed -nE 's/^[[:space:]]*OpenGL renderer string:[[:space:]]*(.*)$/\1/p' "$run_dir/logs/glxinfo.txt" | head -n1)
+wine_version=$(tr -d '\r\n' < "$run_dir/logs/wine-version.txt")
+runtime_identity=FAIL
+if [[ "$wine_version" == *'wine-11.21'* && "$actual_webview2_version" == "$expected_webview2_version" &&
+      "$display_dimensions" == '1280x800' && "$renderer" == *llvmpipe* && -s "$run_dir/logs/winex11-driver-maps.txt" ]]; then
+    runtime_identity=PASS
+fi
+if [[ "$runtime_identity" == PASS ]]; then
+    write_gate runtimeIdentity PASS "Wine=$wine_version; WebView2=$actual_webview2_version; display=$display_dimensions; renderer=$renderer; winex11 loaded."
+else
+    write_gate runtimeIdentity FAIL "Wine=$wine_version; expectedWebView2=$expected_webview2_version; actualWebView2=$actual_webview2_version; display=$display_dimensions; renderer=$renderer; winex11Maps=$([[ -s "$run_dir/logs/winex11-driver-maps.txt" ]] && echo present || echo missing)."
+fi
+stop_recorder
+
+forced_repaint_used=false
+if grep -Eqi 'resize|minimize|restore|windowmap|mousemove|click|retry|reconnect' "$pre_initial_log"; then forced_repaint_used=true; fi
+completed_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+jq -s \
+    --arg runId "$run_id" --arg mode "$mode" --arg startedAtUtc "$started_at" --arg completedAtUtc "$completed_at" \
+    --arg installedExecutableSha256 "${app_sha:-}" --argjson firstVisibleAfterMs "$first_visible_ms" \
+    --argjson forcedRepaintUsed "$forced_repaint_used" \
+    '{schemaVersion:2,runId:$runId,mode:$mode,startedAtUtc:$startedAtUtc,completedAtUtc:$completedAtUtc,
+      installedExecutableSha256:$installedExecutableSha256,firstVisibleAfterMs:$firstVisibleAfterMs,
+      automation:{unattended:true,hiddenRetries:0,manualOverrides:0,forcedRepaintUsed:$forcedRepaintUsed,
+        preInitialPermittedActions:["launch-installed-octane-once","normal-window-activate-once"]},
+      gates:(map({key:.name,value:{status:.status,reason:.reason,recordedAtUtc:.recordedAtUtc}})|from_entries),
+      counts:{pass:([.[]|select(.status=="PASS")]|length),fail:([.[]|select(.status=="FAIL")]|length),
+        blocked:([.[]|select(.status=="BLOCKED")]|length),notRun:([.[]|select(.status=="NOT_RUN")]|length)},
+      overallStatus:(if all(.[];.status=="PASS") and ($forcedRepaintUsed|not) then "PASS" else "FAIL" end),
+      scope:"Actual retained installed Windows Octane artifact in this run only."}' \
+    "$run_dir"/gates/*.json > "$run_dir/scenario.json"
+
+(cd "$run_dir" && find . -type f ! -name checksums.sha256 -print0 | sort -z | xargs -0 sha256sum > checksums.sha256)
+cat "$run_dir/scenario.json"
+jq -e '.overallStatus == "PASS" and .automation.forcedRepaintUsed == false and .automation.hiddenRetries == 0 and .automation.manualOverrides == 0' "$run_dir/scenario.json" >/dev/null

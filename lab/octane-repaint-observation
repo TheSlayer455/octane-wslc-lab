@@ -1,0 +1,167 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+state_dir="${OCTANE_STATE_DIR:-/config}"
+evidence_root="${OCTANE_EVIDENCE_DIR:-$state_dir/octane-evidence}"
+observation_id="${OCTANE_REPAINT_OBSERVATION_ID:-repaint-$(date -u +%Y%m%dT%H%M%SZ)}"
+duration_seconds="${OCTANE_REPAINT_OBSERVE_SECONDS:-60}"
+
+if [[ ! "$observation_id" =~ ^[A-Za-z0-9._-]{8,96}$ ]]; then
+    echo 'OCTANE_REPAINT_OBSERVATION_ID contains invalid characters.' >&2
+    exit 2
+fi
+if [[ ! "$duration_seconds" =~ ^[0-9]+$ ]] || (( duration_seconds < 10 || duration_seconds > 180 )); then
+    echo 'OCTANE_REPAINT_OBSERVE_SECONDS must be an integer from 10 through 180.' >&2
+    exit 2
+fi
+
+run_dir="$evidence_root/repaint/$observation_id"
+[[ ! -e "$run_dir" ]] || { echo "Repaint observation already exists: $run_dir" >&2; exit 2; }
+mkdir -p "$run_dir/logs" "$run_dir/screenshots"
+interaction_log="$run_dir/logs/interaction.log"
+samples="$run_dir/presentation-samples.jsonl"
+: > "$interaction_log"
+: > "$samples"
+
+mapfile -d '' apps < <(find "$WINEPREFIX/drive_c/users" -type f -iname 'octane.exe' -print0)
+if [[ ${#apps[@]} -ne 1 ]]; then
+    echo 'Expected exactly one installed octane.exe.' >&2
+    exit 1
+fi
+app="${apps[0]}"
+app_sha=$(sha256sum "$app" | cut -d' ' -f1)
+started_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+started_ms=$(date -u +%s%3N)
+app_pid=''
+
+finish_processes() {
+    if [[ -n "$app_pid" ]] && kill -0 "$app_pid" 2>/dev/null; then
+        kill -TERM "$app_pid" 2>/dev/null || true
+    fi
+    WINEPREFIX="$WINEPREFIX" wineserver -k >/dev/null 2>&1 || true
+}
+trap finish_processes EXIT INT TERM
+
+log_action() {
+    printf '%s action=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$1" >> "$interaction_log"
+}
+
+measure_client_colors() {
+    local image="$1" width height crop_y=40
+    [[ -s "$image" ]] || { printf '0'; return; }
+    read -r width height < <(identify -format '%w %h\n' "$image")
+    if (( height <= crop_y )); then printf '0'; return; fi
+    convert "$image" -crop "${width}x$((height-crop_y))+0+$crop_y" +repage -format '%k' info:
+}
+
+measure_client_sha() {
+    local image="$1" output="$2" width height crop_y=40
+    [[ -s "$image" ]] || { printf ''; return; }
+    read -r width height < <(identify -format '%w %h\n' "$image")
+    if (( height <= crop_y )); then printf ''; return; fi
+    convert "$image" -crop "${width}x$((height-crop_y))+0+$crop_y" +repage "$output"
+    sha256sum "$output" | cut -d' ' -f1
+}
+
+{
+    echo "started_at_utc=$started_at"
+    echo "observation_id=$observation_id"
+    echo "display=${DISPLAY:-unset}"
+    echo "wineprefix=$WINEPREFIX"
+    echo "winearch=${WINEARCH:-unset}"
+    echo "installed_executable=$app"
+    echo "installed_executable_sha256=$app_sha"
+    echo "observe_seconds=$duration_seconds"
+    echo 'repaint_policy=normal-launch-single-activation'
+    echo 'forced_repaint_allowed=false'
+} > "$run_dir/requested-settings.txt"
+
+log_action 'launch-installed-octane-once'
+WINEDEBUG="${OCTANE_APPLICATION_WINEDEBUG:--all,+timestamp,+seh}" wine "$app" > "$run_dir/logs/wine.log" 2>&1 &
+app_pid=$!
+echo "$app_pid" > "$run_dir/launcher-linux-pid.txt"
+
+window_id=''
+deadline=$((SECONDS + 75))
+while (( SECONDS < deadline )); do
+    window_id=$(xdotool search --onlyvisible --name 'Octane.*File analysis lab' 2>/dev/null | tail -n 1 || true)
+    [[ -n "$window_id" ]] && break
+    kill -0 "$app_pid" 2>/dev/null || break
+    sleep 0.5
+done
+
+native_window=FAIL
+initial_visible=FAIL
+first_visible_after_ms=-1
+max_color_count=0
+sample_count=0
+normal_activation_count=0
+
+if [[ -n "$window_id" ]]; then
+    native_window=PASS
+    echo "$window_id" > "$run_dir/native-window-id.txt"
+    xwininfo -id "$window_id" > "$run_dir/logs/xwininfo-initial.txt" 2>&1 || true
+    xprop -id "$window_id" > "$run_dir/logs/xprop-initial.txt" 2>&1 || true
+    xwininfo -root -tree > "$run_dir/logs/x-window-tree-initial.txt" 2>&1 || true
+
+    # One ordinary foreground activation is permitted. There is deliberately
+    # no resize, minimize, restore, map, pointer click, retry, or timer-driven
+    # invalidation in this diagnostic.
+    log_action 'normal-window-activate-once'
+    xdotool windowactivate --sync "$window_id" >> "$interaction_log" 2>&1 || true
+    normal_activation_count=1
+
+    sample_index=0
+    sample_deadline=$((SECONDS + duration_seconds))
+    while (( SECONDS <= sample_deadline )); do
+        image="$run_dir/screenshots/sample-$(printf '%03d' "$sample_index").png"
+        client_image="$run_dir/screenshots/client-$(printf '%03d' "$sample_index").png"
+        import -window "$window_id" "$image" 2>> "$run_dir/logs/import.log" || true
+        colors=$(measure_client_colors "$image")
+        [[ "$colors" =~ ^[0-9]+$ ]] || colors=0
+        client_sha=$(measure_client_sha "$image" "$client_image")
+        elapsed_ms=$(( $(date -u +%s%3N) - started_ms ))
+        (( colors > max_color_count )) && max_color_count=$colors
+        if [[ "$initial_visible" != PASS && "$colors" -gt 100 ]]; then
+            initial_visible=PASS
+            first_visible_after_ms=$elapsed_ms
+            cp "$image" "$run_dir/screenshots/first-visible.png"
+        fi
+        jq -cn --argjson index "$sample_index" --argjson elapsedMs "$elapsed_ms" \
+            --argjson clientColorCount "$colors" --arg clientSha256 "$client_sha" \
+            '{index:$index,elapsedMs:$elapsedMs,clientColorCount:$clientColorCount,clientSha256:(if $clientSha256=="" then null else $clientSha256 end)}' \
+            >> "$samples"
+        sample_count=$((sample_count + 1))
+        sample_index=$((sample_index + 1))
+        (( SECONDS > sample_deadline )) && break
+        sleep 2
+    done
+fi
+
+ps -ww -eo pid,ppid,etimes,args > "$run_dir/logs/processes.txt"
+grep -i 'msedgewebview2.exe' "$run_dir/logs/processes.txt" > "$run_dir/logs/webview2-process-command-lines.txt" || true
+xwininfo -root -tree > "$run_dir/logs/x-window-tree-final.txt" 2>&1 || true
+
+forbidden_actions=false
+if grep -Eqi 'resize|minimize|restore|windowmap|mousemove|click|reconnect|retry' "$interaction_log"; then
+    forbidden_actions=true
+fi
+completed_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+jq -n \
+    --arg observationId "$observation_id" --arg startedAtUtc "$started_at" --arg completedAtUtc "$completed_at" \
+    --arg installedExecutableSha256 "$app_sha" --arg nativeWindow "$native_window" --arg initialVisible "$initial_visible" \
+    --argjson firstVisibleAfterMs "$first_visible_after_ms" --argjson maxClientColorCount "$max_color_count" \
+    --argjson sampleCount "$sample_count" --argjson normalActivationCount "$normal_activation_count" \
+    --argjson forbiddenActionsObserved "$forbidden_actions" \
+    '{schemaVersion:1,observationId:$observationId,startedAtUtc:$startedAtUtc,completedAtUtc:$completedAtUtc,
+      installedExecutableSha256:$installedExecutableSha256,
+      policy:{name:"normal-launch-single-activation",forcedRepaintAllowed:false,forcedRepaintUsed:false,
+        normalActivationCount:$normalActivationCount,forbiddenActionsObserved:$forbiddenActionsObserved},
+      observations:{nativeWindow:$nativeWindow,initialVisible:$initialVisible,firstVisibleAfterMs:$firstVisibleAfterMs,
+        maxClientColorCount:$maxClientColorCount,sampleCount:$sampleCount},
+      qualification:"This diagnostic establishes only normal initial presentation; it is not full Octane acceptance."}' \
+    > "$run_dir/repaint-observation.json"
+
+(cd "$run_dir" && find . -type f ! -name checksums.sha256 -print0 | sort -z | xargs -0 sha256sum > checksums.sha256)
+cat "$run_dir/repaint-observation.json"
+[[ "$native_window" == PASS && "$initial_visible" == PASS && "$forbidden_actions" == false ]]

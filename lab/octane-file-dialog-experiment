@@ -1,0 +1,348 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+state_dir="${OCTANE_STATE_DIR:-/config}"
+evidence_root="${OCTANE_EVIDENCE_DIR:-$state_dir/octane-evidence}"
+experiment_id="${OCTANE_DIALOG_EXPERIMENT_ID:-dialog-$(date -u +%Y%m%dT%H%M%SZ)}"
+phase="${OCTANE_DIALOG_PHASE:-clean-prefix}"
+suite="${OCTANE_DIALOG_SUITE:-app-match}"
+case_filter="${OCTANE_DIALOG_CASES:-}"
+
+if [[ ! "$experiment_id" =~ ^[A-Za-z0-9._-]{8,96}$ ]]; then
+    echo 'OCTANE_DIALOG_EXPERIMENT_ID contains invalid characters.' >&2
+    exit 2
+fi
+if [[ "$phase" != clean-prefix && "$phase" != post-install ]]; then
+    echo 'OCTANE_DIALOG_PHASE must be clean-prefix or post-install.' >&2
+    exit 2
+fi
+if [[ "$suite" != app-match && "$suite" != full && "$suite" != modern && "$suite" != legacy ]]; then
+    echo 'OCTANE_DIALOG_SUITE must be app-match, modern, legacy, or full.' >&2
+    exit 2
+fi
+
+run_dir="$evidence_root/dialogs/$experiment_id"
+[[ ! -e "$run_dir" ]] || { echo "Dialog experiment already exists: $run_dir" >&2; exit 2; }
+mkdir -p "$run_dir/cases" "$run_dir/logs" "$run_dir/screenshots"
+
+select_display() {
+    local authority="${XAUTHORITY:-$HOME/.Xauthority}" socket candidate
+    if [[ -n "${DISPLAY:-}" ]] && DISPLAY="$DISPLAY" XAUTHORITY="$authority" xdpyinfo >/dev/null 2>&1; then
+        export XAUTHORITY="$authority"
+        return
+    fi
+    for socket in /tmp/.X11-unix/X*; do
+        [[ -S "$socket" ]] || continue
+        candidate=":${socket##*/X}"
+        if DISPLAY="$candidate" XAUTHORITY="$authority" xdpyinfo >/dev/null 2>&1; then
+            export DISPLAY="$candidate" XAUTHORITY="$authority"
+            return
+        fi
+    done
+    echo 'No usable X11 display was found.' >&2
+    exit 1
+}
+
+wait_visible_title() {
+    local pattern="$1" timeout_seconds="$2" deadline id=''
+    deadline=$((SECONDS + timeout_seconds))
+    while (( SECONDS < deadline )); do
+        id=$(xdotool search --onlyvisible --name "$pattern" 2>/dev/null | tail -n 1 || true)
+        [[ -n "$id" ]] && { printf '%s' "$id"; return 0; }
+        sleep 0.2
+    done
+    return 1
+}
+
+wait_process() {
+    local pid="$1" timeout_seconds="$2" deadline
+    deadline=$((SECONDS + timeout_seconds))
+    while kill -0 "$pid" 2>/dev/null && (( SECONDS < deadline )); do sleep 0.2; done
+    if kill -0 "$pid" 2>/dev/null; then
+        kill -TERM "$pid" 2>/dev/null || true
+        sleep 1
+        kill -KILL "$pid" 2>/dev/null || true
+        wait "$pid" 2>/dev/null || true
+        return 124
+    fi
+    set +e
+    wait "$pid"
+    local rc=$?
+    set -e
+    return "$rc"
+}
+
+window_snapshot() {
+    local id="$1" output="$2"
+    {
+        echo "utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+        echo "window_id=$id"
+        echo "active_window=$(xdotool getactivewindow 2>/dev/null || true)"
+        echo "focus_window=$(xdotool getwindowfocus 2>/dev/null || true)"
+        echo "window_pid=$(xdotool getwindowpid "$id" 2>/dev/null || true)"
+        echo "window_name=$(xdotool getwindowname "$id" 2>/dev/null || true)"
+        xwininfo -id "$id" 2>&1 || true
+        xprop -id "$id" WM_CLASS WM_NAME _NET_WM_NAME _NET_WM_PID 2>&1 || true
+    } > "$output"
+}
+
+type_filename() {
+    local dialog="$1" value="$2"
+    # Wine's common dialog exposes the filename edit as the natural focus when
+    # it appears. Synthetic activation of the X11 top-level can reactivate the
+    # probe owner instead, so preserve the observed foreground/focus and send
+    # ordinary input to that focused control.
+    xdotool key --clearmodifiers ctrl+a
+    xdotool type --clearmodifiers --delay 8 "$value"
+}
+
+click_common_dialog_button() {
+    local dialog="$1" button="$2" geometry width height x y
+    geometry=$(xdotool getwindowgeometry --shell "$dialog")
+    width=$(sed -n 's/^WIDTH=//p' <<< "$geometry")
+    height=$(sed -n 's/^HEIGHT=//p' <<< "$geometry")
+    [[ "$width" =~ ^[0-9]+$ && "$height" =~ ^[0-9]+$ ]] || return 1
+    y=$((height - 18))
+    if [[ "$button" == accept ]]; then x=$((width - 95)); else x=$((width - 30)); fi
+    xdotool mousemove --window "$dialog" "$x" "$y" click 1
+}
+
+click_overwrite_decline() {
+    local dialog="$1" geometry width height
+    geometry=$(xdotool getwindowgeometry --shell "$dialog")
+    width=$(sed -n 's/^WIDTH=//p' <<< "$geometry")
+    height=$(sed -n 's/^HEIGHT=//p' <<< "$geometry")
+    [[ "$width" =~ ^[0-9]+$ && "$height" =~ ^[0-9]+$ ]] || return 1
+    xdotool mousemove --window "$dialog" $((width * 68 / 100)) $((height * 78 / 100)) click 1
+}
+
+select_display
+export WINEPREFIX="${WINEPREFIX:-$state_dir/prefix}" WINEARCH="${WINEARCH:-win64}"
+fixture_root="$WINEPREFIX/drive_c/octane-dialog/fixtures/Space Ω"
+output_root="$WINEPREFIX/drive_c/octane-dialog/output"
+mkdir -p "$fixture_root" "$output_root"
+cp -f /opt/octane/dialog-fixtures/Space\ Ω/sample\ one.txt "$fixture_root/sample one.txt"
+cp -f /opt/octane/dialog-fixtures/Space\ Ω/sample\ two.txt "$fixture_root/sample two.txt"
+fixture_one='C:\octane-dialog\fixtures\Space Ω\sample one.txt'
+fixture_two='C:\octane-dialog\fixtures\Space Ω\sample two.txt'
+save_new='C:\octane-dialog\output\new report.json'
+save_existing='C:\octane-dialog\output\existing report.json'
+printf 'preserve-existing\n' > "$output_root/existing report.json"
+existing_before=$(sha256sum "$output_root/existing report.json" | cut -d' ' -f1)
+
+case_definitions=(
+    'modern-open-select|modern-open|select|none|worker'
+    'modern-open-cancel|modern-open|cancel|none|worker'
+    'modern-open-reopen|modern-open|select|none|worker'
+    'modern-open-multi|modern-open|multi|none|worker'
+    'modern-save-new|modern-save|save-new|none|worker'
+    'modern-save-cancel|modern-save|cancel|none|worker'
+    'modern-save-existing-decline|modern-save|save-existing-decline|none|worker'
+)
+if [[ "$suite" == modern || "$suite" == full ]]; then
+    case_definitions+=(
+        'modern-open-owned|modern-open|select|owned|worker'
+        'modern-open-ui-owned|modern-open|select|owned|ui'
+        'modern-open-owned-cancel|modern-open|cancel|owned|worker'
+        'modern-open-ui-owned-cancel|modern-open|cancel|owned|ui'
+        'modern-open-ui-none-cancel|modern-open|cancel|none|ui'
+        'modern-save-owned-cancel|modern-save|cancel|owned|worker'
+        'modern-save-ui-owned-cancel|modern-save|cancel|owned|ui'
+        'modern-save-ui-none-cancel|modern-save|cancel|none|ui'
+    )
+fi
+if [[ "$suite" == legacy || "$suite" == full ]]; then
+    case_definitions+=(
+        'legacy-open-select|legacy-open|select|none|worker'
+        'legacy-open-cancel|legacy-open|cancel|none|worker'
+        'legacy-save-new|legacy-save|save-new|none|worker'
+        'legacy-save-existing-decline|legacy-save|save-existing-decline|none|worker'
+    )
+fi
+if [[ "$suite" == legacy ]]; then
+    case_definitions=(
+        'legacy-open-select|legacy-open|select|none|worker'
+        'legacy-open-cancel|legacy-open|cancel|none|worker'
+        'legacy-save-new|legacy-save|save-new|none|worker'
+        'legacy-save-existing-decline|legacy-save|save-existing-decline|none|worker'
+    )
+fi
+
+started_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+printf 'phase=%s\nsuite=%s\ndisplay=%s\nwineprefix=%s\n' "$phase" "$suite" "$DISPLAY" "$WINEPREFIX" > "$run_dir/requested-settings.txt"
+cp /opt/octane/dialog-probe-manifest.json "$run_dir/dialog-probe-manifest.json"
+sha256sum /opt/octane/FileDialogProbe.exe > "$run_dir/dialog-probe-actual.sha256"
+wine --version > "$run_dir/logs/wine-version.txt"
+
+case_results=()
+for definition in "${case_definitions[@]}"; do
+    IFS='|' read -r case_id mode action owner_mode thread_mode <<< "$definition"
+    if [[ -n "$case_filter" && ",$case_filter," != *",$case_id,"* ]]; then continue; fi
+    case_dir="$run_dir/cases/$case_id"
+    mkdir -p "$case_dir"
+    result_windows=$(winepath -w "$case_dir/probe-result.json")
+    events_windows=$(winepath -w "$case_dir/probe-events.jsonl")
+    dialog_pattern=''
+    case "$mode" in
+        modern-open) dialog_pattern='Octane modern open' ;;
+        modern-save) dialog_pattern='^Save$' ;;
+        legacy-open) dialog_pattern='Octane legacy open' ;;
+        legacy-save) dialog_pattern='Octane legacy save' ;;
+    esac
+
+    case_started=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+    WINEDEBUG="${OCTANE_DIALOG_WINEDEBUG:--all,+timestamp,+seh}" wine /opt/octane/FileDialogProbe.exe \
+        --mode "$mode" --result "$result_windows" --events "$events_windows" \
+        --owner "$owner_mode" --thread "$thread_mode" --timeout-seconds 35 \
+        > "$case_dir/wine.log" 2>&1 &
+    probe_pid=$!
+    echo "$probe_pid" > "$case_dir/launcher-linux-pid.txt"
+
+    owner_id=$(wait_visible_title "Octane File Dialog Probe - $mode" 10 || true)
+    dialog_id=$(wait_visible_title "$dialog_pattern" 15 || true)
+    dialog_observed=false
+    confirmation_observed=false
+    focus_verified=false
+    dialog_closed_after_action=false
+    if [[ -n "$owner_id" ]]; then window_snapshot "$owner_id" "$case_dir/owner-window.txt"; fi
+    if [[ -n "$dialog_id" ]]; then
+        dialog_observed=true
+        window_snapshot "$dialog_id" "$case_dir/dialog-window-before.txt"
+        import -window root "$run_dir/screenshots/$case_id.png" 2> "$case_dir/import.log" || true
+        active_id=$(xdotool getactivewindow 2>/dev/null || true)
+        [[ "$active_id" == "$dialog_id" ]] && focus_verified=true
+        case "$action" in
+            select)
+                type_filename "$dialog_id" "$fixture_one" >> "$case_dir/automation.log" 2>&1 || true
+                click_common_dialog_button "$dialog_id" accept >> "$case_dir/automation.log" 2>&1 || true ;;
+            multi)
+                type_filename "$dialog_id" "\"$fixture_one\" \"$fixture_two\"" >> "$case_dir/automation.log" 2>&1 || true
+                click_common_dialog_button "$dialog_id" accept >> "$case_dir/automation.log" 2>&1 || true ;;
+            cancel)
+                click_common_dialog_button "$dialog_id" cancel >> "$case_dir/automation.log" 2>&1 || true ;;
+            save-new)
+                type_filename "$dialog_id" "$save_new" >> "$case_dir/automation.log" 2>&1 || true
+                click_common_dialog_button "$dialog_id" accept >> "$case_dir/automation.log" 2>&1 || true ;;
+            save-existing-decline)
+                type_filename "$dialog_id" "$save_existing" >> "$case_dir/automation.log" 2>&1 || true
+                click_common_dialog_button "$dialog_id" accept >> "$case_dir/automation.log" 2>&1 || true
+                confirmation_id=''
+                deadline=$((SECONDS + 8))
+                while (( SECONDS < deadline )); do
+                    while IFS= read -r candidate; do
+                        [[ -n "$candidate" && "$candidate" != "$dialog_id" && "$candidate" != "$owner_id" ]] && confirmation_id="$candidate"
+                    done < <(xdotool search --onlyvisible --name 'Save|Confirm' 2>/dev/null || true)
+                    [[ -n "$confirmation_id" ]] && break
+                    sleep 0.2
+                done
+                if [[ -n "$confirmation_id" ]]; then
+                    confirmation_observed=true
+                    window_snapshot "$confirmation_id" "$case_dir/confirmation-window.txt"
+                    import -window root "$run_dir/screenshots/$case_id-confirmation.png" 2>> "$case_dir/import.log" || true
+                    click_overwrite_decline "$confirmation_id" >> "$case_dir/automation.log" 2>&1 || true
+                    sleep 0.5
+                    click_common_dialog_button "$dialog_id" cancel >> "$case_dir/automation.log" 2>&1 || true
+                fi ;;
+        esac
+        sleep 1
+        window_snapshot "$dialog_id" "$case_dir/dialog-window-after.txt"
+        import -window root "$run_dir/screenshots/$case_id-after.png" 2>> "$case_dir/import.log" || true
+        if ! xwininfo -id "$dialog_id" 2>/dev/null | grep -q 'Map State: IsViewable'; then
+            dialog_closed_after_action=true
+        fi
+    fi
+
+    process_rc=0
+    process_timeout=45
+    [[ "$dialog_closed_after_action" == true ]] && process_timeout=8
+    wait_process "$probe_pid" "$process_timeout" || process_rc=$?
+    if [[ "$process_rc" == 124 ]]; then
+        WINEPREFIX="$WINEPREFIX" wineserver -k >/dev/null 2>&1 || true
+        sleep 1
+    fi
+    if [[ -f "$case_dir/probe-result.json" ]]; then
+        probe_outcome=$(jq -r '.outcome // "missing"' "$case_dir/probe-result.json")
+        selected_count=$(jq -r '.selectedPaths | length' "$case_dir/probe-result.json")
+        probe_hresult=$(jq -r '.hresult // "unknown"' "$case_dir/probe-result.json")
+        probe_timed_out=$(jq -r '.timedOut // false' "$case_dir/probe-result.json")
+    else
+        probe_outcome=missing
+        selected_count=0
+        probe_hresult=unknown
+        probe_timed_out=false
+    fi
+
+    existing_after=$(sha256sum "$output_root/existing report.json" | cut -d' ' -f1)
+    status=FAIL
+    classification='unresolved'
+    detail='required observation was not satisfied'
+    if [[ "$dialog_observed" != true ]]; then
+        if [[ "$probe_outcome" == init-failure || "$probe_outcome" == api-failure ]]; then
+            classification='dialog-api-init-failure'
+            detail="probe returned $probe_outcome ($probe_hresult) before a visible dialog was observed"
+        elif [[ "$probe_outcome" == timeout ]]; then
+            classification='dialog-window-presentation-failure'
+            detail='probe timed out without a visible dialog'
+        else
+            classification='dialog-window-presentation-failure'
+            detail="no matching dialog window; outcome=$probe_outcome"
+        fi
+    elif [[ "$focus_verified" != true ]]; then
+        classification='automation-synchronization-failure'
+        detail='dialog appeared but did not become the active top-level window'
+    elif [[ "$probe_timed_out" == true ]]; then
+        classification='automation-synchronization-failure'; detail='probe watchdog, rather than the requested interaction, closed the dialog'
+    elif [[ "$action" == cancel && "$probe_outcome" == canceled ]]; then
+        status=PASS; classification='expected-cancel'; detail='dialog appeared, its visible Cancel control was activated, and the API returned cancellation'
+    elif [[ "$action" == select && "$probe_outcome" == selected && "$selected_count" == 1 ]]; then
+        status=PASS; classification='selected'; detail='one Unicode/space fixture was returned'
+    elif [[ "$action" == multi && "$probe_outcome" == selected && "$selected_count" == 2 ]]; then
+        status=PASS; classification='selected'; detail='two fixtures were returned from one modern open dialog'
+    elif [[ "$action" == save-new && "$probe_outcome" == selected && "$selected_count" == 1 ]]; then
+        status=PASS; classification='selected'; detail='new save destination was returned'
+    elif [[ "$action" == save-existing-decline && "$probe_outcome" == canceled && "$confirmation_observed" == true && "$existing_before" == "$existing_after" ]]; then
+        status=PASS; classification='expected-cancel'; detail='overwrite prompt appeared; cancellation preserved the existing destination'
+    elif [[ "$dialog_closed_after_action" == true && "$probe_outcome" == missing ]]; then
+        classification='focus-ownership-or-modality-failure'; detail='dialog stopped being viewable, but the modal API did not return before the bounded deadline'
+    elif [[ "$process_rc" == 124 ]]; then
+        classification='automation-synchronization-failure'; detail='probe process exceeded the outer deadline'
+    elif [[ "$probe_outcome" == selected || "$probe_outcome" == canceled ]]; then
+        classification='file-selection-or-filesystem-failure'; detail="dialog returned $probe_outcome but the expected path/count contract failed"
+    fi
+
+    case_completed=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+    jq -n \
+        --arg caseId "$case_id" --arg mode "$mode" --arg action "$action" \
+        --arg ownerMode "$owner_mode" --arg threadMode "$thread_mode" \
+        --arg startedAtUtc "$case_started" --arg completedAtUtc "$case_completed" \
+        --arg status "$status" --arg classification "$classification" --arg detail "$detail" \
+        --arg probeOutcome "$probe_outcome" --arg hresult "$probe_hresult" \
+        --argjson probeTimedOut "$probe_timed_out" \
+        --argjson processExitCode "$process_rc" --argjson dialogObserved "$dialog_observed" \
+        --argjson focusVerified "$focus_verified" --argjson confirmationObserved "$confirmation_observed" \
+        --argjson dialogClosedAfterAction "$dialog_closed_after_action" \
+        --argjson selectedCount "$selected_count" --arg existingBefore "$existing_before" --arg existingAfter "$existing_after" \
+        '{schemaVersion:1,caseId:$caseId,mode:$mode,action:$action,ownerMode:$ownerMode,threadMode:$threadMode,
+          startedAtUtc:$startedAtUtc,completedAtUtc:$completedAtUtc,status:$status,classification:$classification,
+          detail:$detail,probeOutcome:$probeOutcome,hresult:$hresult,probeTimedOut:$probeTimedOut,processExitCode:$processExitCode,
+          dialogObserved:$dialogObserved,focusVerified:$focusVerified,confirmationObserved:$confirmationObserved,
+          dialogClosedAfterAction:$dialogClosedAfterAction,
+          selectedCount:$selectedCount,existingDestination:{sha256Before:$existingBefore,sha256After:$existingAfter}}' \
+        > "$case_dir/case.json"
+    case_results+=("$case_dir/case.json")
+done
+
+completed_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+jq -s \
+    --arg experimentId "$experiment_id" --arg phase "$phase" --arg suite "$suite" \
+    --arg startedAtUtc "$started_at" --arg completedAtUtc "$completed_at" \
+    '{schemaVersion:1,experimentId:$experimentId,phase:$phase,suite:$suite,startedAtUtc:$startedAtUtc,
+      completedAtUtc:$completedAtUtc,cases:.,counts:{planned:length,passed:([.[]|select(.status=="PASS")]|length),
+      failed:([.[]|select(.status=="FAIL")]|length)},overallStatus:(if all(.[];.status=="PASS") then "PASS" else "FAIL" end),
+      qualification:"Standalone dialog diagnostics do not establish Octane dialog acceptance."}' \
+    "${case_results[@]}" > "$run_dir/dialog-suite.json"
+
+ps -ww -eo pid,ppid,etimes,args > "$run_dir/logs/processes.txt"
+(cd "$run_dir" && find . -type f ! -name checksums.sha256 -print0 | sort -z | xargs -0 sha256sum > checksums.sha256)
+cat "$run_dir/dialog-suite.json"
+jq -e '.overallStatus == "PASS"' "$run_dir/dialog-suite.json" >/dev/null

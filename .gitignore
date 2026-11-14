@@ -7,6 +7,7 @@
 /diagnostics/webview2-win32/bin/
 /diagnostics/webview2-win32/obj/
 /diagnostics/webview2-win32/packages/
+/diagnostics/win32-file-dialog/artifacts/
 __pycache__/
 *.log
 *.env

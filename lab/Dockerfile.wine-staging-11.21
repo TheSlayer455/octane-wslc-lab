@@ -88,11 +88,17 @@ COPY artifacts/Octane-setup.exe /opt/octane/Octane-setup.exe
 COPY artifacts/installer-manifest.json /opt/octane/installer-manifest.json
 COPY diagnostics/webview2-win32/artifacts/WebView2Diagnostic.exe /opt/octane/WebView2Diagnostic.exe
 COPY diagnostics/webview2-win32/artifacts/diagnostic-manifest.json /opt/octane/diagnostic-manifest.json
+COPY diagnostics/win32-file-dialog/artifacts/FileDialogProbe.exe /opt/octane/FileDialogProbe.exe
+COPY diagnostics/win32-file-dialog/artifacts/dialog-probe-manifest.json /opt/octane/dialog-probe-manifest.json
+COPY diagnostics/win32-file-dialog/fixtures/ /opt/octane/dialog-fixtures/
 COPY fixtures/ /opt/octane/fixtures/
 COPY lab/octane-lab /usr/local/bin/octane-lab
 COPY lab/octane-webview2-experiment /usr/local/bin/octane-webview2-experiment
 COPY lab/octane-application-experiment /usr/local/bin/octane-application-experiment
-RUN chmod 755 /usr/local/bin/octane-lab /usr/local/bin/octane-webview2-experiment /usr/local/bin/octane-application-experiment \
+COPY lab/octane-file-dialog-experiment /usr/local/bin/octane-file-dialog-experiment
+COPY lab/octane-repaint-observation /usr/local/bin/octane-repaint-observation
+COPY lab/octane-qualification-experiment /usr/local/bin/octane-qualification-experiment
+RUN chmod 755 /usr/local/bin/octane-lab /usr/local/bin/octane-webview2-experiment /usr/local/bin/octane-application-experiment /usr/local/bin/octane-file-dialog-experiment /usr/local/bin/octane-repaint-observation /usr/local/bin/octane-qualification-experiment \
     && /opt/octane-wine/bin/wine --version | grep -F 'wine-11.21'
 
 ENV PATH=/opt/octane-wine/bin:${PATH} \
