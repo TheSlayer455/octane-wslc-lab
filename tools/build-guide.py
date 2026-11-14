@@ -101,8 +101,9 @@ def image_grid(items):
     cells = []
     for image_path, caption in items:
         picture = RLImage(str(ROOT / image_path))
+        aspect_ratio = picture.imageHeight / picture.imageWidth
         picture.drawWidth = 238
-        picture.drawHeight = 238 * picture.imageHeight / picture.imageWidth
+        picture.drawHeight = 238 * aspect_ratio
         cells.append([picture, Paragraph(html.escape(caption), styles["SmallNote"])])
     data = [cells[index:index + 2] for index in range(0, len(cells), 2)]
     grid = Table(data, colWidths=[246, 246], hAlign="LEFT")
@@ -119,7 +120,7 @@ def image_grid(items):
 page(1, "Octane<br/>Windows installer compatibility lab")
 p(
     "<b>Complete implementation, operation, and measured-validation reference</b><br/>"
-    "Guide revision 6 | November 14, 2026 | Windows x64 + Docker/WSLC/Ansible + Wine 11.21"
+    "Guide revision 7 | November 14, 2026 | Windows x64 + Docker/WSL + Wine 11.21 + browser candidate"
 )
 p(
     "Octane is a repository-independent, container-runtime-independent lab for a real "
@@ -135,10 +136,10 @@ link(
 h("What is delivered")
 p(
     "The private repository contains the Rust/Tauri reference app, fixtures, Windows NSIS "
-    "build workflow, explicit WSLC and Docker adapters, WineGUI and Docker-Wine profiles, "
-    "a runtime doctor, normalized run-state and evidence tooling, regression checks, and "
-    "this single comprehensive document. The measured installer and matching manifest are "
-    "retained in the private v0.1.1 prerelease."
+    "build workflow, explicit WSLC and Docker adapters, WineGUI and Docker-Wine controls, "
+    "a noVNC browser candidate, generic target profiles, a runtime doctor, normalized run-state "
+    "and evidence tooling, a source-independent runtime kit, regression checks, and this guide. "
+    "The measured installer and matching manifest remain retained in private v0.1.1."
 )
 h("Headline result")
 p(html.escape(status.get("summary", "Validation data unavailable.")))
@@ -148,8 +149,10 @@ p(
     "Pages 10-17 specify the workload, code, evidence, security, and acceptance protocol. "
     "Pages 18-25 preserve the failure diagnosis and historical WineGUI, Docker-Wine, controlled "
     "ole32, native SER8, and early Wine 11.21 results. Pages 26-28 record dialog localization, "
-    "normal repainting, the locked runner, and the final ten-run qualification. Pages 29-30 "
-    "record verification, repository inventory, sources, and continuing work. Commands run in "
+    "normal repainting, the locked runner, and the final historical ten-run qualification. Pages 29-30 "
+    "record historical verification, inventory, sources, and continuing work. Pages 31-36 define "
+    "the browser candidate, daily workflow, security/file/network boundaries, runtime kit, blocked "
+    "qualification, and operator handoff. Commands run in "
     "<b>PowerShell 7 from the repository root</b> unless a desktop terminal is named."
 )
 
@@ -170,14 +173,23 @@ topics = [
     "Native SER8 Ansible result", "Wine 11.21 control and candidate result",
     "Native-dialog and normal-repaint diagnosis", "Locked unattended qualification",
     "Final 10/10 schema-v3 qualification", "Verification and repository inventory",
-    "References and roadmap",
+    "References and roadmap", "Browser candidate status and exact identity",
+    "Daily unchanged-installer browser workflow", "Viewer, file, network, and security boundaries",
+    "Source-independent runtime kit and recovery", "Browser evidence and blocked qualification",
+    "Manual browser smoke and qualification resume path",
 ]
-table(["Page", "Topic"], [[str(i), topic] for i, topic in enumerate(topics, 1)], [38, 454], compact=True)
+contents_rows = []
+for offset in range(18):
+    contents_rows.append([
+        str(offset + 1), topics[offset],
+        str(offset + 19), topics[offset + 18],
+    ])
+table(["Page", "Topic", "Page", "Topic"], contents_rows, [27, 214, 27, 224], compact=True)
 p(
     "<b>Delivered scope:</b> explicit WSLC and Docker adapters; Windows-host Docker through "
-    "a named WSL distribution; a strict Ansible path to native Docker on the SER8; "
-    "WineGUI/Selkies and Docker-Wine/RDP profiles; fresh-prefix installation; machine-readable "
-    "stages; evidence copy-out and exact cleanup."
+    "a named WSL distribution; a browser/noVNC candidate with generic unchanged-installer intake; "
+    "historical WineGUI/Selkies, Docker-Wine/RDP, and native-SER8 controls; fresh-prefix installation; "
+    "machine-readable stages; evidence copy-out and exact cleanup."
 )
 p(
     "<b>Outside scope:</b> Podman, Kubernetes, arbitrary malware, production multi-user "
@@ -195,23 +207,23 @@ p(
 
 page(3, "Layered architecture and lifecycle")
 code(r"""
-Local build / private GitHub Actions / another artifact producer
-                         |
-           Octane-setup.exe + installer-manifest.json + fixtures
-                         |
-                 PowerShell lab controller
-                         |
-             selected runtime adapter (explicit)
-                   /                       \
-             WSLC on Windows       Docker local or in named WSL
-                   \                       /
-              selected Wine environment profile
-               /                            \
-      WineGUI + Selkies HTTPS        Docker-Wine + xrdp RDP
-                         |
-          Windows NSIS -> Octane.exe -> WebView2
-                         |
-       run.json + results.json + JUnit + logs + screenshots + hashes
+Pipeline/manual download -> unchanged setup.exe + data-only profile
+                              |
+             streamed hash + immutable local artifact identity
+                              |
+                   PowerShell lab controller
+                              |
+ Windows 11 -> named Ubuntu WSL2 -> Docker Engine (explicit)
+                              |
+ fresh container/prefix/install/settings/WebView2 user data/output
+                              |
+ pinned Wine 11.21 candidate -> winex11 -> Xvfb/XFCE :1
+                              |
+    loopback x11vnc <- Websockify/noVNC <- Windows browser
+                              |
+      run/results/JUnit/logs/browser+native evidence/checksums
+
+Historical WSLC/WineGUI and Docker-Wine/RDP paths remain controls only.
 """)
 table(["Layer", "Owns", "Must not require"], [
     ["Artifact production", "Compile/package Windows installer and manifest.", "A later container engine or desktop profile."],
@@ -221,11 +233,11 @@ table(["Layer", "Owns", "Must not require"], [
 ], [90, 202, 200], compact=True)
 h("Lifecycle")
 p(
-    "The controller writes run identity before creating resources, verifies the installer "
-    "hash, executes the doctor, builds a run-specific image, creates a labeled container, "
-    "waits for the Windows-side loopback endpoint, and leaves the environment running for "
-    "interactive acceptance. The operator records stage outcomes, copies evidence, then "
-    "removes only the exact labeled container, anonymous volumes, and optional run image."
+    "The browser controller writes run and input identity before creating resources, streams and atomically "
+    "hashes the unchanged installer, executes the doctor, reuses the pinned infrastructure image, creates a "
+    "fresh labeled container/prefix, copies only selected data, installs and launches one discovered executable, "
+    "records native/WebView2 identity, and prints the exact localhost viewer path. Collection precedes removal "
+    "of only the exact container, anonymous volumes, and per-run credential."
 )
 p(
     "Every launch gets a ten-character run ID, container and image name, fresh writable "
@@ -257,17 +269,17 @@ p(
 )
 h("Environment profiles")
 table(["Profile", "Desktop / user", "State and evidence"], [
+    ["DockerWineStaging1121VisRgnBrowser", "noVNC/Websockify -> x11vnc -> Xvfb/XFCE / wineuser", "fresh .octane prefix; candidate only; browser acceptance blocked"],
     ["WineGui", "Selkies HTTPS :3001 / octane", "/config; /config/octane-evidence"],
     ["DockerWine", "xrdp RDP :3389 / wineuser", "/home/wineuser/.octane; .octane/evidence"],
     ["DockerWineStaging1121Control", "same RDP desktop / wineuser", "pinned source control; fresh .octane prefix"],
     ["DockerWineStaging1121VisRgn", "same RDP desktop / wineuser", "exact control plus one verified win32u patch"],
 ], [92, 184, 216], compact=True)
 p(
-    "Both upstream base images are digest pinned. WineGUI is the browser-streamed baseline. Docker-Wine "
-    "is an interchangeable upstream environment reached through an Octane-owned Dockerfile "
-    "adapter; its convenience script is not Octane's public interface. The two profiles may "
-    "differ in desktop behavior, but they consume the same installer, manifest, fixtures, "
-    "helper commands, stage model, and evidence contract."
+    "The current browser candidate layers pinned noVNC/Websockify and x11vnc over the exact historically "
+    "qualified Wine image; it does not substitute an upstream WineGUI runtime. WineGUI and Docker-Wine remain "
+    "historical controls. All paths consume unchanged installers and keep transport, runtime, target profile, "
+    "scenario, and evidence claims separate."
 )
 code("""WineGUI digest:
 sha256:2a4b95b7a8bcb0306509b622c44344efb6c3bc6ce671c3adf6cfb569c12284ab
@@ -360,13 +372,15 @@ p(
 page(7, "Artifact production and portable intake")
 h("Portable contract")
 p(
-    "Octane consumes files, not a GitHub release URL: artifacts/Octane-setup.exe, "
-    "artifacts/installer-manifest.json, and the repository fixtures. The manifest identifies "
-    "the filename, SHA-256, source commit, build time, WebView distribution mode, and signing "
-    "state. Start-OctaneLab hashes the installer and rejects a mismatch before runtime work."
+    "The reusable browser workflow consumes a local EXE, a small application profile, selected inputs, and a "
+    "separate output directory—not a GitHub release URL or target source. Stage-OctaneArtifact streams and hashes "
+    "the EXE, detects source changes, rehashes the staged bytes, atomically admits a content-addressed identity, and "
+    "records length/build label/provenance/signature metadata. The legacy reference pair under artifacts remains a "
+    "measured input, not a requirement that another pipeline adopt Octane-specific output."
 )
-code("""Get-FileHash ./artifacts/Octane-setup.exe -Algorithm SHA256
-Get-Content ./artifacts/installer-manifest.json
+code("""./scripts/Stage-OctaneArtifact.ps1 `
+  -Installer 'C:\\Builds\\setup.exe' -OutputDirectory ./runs/artifacts `
+  -BuildLabel 'pipeline-12345'
 
 # Local Windows build; does not install Octane on the host.
 ./scripts/Build-Octane.ps1""")
@@ -412,7 +426,7 @@ p(
 )
 
 
-page(8, "Running WSLC + WineGUI")
+page(8, "Historical control: WSLC + WineGUI")
 code("""# Preflight and start a fresh browser desktop.
 ./scripts/Doctor-OctaneLab.ps1 -Engine Wslc -Port 3001 -Deep
 ./scripts/Start-OctaneLab.ps1 -Engine Wslc -WineProfile WineGui -Port 3001""")
@@ -446,7 +460,7 @@ p(
 )
 
 
-page(9, "Running Docker profiles")
+page(9, "Historical controls: Docker/RDP and native SER8")
 h("Docker + WineGUI")
 code("""./scripts/Doctor-OctaneLab.ps1 -Engine Docker -WslDistro Ubuntu-24.04 -Port 3002 -Deep
 ./scripts/Start-OctaneLab.ps1 -Engine Docker -WslDistro Ubuntu-24.04 -WineProfile WineGui -Port 3002""")
@@ -1185,13 +1199,14 @@ table(["Verification", "Observed result"], [
     ["Windows artifact", status.get("windowsBuild", "")],
     ["Node checks", "19 PASS: application, diagnostic, dialog-probe, and qualification contracts."],
     ["Rust core", "4 historical PASS in measured installer build: fixtures/hash, path errors, export/no-overwrite, limits."],
-    ["PowerShell", "48 mocked assertions PASS; 12 qualification-policy assertions PASS; scripts parse under PowerShell 7."],
+    ["PowerShell", "48 mocked + 12 qualification-policy + 32 browser/runtime assertions PASS; scripts parse under PowerShell 7."],
     ["Bash / Ansible", "Current helpers pass bash -n; existing SER8 playbooks retain prior syntax evidence."],
     ["Docker doctor", "PASS with real alpine run, known-file copy-out, and managed cleanup."],
     ["Minimal diagnostic", "Hash 82cd1c...; environment/controller/navigation/DOM/input/timers PASS; pixels FAIL in three profiles."],
     ["Controlled ole32", "Control/MR !12477 comparison completed; rendering unchanged; no crash in either member."],
     ["Dialog diagnostic", "Clean and post-install app-matching suites each PASS 7/7 with exact Unicode paths."],
     ["Live GUI", "Final schema-v3 lock PASS 10/10; each run ten gates, no repaint helper/retry/manual override."],
+    ["Browser candidate", "Component suite PASS; clean install/native/WebView identity PASS; browser framebuffer/input BLOCKED."],
     ["Checksums", "All 1,853 final batch entries verify; batch and manifest hashes retained."],
     ["Cleanup", "Every exact run container/volume removed; final image retained; unrelated resources untouched."],
 ], [112, 380], compact=True)
@@ -1208,6 +1223,9 @@ table(["Path", "Purpose"], [
     ["scripts/Invoke/Review/Validate", "Diagnostics, installed-app scenario, visual review boundary, and report validation."],
     ["scripts/*Qualification*.ps1", "Immutable lock creation and strict ten-run unattended batch aggregation."],
     ["profiles/qualification/", "Final machine-readable schema-v3 environment and contract lock."],
+    ["profiles/candidates/", "Browser candidate lock and ten-row BLOCKED/NOT_RUN declaration; not a qualification lock."],
+    ["schemas/ and templates/", "Generic data-only application/artifact contracts and example-app overlay."],
+    ["lab/browser/", "Pinned noVNC/Websockify/x11vnc viewer, session, and unchanged-target helper."],
     ["lab/", "Pinned profile Dockerfiles, helpers, and strict native-SER8 Ansible lifecycle."],
     ["tests/", "Node behavior tests and mocked adapter/lifecycle harness."],
     [".github/workflows/", "Private Windows installer build and artifact upload."],
@@ -1254,9 +1272,10 @@ h("Next milestone")
 p(status.get("nextMilestone", "Qualify the identical installer on supported Windows."))
 h("After compatibility is understood")
 p(
-    "Add a separately versioned Fixed Version WebView2 artifact; execute native Windows GUI "
-    "automation; add a validated GitLab wrapper if that provider is needed; compare fresh and "
-    "prepared-preview performance without confusing their claims; then add SBOM, vulnerability "
+    "First complete approved browser smoke and ten-run qualification. Later, add a separately versioned Fixed "
+    "Version WebView2 diagnostic; execute native Windows GUI automation; validate the thin GitLab wrapper on an "
+    "actual project if needed; compare fresh and prepared-preview performance without confusing their claims; "
+    "then add SBOM, vulnerability "
     "scan, and signed provenance. None of those supply-chain steps can substitute for visible "
     "WebView repainting or correct exported data."
 )
@@ -1267,6 +1286,222 @@ p(
 )
 
 
+page(31, "Browser candidate status and exact identity")
+p(
+    "The delivered browser layer is a new candidate, not a relabeling of the historical RDP result. It preserves "
+    "the exact qualified Wine/Staging/visible-region foundation, changes the display session to Xvfb/XFCE and the "
+    "viewer to x11vnc/Websockify/noVNC, and keeps browser acceptance independent."
+)
+table(["Verdict", "Current result"], [
+    ["Historical Octane/RDP", "QUALIFIED 10/10 under lock 0137c535..."],
+    ["Browser component candidate", "PASS for clean install, identities, X11/VNC/Websockify/auth/no-RDP/evidence/cleanup"],
+    ["Manual browser smoke", "NOT_RUN; no attributable operator evidence supplied"],
+    ["Automated browser acceptance", "BLOCKED by unavailable approved controllable browser"],
+    ["Browser 10/10", "BLOCKED; zero of ten declared runs executed"],
+    ["Browser runtime release", "NOT QUALIFIED while mandatory browser gates are blocked"],
+], [165, 327], compact=True)
+code("""Runtime commit: b227260e579bc4806cbd92659ea9956b06fbb253
+Image ID: sha256:243cbc44326d000f26e26dbd0e769b3e300cc1ded51e7543a891d2aebecc15ba
+Candidate lock SHA-256: edea2b6489601775489dbc2a5ac6aae4bc2572940632040e98baa053c5077234
+noVNC: 63107bd06d9e1f6136ff21aeda8cd62cbf0d433e
+Websockify: e81894751365afc19fe64fc9d0e5c6fc52655c36
+Reference run: octane-c71f9b509b""")
+p(
+    "HTTP 200 proves static viewer delivery. A VNC connect event would prove negotiation. Neither proves that the "
+    "actual Octane client pixels reached a Windows browser or that browser-originated input drove dialogs/workload. "
+    "A container-side screenshot is supplemental native evidence only."
+)
+h("What component PASS established")
+p(
+    "Exactly one 127.0.0.1 viewer publication; one read-only secret-file bind; raw VNC on container loopback only; "
+    "bad WebSocket origin rejection; fixed :1/1280x800 display; target process DISPLAY=:1 with winex11.drv loaded; "
+    "no XRDP/FreeRDP process or listener; exact unchanged installer/executable; loaded Evergreen 157.0.4341.60 path, "
+    "hash, and command lines; fresh prefix/data; attributable collection and exact cleanup."
+)
+
+
+page(32, "Daily unchanged-installer browser workflow")
+code(r"""# Windows PowerShell 7 at repo or extracted-kit root
+./scripts/Doctor-OctaneLab.ps1 -Engine Docker `
+  -WslDistro Ubuntu-24.04 -Port 3005 -Deep
+
+./scripts/New-OctaneTarget.ps1 -Id example-app `
+  -Output ../example-app-octane
+
+# Review app.json; verify rather than guess flags/path/title/dependencies.
+./scripts/Test-OctaneTargetProfile.ps1 `
+  -Profile ../example-app-octane/app.json -Operational
+
+./scripts/Start-OctanePreview.ps1 `
+  -Profile ../example-app-octane/app.json `
+  -Installer 'C:\Builds\setup.exe' `
+  -InputDirectory 'C:\TestData\Inputs' `
+  -OutputDirectory 'C:\TestData\Results' `
+  -WslDistro Ubuntu-24.04 -Port 3005 `
+  -Image octane-lab:browser-candidate-v1 `
+  -BuildLabel 'pipeline-12345'
+""")
+p(
+    "The start command streams and hashes the stable EXE, atomically caches it by bytes, journals run/input identity, "
+    "creates a fresh container/prefix/install/user-data/output tree, copies only selected input, validates the EXE "
+    "again inside the container, installs with verified argument arrays, discovers exactly one executable, launches "
+    "once, records a native window and WebView2 identity, and prints the exact /octane.html URL. It never executes the "
+    "installer on Windows and never falls back to the reference app."
+)
+code(r"""./scripts/Get-OctaneViewerCredential.ps1 `
+  -Container octane-0123456789
+
+./scripts/Show-OctaneManualBrowserHandoff.ps1 `
+  -Container octane-0123456789 -WslDistro Ubuntu-24.04
+
+./scripts/Collect-OctanePreview.ps1 `
+  -Container octane-0123456789 -WslDistro Ubuntu-24.04 `
+  -ScreenshotDirectory 'C:\Evidence\browser-smoke'
+
+./scripts/Stop-OctaneLab.ps1 `
+  -Container octane-0123456789 -Engine Docker -WslDistro Ubuntu-24.04""")
+p(
+    "Credential retrieval copies to the Windows clipboard without printing. Collection refuses to overwrite a "
+    "prior run output. Stop asserts the exact managed resource and removes only its container, anonymous volumes, "
+    "journal state, and per-run credential."
+)
+
+
+page(33, "Viewer, file, network, and security boundaries")
+h("Viewer")
+p(
+    "The only published service is Websockify/noVNC on 127.0.0.1. x11vnc listens on 127.0.0.1:5901 and [::1]:5901 "
+    "inside the container and requires an eight-character per-run RFB password. Allowed Origins match the exact local "
+    "host/port. Raw VNC, X11, RDP, terminal, file manager APIs, Docker socket, and automation ports are not published."
+)
+p(
+    "The current viewer uses plaintext HTTP/WebSocket on loopback. The password is never placed in the URL; it is an "
+    "ignored file mounted read-only and entered into the form. This is not a LAN/internet or multi-user security design. "
+    "Clipboard and remote resize are disabled; server resolution remains fixed so viewer scaling cannot act as a hidden "
+    "repaint workaround."
+)
+h("File bridge")
+table(["Path", "Policy"], [
+    ["Selected host input", "Enumerate/hash; reject reparse points; copy only; rehash host and container copies"],
+    ["C:\\octane-input", "Per-run staged copy visible to native picker; host source is never writable"],
+    ["C:\\octane-output", "Separate per-run writable output; collect even after GUI failure"],
+    ["Operator output/run-id", "Non-overwriting retained result with checksums"],
+], [135, 357], compact=True)
+h("Network")
+p(
+    "Profiles allow only explicit HTTP/HTTPS endpoint URLs without embedded credentials and declare accepted status codes. "
+    "The bounded Linux curl probe records status/remote IP/time and returns failure if a required endpoint is unavailable. "
+    "A controlled endpoint passed; an unavailable port failed. This does not prove Wine/WebView2/target protocols, proxy, "
+    "corporate CA, integrated identity, client certificates, domain access, or Windows localhost equivalence."
+)
+p(
+    "No profile copies browser cookies, Credential Manager data, tickets, private keys, machine identity, or certificates. "
+    "No privileged mode, host network, host GPU, ptrace, no-sandbox flag, broad mount, or disabled host control was added."
+)
+
+
+page(34, "Source-independent runtime kit and recovery")
+code(r"""./scripts/New-OctaneRuntimeKit.ps1 `
+  -OutputDirectory 'C:\Approved\Octane Kit 1' `
+  -Version browser-runtime-kit-v1-candidate `
+  -HarnessCommit b227260e579bc4806cbd92659ea9956b06fbb253""")
+p(
+    "The kit contains runtime scripts/modules, schemas/templates, browser image layer, reference profile/fixtures, locks, "
+    "validation helpers, AI handoff, quick start, compatibility/research records, and checksums. It excludes target source, "
+    "installer/image bytes, Git metadata, credentials, provider tokens, and raw evidence. Operating a supplied installer "
+    "does not require Rust, Node, Visual Studio, target source, or a hosting-provider CLI."
+)
+p(
+    "The extracted-kit test used a path containing spaces and Unicode, generated example-app-octane, validated it, staged "
+    "the external retained EXE to its exact hash, started a clean preview with no source-tree fallback, passed component "
+    "checks, collected output/evidence, and cleaned the exact container. Browser pixels/input remained blocked."
+)
+h("Private image recovery")
+code(r"""./scripts/Export-OctaneBrowserImage.ps1 `
+  -OutputPath 'C:\Approved\octane-browser-candidate-b227260.tar' `
+  -Image octane-lab:browser-candidate-v1 -WslDistro Ubuntu-24.04
+
+./scripts/Import-OctaneBrowserImage.ps1 `
+  -ArchivePath 'C:\Approved\octane-browser-candidate-b227260.tar' `
+  -ExpectedSha256 6c1f4f9fd364ed970fc1ba1796a71952e2f917ae7603ea3cf10903d6209dbfb5 `
+  -ExpectedImageId sha256:243cbc44326d000f26e26dbd0e769b3e300cc1ded51e7543a891d2aebecc15ba `
+  -WslDistro Ubuntu-24.04""")
+p(
+    "The retained archive is 2,083,884,032 bytes. Export and in-place import/hash/ID checks passed without deleting the "
+    "only image. This is not a second-laptop or cold restore. Archive checksum is integrity, not authenticity; the recipe "
+    "records inputs but does not prove a byte-for-byte reproducible rebuild."
+)
+h("Large artifact intake")
+p(
+    "A 440,401,920-byte synthetic fixture passed streaming/hash/copy in about 1.5 seconds, same filename/different bytes "
+    "created distinct IDs, a truncation failed the producer hash, and identical bytes reused the immutable cache. This is "
+    "transport capacity only. A second real installer was unavailable, so two-build application acceptance is NOT_TESTED."
+)
+
+
+page(35, "Browser evidence and blocked qualification")
+p(
+    "Candidate run c71f9b509b is the final manual handoff. Its component result is PASS and browser acceptance is BLOCKED. "
+    "The candidate lock is intentionally named candidate.lock.json and has status candidate-end-to-end-blocked."
+)
+table(["Required browser batch gate", "Current status"], [
+    ["Viewer listener, authentication, intended session", "Component PASS; browser connection NOT_RUN"],
+    ["Fresh install/executable/WebView2 identity", "PASS in reference candidate"],
+    ["Initial target pixels in browser without helper", "NOT_RUN / BLOCKED"],
+    ["Continuing browser pixels + mouse/keyboard/scroll/focus", "NOT_RUN / BLOCKED"],
+    ["Real 8-file Rust workload", "NOT_RUN through browser"],
+    ["Unicode/space/missing/open-save cancel/repeat", "NOT_RUN through browser"],
+    ["Independent export/no-overwrite/input validation", "NOT_RUN through browser"],
+    ["Post-dialog resize/restore and evidence", "NOT_RUN through browser"],
+    ["Ten sequential fresh runs", "0/10; every declared row NOT_RUN"],
+], [255, 237], compact=True)
+p(
+    "An HTTP response, noVNC shell, VNC connect event, native X11 screenshot, process, loaded WebView2, live DOM, or direct "
+    "X11 automation cannot promote any browser row. A manual operator result is separate and cannot count as unattended. "
+    "The historical RDP batch remains valid in its own scope and cannot be reused."
+)
+h("Available verification")
+p(
+    "Current local checks: 32 browser/runtime assertions, 48 mocked PowerShell assertions, 12 qualification-policy "
+    "assertions, 19 Node tests, Bash/PowerShell parsing, controlled endpoint positive/negative cases, synthetic 420 MiB "
+    "transport, extracted-kit lifecycle, archive export/import, and exact cleanup. These are not browser GUI acceptance."
+)
+
+
+page(36, "Manual browser smoke and qualification resume path")
+code("""# Verify the retained handoff still exists; never assume port/session liveness.
+./scripts/Show-OctaneManualBrowserHandoff.ps1 `
+  -Container octane-c71f9b509b -WslDistro Ubuntu-24.04
+
+# Copy its password to the clipboard without printing it.
+./scripts/Get-OctaneViewerCredential.ps1 `
+  -Container octane-c71f9b509b
+
+# Exact candidate URL when the verifier succeeds:
+http://127.0.0.1:3005/octane.html""")
+table(["Operator step", "Required observation"], [
+    ["Connect", "VNC negotiated, then actual Octane client—not merely desktop/frame/viewer"],
+    ["Initial presentation", "Normal pixels without resize/minimize/restore/click/reconnect/relaunch/helper"],
+    ["Input", "Browser mouse, keyboard, focus, and scroll reach the intended application"],
+    ["Open dialog", "Select controlled C:\\octane-input files, cancel, reopen, repeat"],
+    ["Workload", "Actual retained 8-file/6-group/1-duplicate/176-byte/0-error result"],
+    ["Save dialog", "Cancel, export to C:\\octane-output, return to responsive app"],
+    ["Validate", "Independent JSON/content/hash/no-overwrite/input checks"],
+    ["Collect/stop", "Browser-attributable evidence first; exact run cleanup second"],
+], [112, 380], compact=True)
+p(
+    "If the run is absent, recreate it with Start-OctanePreview and the locked image/profile/installer rather than guessing "
+    "the URL or using RDP. Label resulting evidence operator-performed browser smoke. If it passes, configure an approved "
+    "browser-control path, freeze a new final lock, declare ten run IDs before run one, and execute every fresh run through "
+    "the browser framebuffer/input path. Preserve all first outcomes; any FAIL/BLOCKED/NOT_RUN means not 10/10."
+)
+p(
+    "Until then: historical technical feasibility remains demonstrated and historical Octane acceptance remains qualified "
+    "for its exact RDP-era lock. Browser status remains candidate implemented, end-to-end validation and unattended "
+    "qualification blocked. The smallest next action is an approved operator browser smoke—not another image rebuild."
+)
+
+
 def decorate(canvas, doc):
     canvas.setTitle("Octane - Complete Windows Installer Compatibility Lab Guide")
     canvas.setAuthor("Octane Lab")
@@ -1274,7 +1509,7 @@ def decorate(canvas, doc):
     canvas.line(54, 44, 558, 44)
     canvas.setFont("Helvetica", 8)
     canvas.setFillColor(colors.HexColor("#657989"))
-    canvas.drawString(54, 30, "OCTANE / PRIVATE PROJECT REFERENCE / GUIDE REVISION 6")
+    canvas.drawString(54, 30, "OCTANE / PRIVATE PROJECT REFERENCE / GUIDE REVISION 7")
     canvas.drawRightString(558, 30, str(doc.page))
 
 

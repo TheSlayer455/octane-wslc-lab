@@ -1,0 +1,73 @@
+{
+  "schemaVersion": 1,
+  "batchId": "browser-qbatch-a03f8cdadda3",
+  "declaredAtUtc": "2026-11-14T20:21:17.4072013Z",
+  "lockSha256": "edea2b6489601775489dbc2a5ac6aae4bc2572940632040e98baa053c5077234",
+  "contract": "10 fresh containers/prefixes/installations through approved browser framebuffer and input path; no RDP, repaint helper, hidden retry, or manual promotion.",
+  "status": "BLOCKED",
+  "reason": "No approved controllable browser is available in the current execution environment.",
+  "plannedRuns": 10,
+  "executedRuns": 0,
+  "runs": [
+    {
+      "sequence": 1,
+      "runId": "browser-qbatch-a03f8cdadda3-01",
+      "status": "NOT_RUN",
+      "reason": "No approved controllable browser is available in the current execution environment."
+    },
+    {
+      "sequence": 2,
+      "runId": "browser-qbatch-a03f8cdadda3-02",
+      "status": "NOT_RUN",
+      "reason": "No approved controllable browser is available in the current execution environment."
+    },
+    {
+      "sequence": 3,
+      "runId": "browser-qbatch-a03f8cdadda3-03",
+      "status": "NOT_RUN",
+      "reason": "No approved controllable browser is available in the current execution environment."
+    },
+    {
+      "sequence": 4,
+      "runId": "browser-qbatch-a03f8cdadda3-04",
+      "status": "NOT_RUN",
+      "reason": "No approved controllable browser is available in the current execution environment."
+    },
+    {
+      "sequence": 5,
+      "runId": "browser-qbatch-a03f8cdadda3-05",
+      "status": "NOT_RUN",
+      "reason": "No approved controllable browser is available in the current execution environment."
+    },
+    {
+      "sequence": 6,
+      "runId": "browser-qbatch-a03f8cdadda3-06",
+      "status": "NOT_RUN",
+      "reason": "No approved controllable browser is available in the current execution environment."
+    },
+    {
+      "sequence": 7,
+      "runId": "browser-qbatch-a03f8cdadda3-07",
+      "status": "NOT_RUN",
+      "reason": "No approved controllable browser is available in the current execution environment."
+    },
+    {
+      "sequence": 8,
+      "runId": "browser-qbatch-a03f8cdadda3-08",
+      "status": "NOT_RUN",
+      "reason": "No approved controllable browser is available in the current execution environment."
+    },
+    {
+      "sequence": 9,
+      "runId": "browser-qbatch-a03f8cdadda3-09",
+      "status": "NOT_RUN",
+      "reason": "No approved controllable browser is available in the current execution environment."
+    },
+    {
+      "sequence": 10,
+      "runId": "browser-qbatch-a03f8cdadda3-10",
+      "status": "NOT_RUN",
+      "reason": "No approved controllable browser is available in the current execution environment."
+    }
+  ]
+}

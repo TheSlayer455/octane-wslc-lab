@@ -12,7 +12,7 @@ if(Test-Path -LiteralPath $destination){throw "Runtime-kit destination already e
 New-Item -ItemType Directory -Path $destination | Out-Null
 try{
     $directories=@(
-        'lab/browser','profiles/applications','profiles/qualification','schemas','templates','fixtures'
+        'lab/browser','profiles/applications','profiles/candidates','profiles/qualification','schemas','templates','fixtures'
     )
     foreach($relative in $directories){
         $target=Join-Path $destination $relative
@@ -30,10 +30,11 @@ try{
     )
     foreach($script in $scripts){Copy-Item -LiteralPath (Join-Path $root "scripts/$script") -Destination (Join-Path $destination "scripts/$script")}
     New-Item -ItemType Directory -Path (Join-Path $destination 'docs') -Force | Out-Null
-    foreach($document in @('OCTANE-AI-HANDOFF.md','BROWSER-CANDIDATE-QUICKSTART.md','runtime-completion-ledger.md','compatibility-matrix.md','research-evidence-ledger.md')){
+    foreach($document in @('OCTANE-AI-HANDOFF.md','BROWSER-CANDIDATE-QUICKSTART.md','runtime-completion-ledger.md','compatibility-matrix.md','research-evidence-ledger.md','validation.json','Octane-Complete-Guide.pdf','THIRD-PARTY-NOTICES.md')){
         $source=Join-Path $root "docs/$document"
         if(Test-Path -LiteralPath $source){Copy-Item -LiteralPath $source -Destination (Join-Path $destination "docs/$document")}
     }
+    Copy-Item -LiteralPath (Join-Path $root 'README.md') -Destination (Join-Path $destination 'README.md')
     foreach($empty in @('runs','runs/artifacts','runs/secrets','evidence','work')){New-Item -ItemType Directory -Path (Join-Path $destination $empty) -Force | Out-Null}
     $manifest=[ordered]@{
         schemaVersion=1;version=$Version;createdAtUtc=[DateTime]::UtcNow.ToString('o')

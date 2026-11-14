@@ -1,0 +1,23 @@
+stages:
+  - contracts
+
+powershell-contracts:
+  stage: contracts
+  image: mcr.microsoft.com/powershell:7.5-ubuntu-24.04
+  script:
+    - pwsh -NoProfile -File ./scripts/Test-OctaneRuntimeContracts.ps1 -Scope PowerShellPortable
+  artifacts:
+    when: always
+    expire_in: 14 days
+    paths:
+      - profiles/candidates/
+
+node-contracts:
+  stage: contracts
+  image: node:24-bookworm
+  script:
+    - node --test tests/*.test.mjs
+
+# Live WSL/Windows-browser acceptance intentionally has no generic hosted job.
+# Add only a protected trusted runner and call the shared qualification command;
+# never expose that runner to untrusted public merge-request code.

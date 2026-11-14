@@ -209,3 +209,36 @@ Confidence means confidence that the source says what is summarized, not confide
 - **Reproduction:** Verify lock SHA-256 `0137c535f4eb0d15c12628801020b71f1952a18c65c524b7ac26874f6e6377c1`, then run `Invoke-OctaneQualificationBatch.ps1` with ten planned runs. Each run must create a fresh container/prefix/user-data state, install the retained SHA-256 `adde062d...` artifact, launch once, execute every gate, collect evidence, and remove its exact resource.
 - **Local outcome:** 10/10 runs passed all ten gates: lock/runtime identity, fresh installation, normal presentation, continuing repaint/input, exact Unicode and missing-path contracts, real 8-file Rust workload, native open/save cancellation and repeated use, independently validated export/no-overwrite/input integrity, ordinary post-dialog resize/restore, and evidence/cleanup. Every run recorded `forcedRepaintUsed=false`, no hidden retry, and no manual override. Batch-summary SHA-256 is `ee890ddcf0b4f420cff10a2d5be33ef8c7d6695b1bcb34f10b872df9fd9fff2b`; the 1,853-entry checksum manifest verifies and has SHA-256 `e148ad2bb58998b62a54c2a0b131e49eaaaf86e11328b2580b8e576b751415e0`.
 - **Confidence:** High for the exact installer, lock, schema, and recorded host. This does not qualify stock Wine, arbitrary Tauri applications, or an untested proprietary installer.
+
+### R19 — noVNC/Websockify browser candidate and validation boundary
+
+- **Claim:** noVNC can deliver a VNC framebuffer and normal input through a browser, but an HTTP viewer response or even a VNC `connect` event does not establish target application readiness or functional acceptance.
+- **Classification:** Primary project documentation/source plus locally reproduced component checks; browser end-to-end application result remains unverified.
+- **Source / author / date:** [`novnc/noVNC`](https://github.com/novnc/noVNC) commit `63107bd06d9e1f6136ff21aeda8cd62cbf0d433e`; [`novnc/websockify`](https://github.com/novnc/websockify) commit `e81894751365afc19fe64fc9d0e5c6fc52655c36`; [noVNC architecture](https://novnc.com/info.html); inspected and built 2026-11-14.
+- **Version / platform:** Windows 11 / Ubuntu 24.04.4 WSL2 / Docker 29.6.2; browser layer over image `sha256:0443029e...`; final browser candidate image `sha256:243cbc44326d000f26e26dbd0e769b3e300cc1ded51e7543a891d2aebecc15ba`; Xvfb/XFCE `:1`; x11vnc 0.9.16-10; noVNC/Websockify pinned commits above.
+- **Reported outcome:** noVNC documents browser-based VNC access; its public RFB client emits supported connection/security/disconnect events. These events describe transport, not a Tauri/WebView2 application's pixels, backend, native dialogs, or export.
+- **Reproduction:** Build `lab/Dockerfile.browser-novnc` only over the exact historical image; launch with one read-only per-run password file and one `127.0.0.1:PORT:3000` publication; run `Test-OctaneBrowserComponents.ps1`; then, through an approved browser, connect to `/octane.html`, verify actual application pixels and drive all input through noVNC.
+- **Local outcome:** Final component run `c71f9b509b` passed exact container/image identity, loopback publication, credential mount, absence of RDP process/listener, raw VNC loopback-only listeners, X11/display identity, RFB password configuration, HTTP viewer content, and bad-origin rejection. The unchanged installer completed in a fresh prefix; one exact executable and loaded WebView2 157.0.4341.60 path/hash were recorded; a native X11 window existed. No approved browser control was available, so VNC negotiation, browser framebuffer, browser input, visible application readiness, workload, dialogs, export, and the 10/10 batch remain BLOCKED/NOT_RUN. A container-side screenshot is explicitly not browser evidence.
+- **Confidence:** High for build/component/runtime observations; no confidence claim for browser-delivered application acceptance until manual or approved automated evidence exists.
+
+### R20 — Docker port and bind semantics used by the candidate
+
+- **Claim:** Docker port publication must name the loopback host address to avoid default all-interface exposure, and bind mounts are resolved by the daemon host rather than the client shell.
+- **Classification:** Primary Docker documentation plus local implementation checks.
+- **Source / author / date:** [Docker port publishing](https://docs.docker.com/engine/network/port-publishing/) and [Docker bind mounts](https://docs.docker.com/engine/storage/bind-mounts/), Docker, accessed 2026-11-14.
+- **Version / platform:** Docker Engine 29.6.2 inside Ubuntu-24.04 WSL2; Windows PowerShell controller.
+- **Reported outcome:** Omitting a host address publishes to all interfaces by default; daemon-side path resolution makes Windows-to-WSL conversion an explicit controller responsibility.
+- **Reproduction:** Inspect `HostConfig.PortBindings`, listeners, mounts, selected Docker context/socket, and Windows reachability. Reject unexpected publications and any mount other than the exact read-only credential file in the browser profile.
+- **Local outcome:** Final component checks observed exactly one `127.0.0.1` viewer publication, no raw VNC/RDP publication, and one exact read-only password-file bind converted for the selected WSL daemon. Installer and fixture data used `docker cp`; no broad host directory was mounted.
+- **Confidence:** High.
+
+### R21 — Generic artifact, file, and endpoint capability measurements
+
+- **Claim:** The provider-neutral intake safely distinguishes same-name pipeline artifacts, handles approximately 400 MiB files without rebuilding the environment, preserves selected host input, and can classify explicitly declared Linux-container HTTP endpoints.
+- **Classification:** Locally reproduced harness measurements; not target GUI or corporate-network acceptance.
+- **Source / author / date:** Octane browser-runtime tests and evidence, 2026-11-14.
+- **Version / platform:** Windows PowerShell 7 controller; NTFS source/cache; Docker Engine 29.6.2 in WSL2; final browser image for endpoint probes.
+- **Reported outcome:** Not applicable; this entry records local results.
+- **Reproduction:** Run `Test-OctaneArtifactTransport.ps1 -SizeMiB 420`; create a project-owned HTTP sidecar and invoke `octane-target probe-network` with one reachable and one unavailable profile endpoint; collect JSON before exact cleanup.
+- **Local outcome:** A 440,401,920-byte synthetic fixture streamed and hashed in 1.548 seconds; same filename/different tail byte yielded a second immutable ID in 1.479 seconds; a 10 MiB truncation failed the authoritative full hash; identical bytes reused the verified cache. A controlled HTTP 200 endpoint passed with exit 0, and an unavailable port recorded `accepted:false` and returned exit 1. These prove transport and Linux-curl classification only. A second real installer and application-level network behavior were unavailable/NOT_TESTED.
+- **Confidence:** High for the measured harness operations; none for an untested target or authentication path.

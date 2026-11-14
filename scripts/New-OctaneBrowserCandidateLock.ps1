@@ -28,6 +28,14 @@ $imageObject=@($inspect.StdOut | ConvertFrom-Json)[0]
 $labels=$imageObject.Config.Labels
 if($labels.'com.octanelab.browser-transport' -ne 'novnc' -or $labels.'com.octanelab.browser-rdp-required' -ne 'false'){throw 'Image is not the noVNC/no-RDP browser candidate.'}
 if($labels.'com.octanelab.harness-commit' -ne $HarnessCommit){throw "Image harness label '$($labels.'com.octanelab.harness-commit')' does not match $HarnessCommit."}
+$packageNames=@('curl','git','iproute2','python3-jwcrypto','python3-numpy','python3-redis','python3-requests','x11vnc')
+$packageQuery=Invoke-OctaneRuntime -Engine Docker -WslDistro $WslDistro -Arguments (@('run','--rm','--entrypoint','dpkg-query',$Image,'-W')+$packageNames) -TimeoutSeconds 120
+$packageVersions=[ordered]@{}
+foreach($line in @($packageQuery.StdOut.Trim() -split "`r?`n")){
+    $parts=$line -split "`t",2
+    if($parts.Count -eq 2){$packageVersions[$parts[0]]=$parts[1]}
+}
+if($packageVersions.Count -ne $packageNames.Count){throw 'Unable to record every required browser-image package version.'}
 $fixtures=Get-OctaneDirectoryManifest -Path (Join-Path $root 'fixtures')
 $fixtureComparable=@($fixtures.files | ForEach-Object {[ordered]@{relativePath=[string]$_.relativePath;length=[int64]$_.length;sha256=[string]$_.sha256}}) | ConvertTo-Json -Depth 10 -Compress
 $fixtureHash=[Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($fixtureComparable))).ToLowerInvariant()
@@ -48,6 +56,7 @@ $value=[ordered]@{
         winePatchSha256=[string]$labels.'com.octanelab.wine-visrgn-patch-sha256';winePrefixArchitecture='win64';windowsVersion='default'
         webView2Distribution=[string]$profile.application.webView2.distribution;expectedWebView2Version=[string]$profile.application.webView2.expectedVersion
         display=':1';x11Driver='winex11';desktop='Xvfb/XFCE';resolution='1280x800x24';renderer='Mesa llvmpipe (reference expectation; recheck per run)'
+        packageVersions=$packageVersions
     }
     browser=[ordered]@{
         transport='noVNC over Websockify to x11vnc';viewerPath='/octane.html';noVncCommit=[string]$labels.'com.octanelab.browser-novnc-commit'
