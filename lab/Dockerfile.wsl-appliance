@@ -40,7 +40,7 @@ RUN set -eux; \
     rm -rf /var/lib/apt/lists/*
 
 RUN set -eux; \
-    useradd --create-home --uid 1000 --shell /bin/bash octane; \
+    useradd --create-home --uid 10001 --shell /bin/bash octane; \
     usermod -aG docker octane; \
     install -d -m 0755 /etc/docker /opt/octane-appliance; \
     printf '%s\n' \
