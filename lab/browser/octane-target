@@ -164,7 +164,7 @@ probe_network() {
             '{id:$id,url:$url,probeLayer:"Linux container curl only",exitCode:$exitCode,result:$result,expectedStatusCodes:$expectedStatusCodes,accepted:$accepted}' \
             >> "$result_file"
     done
-    if grep -q '"accepted":false' "$result_file"; then failed=1; fi
+    if ! jq -s -e 'all(.accepted == true)' "$result_file" >/dev/null; then failed=1; fi
     jq -s '{schemaVersion:1,scope:"These probes do not prove Wine/WebView2/application authentication or protocol behavior.",endpoints:.}' \
         "$result_file" > "$evidence_dir/network-probes.json"
     rm -f "$result_file"
