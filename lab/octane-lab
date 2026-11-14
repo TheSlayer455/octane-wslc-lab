@@ -121,6 +121,9 @@ case "${1:-help}" in
     install)
         ensure_display
         run_logged install wine /opt/octane/Octane-setup.exe ;;
+    install-silent)
+        ensure_display
+        run_logged install-silent wine /opt/octane/Octane-setup.exe /S ;;
     launch)
         ensure_display
         app=$(find_octane)
@@ -153,6 +156,6 @@ case "${1:-help}" in
         record_environment
         exec /usr/local/bin/octane-webview2-experiment ;;
     help|*)
-        echo 'Usage: octane-lab {environment|notepad|install|diagnostic|experiment|launch|launch-ole}'
+        echo 'Usage: octane-lab {environment|notepad|install|install-silent|diagnostic|experiment|launch|launch-ole}'
         echo "Run as the desktop user. Export JSON beneath Z:${evidence//\//\\}." ;;
 esac

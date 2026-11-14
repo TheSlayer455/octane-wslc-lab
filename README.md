@@ -66,6 +66,7 @@ The launcher prints the exact container name, loopback endpoint, username, one-t
 ```bash
 octane-lab notepad
 octane-lab install
+octane-lab install-silent
 octane-lab launch
 ```
 
