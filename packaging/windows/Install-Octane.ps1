@@ -37,7 +37,7 @@ function Assert-PackageFile([string]$RelativePath,[string]$ExpectedSha256,[int64
 function Get-WslDistributions {
     $lines=@(& wsl.exe --list --quiet 2>$null)
     if($LASTEXITCODE -ne 0){throw 'Unable to list WSL distributions.'}
-    return @($lines | ForEach-Object {([string]$_).Replace([char]0,'').Trim()} | Where-Object {$_})
+    return @($lines | ForEach-Object {([string]$_).Replace(([char]0).ToString(),[string]::Empty).Trim()} | Where-Object {$_})
 }
 
 function Invoke-WslChecked([string[]]$Arguments,[string]$Description){

@@ -18,6 +18,7 @@ Assert-True ($dockerfile -match 'default=octane') 'WSL appliance must use its no
 Assert-True ($dockerfile -notmatch '(?m)^\s*(COPY|ADD)\s+.*var/lib/docker') 'Populated Docker state must not be baked into the appliance.'
 Assert-True ($install -match "Get-FileHash.+SHA256") 'Installer must verify package hashes.'
 Assert-True ($install -match "--import") 'Installer must use the supported WSL import interface.'
+Assert-True ($install -match "Replace\(\(\[char\]0\)\.ToString\(\),\[string\]::Empty\)") 'Installer must safely normalize NUL-padded WSL distribution names.'
 Assert-True ($install -match 'refusing to replace or unregister') 'Installer must not overwrite an existing distribution.'
 Assert-True ($install -match 'zstd -dc') 'Installer must stream the separately packaged image archive into Docker.'
 Assert-True ($install -match 'Loaded image identity mismatch') 'Installer must validate the loaded image ID.'
