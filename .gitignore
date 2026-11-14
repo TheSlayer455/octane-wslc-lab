@@ -3,5 +3,6 @@
 /artifacts/
 /evidence/
 /runs/
+__pycache__/
 *.log
 *.env

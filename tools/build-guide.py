@@ -1,7 +1,7 @@
 """Build the single project reference. Requires reportlab; no network calls."""
 from pathlib import Path
 import json, html, hashlib
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak, Table, TableStyle, Preformatted
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak, Table, TableStyle, Preformatted, Image as RLImage
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_LEFT
@@ -15,6 +15,7 @@ styles=getSampleStyleSheet()
 styles.add(ParagraphStyle(name='Body',fontName='Helvetica',fontSize=10,leading=14,spaceAfter=9,textColor=colors.HexColor('#253442')))
 styles.add(ParagraphStyle(name='CodeBlock',fontName='Courier',fontSize=8,leading=11,spaceBefore=5,spaceAfter=10,backColor=colors.HexColor('#edf2f5'),borderPadding=10))
 styles.add(ParagraphStyle(name='SmallNote',fontName='Helvetica',fontSize=8,leading=11,textColor=colors.HexColor('#566778'),spaceAfter=6))
+styles.add(ParagraphStyle(name='CompactNote',fontName='Helvetica',fontSize=7.4,leading=9.5,textColor=colors.HexColor('#566778'),spaceAfter=4))
 for name,size,leading in [('Title',30,34),('Heading1',21,25),('Heading2',12,16)]:
     styles[name].fontName='Helvetica-Bold';styles[name].fontSize=size;styles[name].leading=leading;styles[name].textColor=colors.HexColor('#102f43')
 styles['Heading2'].spaceBefore=9
@@ -26,29 +27,43 @@ def page(number,title):
     if story:story.append(PageBreak())
     story.append(Paragraph(f'OCTANE / REFERENCE {number:02d}',styles['SmallNote']))
     story.append(Paragraph(title,styles['Heading1']));story.append(Spacer(1,12))
-def table(headers,rows,widths):
-    data=[[Paragraph(html.escape(str(c)),styles['SmallNote']) for c in row] for row in [headers]+rows]
+def table(headers,rows,widths,compact=False):
+    cell_style=styles['CompactNote'] if compact else styles['SmallNote']
+    padding=4 if compact else 7
+    data=[[Paragraph(html.escape(str(c)),cell_style) for c in row] for row in [headers]+rows]
     t=Table(data,colWidths=widths,hAlign='LEFT',repeatRows=1)
-    t.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,0),colors.HexColor('#dceaf1')),('GRID',(0,0),(-1,-1),.5,colors.HexColor('#D9D9D9')),('VALIGN',(0,0),(-1,-1),'MIDDLE'),('TOPPADDING',(0,0),(-1,-1),7),('BOTTOMPADDING',(0,0),(-1,-1),7),('ROWBACKGROUNDS',(0,1),(-1,-1),[colors.white,colors.HexColor('#f4f7f9')])]))
+    t.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,0),colors.HexColor('#dceaf1')),('GRID',(0,0),(-1,-1),.5,colors.HexColor('#D9D9D9')),('VALIGN',(0,0),(-1,-1),'MIDDLE'),('TOPPADDING',(0,0),(-1,-1),padding),('BOTTOMPADDING',(0,0),(-1,-1),padding),('ROWBACKGROUNDS',(0,1),(-1,-1),[colors.white,colors.HexColor('#f4f7f9')])]))
     story.append(t);story.append(Spacer(1,9))
 def link(label,url):p(f'<link href="{html.escape(url,quote=True)}" color="#14658c">{html.escape(label)}</link>')
+def image_grid(items):
+    cells=[]
+    for image_path,caption in items:
+        pic=RLImage(str(ROOT/image_path))
+        pic.drawWidth=238
+        pic.drawHeight=238*pic.imageHeight/pic.imageWidth
+        cells.append([pic,Paragraph(html.escape(caption),styles['SmallNote'])])
+    data=[cells[i:i+2] for i in range(0,len(cells),2)]
+    grid=Table(data,colWidths=[246,246],hAlign='LEFT')
+    grid.setStyle(TableStyle([('VALIGN',(0,0),(-1,-1),'TOP'),('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),8),('TOPPADDING',(0,0),(-1,-1),3),('BOTTOMPADDING',(0,0),(-1,-1),8)]))
+    story.append(grid)
 
 page(1,'Octane<br/>Windows application container lab')
-p('<b>Complete implementation and operating reference</b><br/>Version 0.1.0 | November 13, 2026 | Windows x64 + WSLC + Wine')
+p('<b>Complete implementation, operating, and measured-validation reference</b><br/>Octane 0.1.0 | Guide revision 2 | November 13, 2026 | Windows x64 + WSLC + Wine')
 p('Octane is a separate Rust/Tauri Windows desktop application built to test installing and operating a real Windows GUI inside a disposable Linux container. Its useful workload is file analysis: extension groups, SHA-256 hashes, matching contents, and JSON export. Your existing application, installer, and source code are outside this project.')
 link('Private repository: TheSlayer455/octane-wslc-lab','https://github.com/TheSlayer455/octane-wslc-lab')
 h('What is delivered')
-p('The private repository contains application source, sample files, a Windows NSIS installer workflow, PowerShell lifecycle scripts, the Wine desktop image recipe, regression checks, and this single reference. The compiled installer and matching manifest are retained as private v0.1.0 release assets. Later builds also produce private GitHub Actions artifacts.')
+p('The private repository contains application source, sample files, a Windows NSIS installer workflow, PowerShell lifecycle scripts, the Wine desktop image recipe, regression checks, and this single reference. The final controlled installer, matching manifest, and this guide are retained as private v0.1.1 prerelease assets. Builds also produce private GitHub Actions artifacts.')
 h('The key compatibility boundary')
 p('WSLC runs Linux containers. Wine provides the Windows API compatibility layer. Tauri on Windows uses Microsoft WebView2. Building an installer successfully does not prove that WebView2 will install, render, or behave correctly under Wine. A usable GUI and a correct exported report are separate acceptance gates.')
 h('Recorded delivery status')
 p(html.escape(status.get('summary','Windows build in progress. Local formatting, UI behavior, and mocked PowerShell checks pass. WSLC runtime operations returned ERROR_TIMEOUT; Wine GUI acceptance remains untested.')))
 h('How to use this document')
-p('Start with pages 4-7 to build or download and run the lab. Pages 8-11 explain the application and automation. Pages 12-15 cover evidence, security, acceptance, and failure diagnosis. Pages 16-19 cover maintenance, verification, inventory, and references. Commands use repository-root PowerShell unless a browser-desktop terminal is explicitly specified.')
+p('Start with pages 4-7 to repair WSLC, build or download, and run the lab. Pages 8-11 explain the application and automation. Pages 12-15 cover evidence, security, acceptance, and failure diagnosis. Pages 16-20 cover maintenance, measured visual evidence, verification, inventory, and references. Commands use <b>Windows PowerShell from the repository root</b> unless a browser-desktop terminal is explicitly specified.')
 
 page(2,'Contents and scope')
-table(['Page','Topic'],[[str(i),t] for i,t in enumerate(['Purpose and delivery status','Contents and scope','Architecture and lifecycle','Prerequisites and host diagnosis','Building and obtaining the installer','Starting a fresh lab','Installing and using Octane','File-analysis behavior','JSON report contract','Application implementation','Automation implementation','Evidence and cleanup','Security and reproducibility','Acceptance test protocol','Troubleshooting decision guide','Development and CI maintenance','Verification record','Repository inventory','References and extension roadmap'],1)],[42,450])
+table(['Page','Topic'],[[str(i),t] for i,t in enumerate(['Purpose and delivery status','Contents and scope','Architecture and lifecycle','Prerequisites and host diagnosis','Building and obtaining the installer','Starting a fresh lab','Installing and using Octane','File-analysis behavior','JSON report contract','Application implementation','Automation implementation','Evidence and cleanup','Security and reproducibility','Acceptance test protocol','Troubleshooting decision guide','Development and CI maintenance','Measured GUI and WebView2 evidence','Verification record','Repository inventory','References and extension roadmap'],1)],[42,450],compact=True)
 p('This project deliberately tests the Windows installer and Windows Tauri runtime. It does not substitute a native Linux build or a browser rewrite. The browser is a remote view of a Linux desktop displaying Wine windows. No Docker Desktop, Podman engine, Windows VM, or RHEL reconfiguration is required by the scripts.')
+p('<b>Shell boundary:</b> wsl.exe and wslc.exe are Windows executables. Run every wsl/wslc command in Windows PowerShell or Command Prompt, not at an Ubuntu/RHEL prompt. A Linux shell reporting “wslc: command not found” is expected and does not mean the Windows installation is missing.')
 p('A Windows VM remains the appropriate follow-up for native Windows release qualification. This repository does not provision that VM, automate a proprietary installer, sign a production release, or claim to be a hardened service for arbitrary untrusted executables.')
 
 page(3,'Architecture and lifecycle')
@@ -91,14 +106,23 @@ wslc container cp --help
 wslc build --help
 wslc run --help''')
 p('When WSL is below the requirement, update it with <b>wsl --update</b> and repeat the checks. An update can affect other WSL work, so schedule it appropriately. The scripts do not update WSL, edit .wslconfig, stop other distributions, or replace your RHEL environment.')
-h('Observed host condition')
-p('This host reported WSL/WSLC 3.0.1.0. Version and help commands responded. Both hello-world and container listing returned ERROR_TIMEOUT. That failure occurs before any Octane or Wine behavior can be evaluated. Resolve WSLC service/session availability before treating app compatibility as the cause.')
-p('A WSLC outage is a blocking runtime prerequisite, not proof of Wine incompatibility. See page 15 for a diagnosis sequence. Do not use global image pruning, distribution removal, or a machine-wide WSL shutdown as an automatic repair step.')
+h('Observed timeout and validated repair')
+p('This host reported WSL/WSLC 3.0.1.0. Control-plane commands responded, but data-plane commands timed out while ProtonVPN supplied a full-tunnel on-link 0.0.0.0 default route. WSLC\'s default Consommé networking selected that unusable gateway for the utility VM; dockerd did not become ready before the boot timeout. Moving the session VHD did not help, which ruled out the storage file as the cause.')
+code(r'''# Windows PowerShell (not a Linux distribution shell)
+$settings = Join-Path $env:LOCALAPPDATA 'wslc\settings.yaml'
+# Create the parent folder when needed, then save this YAML:
+session:
+  networkingMode: nat
+  idleTimeout: 900
+
+wslc system session terminate
+wslc run --rm hello-world''')
+p('The active host setting is %LOCALAPPDATA%\\wslc\\settings.yaml. After switching the WSLC session to NAT and terminating the stale session, hello-world pulled and exited successfully in 3.8 seconds. A fresh Octane image then built and ran. NAT is a targeted workaround for this route-selection conflict; retest it after VPN, WSL, or WSLC updates. The previous utility-session VHD was retained as a timestamped backup rather than deleted.')
 
 page(5,'Building and obtaining the installer')
 h('Download the compiled private release')
-p('Open the repository\'s <b>Releases - v0.1.0</b> page. Download Octane-setup.exe and installer-manifest.json into this checkout\'s artifacts/ directory, creating that directory if necessary. Both assets must come from the same release. The release also retains this guide.')
-link('Private v0.1.0 release','https://github.com/TheSlayer455/octane-wslc-lab/releases/tag/v0.1.0')
+p('Open the repository\'s <b>Releases - v0.1.1</b> page. Download Octane-setup.exe and installer-manifest.json into this checkout\'s artifacts/ directory, creating that directory if necessary. Both assets must come from the same release. The release also retains this guide and its measured compatibility conclusion.')
+link('Private v0.1.1 release','https://github.com/TheSlayer455/octane-wslc-lab/releases/tag/v0.1.1')
 h('For later builds: private GitHub Actions')
 p('Select Actions and open a successful <b>Windows installer</b> run. Download <b>Octane-windows-x64</b>. Its ZIP contains artifacts/Octane-setup.exe, artifacts/installer-manifest.json, and Cargo.lock. Copy the two artifacts/ files into this checkout\'s artifacts/ directory. Actions artifacts expire after 14 days; release assets remain until explicitly removed.')
 link('Windows installer workflow','https://github.com/TheSlayer455/octane-wslc-lab/actions/workflows/windows-build.yml')
@@ -126,6 +150,7 @@ p('It checks the installer and matching hash, checks WSLC availability, generate
 p('The printed container name has the form octane-0123456789. The corresponding image is octane-lab:0123456789. The launcher prints the desktop address, octane username, generated password, and runs/NAME.json metadata path. Retain the actual name for evidence collection and cleanup. It does not automatically open the browser.')
 h('Connecting')
 p('Open the printed HTTPS localhost address. LinuxServer uses a self-signed certificate by default. Confirm that you are visiting your own local endpoint before accepting its certificate. Use the generated credentials. Wait for the desktop, open a terminal within it, and run the commands on page 7 as the normal desktop user.')
+p('For non-interactive diagnostics, the helper now detects the live Xwayland socket and selects DISPLAY=:0. The tested WineGUI image advertises DISPLAY=:1 to exec sessions even though its visible desktop is :0; relying on that inherited value caused invisible windows. The helper also supplies /config/.XDG as XDG_RUNTIME_DIR when it is absent.')
 p('Startup may take time while the image initializes. If the launcher fails after creating an image or container, inspect only that printed/generated run and clean up its resources explicitly. Do not assume that an interrupted launcher removed everything. Run metadata is written after successful start and intentionally omits the password.')
 
 page(7,'Installing and using Octane')
@@ -193,7 +218,7 @@ p('Native dialogs, hashing, and output writing execute through Tauri spawn_block
 h('Frontend: ui/')
 p('Static HTML, CSS, and JavaScript are bundled into the executable; no frontend development server is needed. app.js invokes Tauri, renders totals and rows, handles cancellation/errors, and restores controls. It writes filenames via textContent rather than injecting HTML. format.mjs formats byte sizes and summaries. UI state is transient; closing the application loses the last report unless exported.')
 h('Packaging and capability boundary')
-p('tauri.conf.json defines the app ID com.octanelab.octane, main-window size, bundled fixture directory mapping, NSIS current-user installation, and offline WebView2 mode. The CSP allows local scripts/styles and Tauri IPC, without remote script origins. No shell, network, or filesystem frontend plugins are enabled. The three custom Rust commands implement the needed filesystem access. This is not a general command executor.')
+p('tauri.conf.json defines the app ID com.octanelab.octane, main-window size, bundled fixture directory mapping, NSIS current-user installation, and offline WebView2 mode. The compatibility rebuild disables Tauri\'s internal WebView2 drag/drop handler because Octane uses native pickers and the baseline Wine crash ended in IDropTarget_Release. A final controlled variant also passes --disable-gpu while retaining WRY\'s three default disabled WebView2 features, isolating the graphics path without adding no-sandbox flags. The CSP allows local scripts/styles and Tauri IPC, without remote script origins. No shell, network, or filesystem frontend plugins are enabled. The three custom Rust commands implement the needed filesystem access. This is not a general command executor.')
 
 page(11,'Automation implementation')
 table(['Component','Behavior and failure boundary'],[
@@ -203,7 +228,7 @@ table(['Component','Behavior and failure boundary'],[
 ['Collect-Evidence.ps1','Copies runtime logs and /config/octane-evidence into a unique host folder; includes run metadata when available. Avoids persisting raw inspect with passwords.'],
 ['Stop-OctaneLab.ps1','Removes only the requested managed container with rm -f -v; optional removal of its matching run image. Evidence should be collected first.'],
 ['lab/Dockerfile','.dockerignore admits only lab files, installer/manifest, and fixtures. COPY bakes those assets into a LinuxServer WineGUI-derived image.'],
-['lab/octane-lab','Sets one 64-bit prefix. notepad records Wine/kernel/manifest; install runs NSIS; launch finds exactly one installed octane.exe under Wine users.']],[116,376])
+['lab/octane-lab','Sets one 64-bit prefix and selects the live :0 display. notepad records Wine/kernel/manifest; install runs NSIS; launch finds exactly one installed octane.exe under Wine users.']],[116,376])
 h('Logging semantics')
 p('The Bash helper tees separate timestamped stage logs to the evidence directory and writes the Wine process exit code into a sibling .exitcode file. PIPESTATUS captures the Wine command result rather than tee\'s exit code. The default WINEDEBUG enables timestamp and exception diagnostics while disabling unrelated channels. Override WINEDEBUG in the desktop terminal when investigating a specific failure.')
 p('The helper records command completion, not GUI correctness. Commands with the same stage and second-level timestamp may reuse log filenames; avoid rapid repeated invocations or copy evidence between attempts. launch intentionally refuses zero or multiple installed EXEs. It does not guess alternate installation locations or silently fall back to another executable.')
@@ -243,6 +268,7 @@ h('Data exposure')
 p('The installer and fixtures are baked into image layers and may remain in the local image cache. Reports expose canonical paths and file hashes. Input contents stay in the environment where they were selected; the app has no intentional upload behavior. LinuxServer, Wine, WebView2, and dependency downloaders have their own behavior and licensing. Do not place production secrets in fixtures or CI logs.')
 h('Reproducibility')
 p('pnpm-lock.yaml and Cargo.lock lock dependency resolution after the initial build. The CLI is pinned to 2.10.1. The default LinuxServer latest tag, Windows runner image, stable Rust toolchain, Actions major-version tags, and downloaded offline WebView2 version can change. Full byte-for-byte reproducibility is not claimed. Use a validated base digest, a specific Rust release, and pinned Actions commit SHAs when promoting the experiment into a maintained test service.')
+p('Microsoft documents WebView2 against supported Windows client/server versions; Wine is outside that support matrix. A Wine pass would be environment-specific evidence, and a Wine failure does not establish a defect on supported Windows. Keep a native Windows baseline as the release authority.')
 h('Release posture')
 p('The installer is unsigned and no automatic updater is configured. No open-source license grant is supplied for project source; third-party components retain their licenses. GitHub Actions private-repository usage can consume account quotas or incur charges under that account\'s settings. Actions artifacts expire after 14 days; this delivery\'s private release retains the installer, manifest, and guide. No automatic release publishing or public hosting is configured.')
 
@@ -264,15 +290,15 @@ p('For authoritative Windows behavior, install the same artifact in a disposable
 
 page(15,'Troubleshooting decision guide')
 h('WSLC cannot start a basic container')
-p('Check wsl --version and wslc version, then retry hello-world and wslc container ls from a normal interactive PowerShell window. Check virtualization/WSL feature availability and host policy. Consult Microsoft\'s WSL issue tracker for ERROR_TIMEOUT. Version/help success alone does not prove the runtime session is healthy. Avoid changing your RHEL setup to diagnose this separate runtime.')
+p('First confirm that the prompt is Windows PowerShell: wsl.exe and wslc.exe are host commands and are not expected inside Ubuntu/RHEL. Check wsl --version and wslc version, then retry hello-world and wslc container ls. Version/help success alone does not prove the utility VM is healthy. If a full-tunnel VPN is active and the timeout matches the recorded 3.0.1 route failure, set session.networkingMode to nat in %LOCALAPPDATA%\\wslc\\settings.yaml, terminate only the WSLC system session, and retry hello-world. Do not install Ubuntu\'s unrelated “wsl” package, remove distributions, or globally prune images as a first response.')
 h('Desktop cannot be reached')
 p('Check the launcher\'s exit code, printed port, and container status. Use wslc logs NAME for startup errors. Confirm the port is unused or launch with -Port 3002. Use https, verify the local certificate, and enter the generated password. If logs report sandbox or graphics problems, diagnose the image/runtime combination; do not automatically grant privileged mode or disable host security profiles.')
 h('Notepad fails')
-p('This is a Wine/display/prefix problem before Tauri. Check the notepad log, Wine version, DISPLAY environment inside the desktop, and prefix permissions. Run the helper as the desktop user. Reproduce in a new lab so mixed prefix ownership or previous installations cannot contaminate the result.')
+p('This is a Wine/display/prefix problem before Tauri. Check the notepad log, Wine version, DISPLAY environment, /tmp/.X11-unix/X0, and prefix permissions. In the measured image the interactive Xwayland display was :0 while inherited image metadata said :1; the helper now corrects that mismatch. Run it as the desktop user. Reproduce in a new lab so mixed prefix ownership or previous installations cannot contaminate the result.')
 h('Installer or WebView2 fails')
-p('Save the installation-stage log, all prompts, and the exit code. The WebView2 offline bundle removes a bootstrap download dependency; it does not ensure Wine support. Retry only with an explicitly recorded Wine/base-image version. Do not mark a partial installation as a pass. A fixed WebView2 runtime or different Wine build is a separate experiment requiring configuration and acceptance evidence.')
+p('Save the installation-stage log, all prompts, and the exit code. In the measured baseline the current-user NSIS installer returned 0 and installed WebView2 157.0.4341.60, including msedgewebview2.exe. Browser, renderer, network, storage, crashpad, and GPU processes then started. That proves installation and process startup, not rendering compatibility. The first Octane build produced a white window and Wine page fault in IDropTarget_Release. Preserve that evidence and test any workaround as a distinct build.')
 h('Octane starts blank or dialogs fail')
-p('Record rendering and launch logs separately from installer success. Avoid enabling WebView2 no-sandbox flags by default. Compare the same artifact on a native Windows VM before blaming Octane\'s core logic. If Load sample fails, inspect bundled fixture resource paths. If export fails, choose a new path, check disk space/permissions, and confirm Z:\\config\\octane-evidence exists.')
+p('Record rendering and launch logs separately from installer success. In this run, dragDropEnabled=false removed the Wine host access violation but left a black frame. The final build proved --disable-gpu was passed to WebView2; browser/renderer processes started, GPU subprocesses still crashed, all WebView2 children exited, and both installer handoff and clean standalone launch remained black. Closing that blank frame produced launch exit 0, demonstrating that exit code alone is not a render pass. Avoid no-sandbox flags. Compare the same artifact on supported Windows before blaming Octane\'s core logic.')
 h('Build or collection fails')
 p('For locked dependency failures, restore the committed lockfiles. For linker failures install MSVC C++ tools/SDK on the build host. For collection failures check container name/managed label and WSLC cp support; retain the container until the evidence is copied. README and this guide point to the same lifecycle scripts.')
 
@@ -293,7 +319,17 @@ p('For dependency updates, intentionally regenerate the appropriate lockfile, in
 h('Regenerating this reference')
 p('tools/build-guide.py uses ReportLab to produce docs/Octane-Complete-Guide.pdf. docs/validation.json supplies the verified build snapshot. Update both when the implementation or verification status changes, render the PDF, and check page layout before replacing the guide. The PDF is the single comprehensive narrative deliverable; README is an entry point.')
 
-page(17,'Verification record')
+page(17,'Measured Wine GUI and WebView2 evidence')
+p(status.get('evidenceSummary','The images below are from the measured WSLC/Wine run. Captions identify passed and failed gates; a visible process or window frame is not counted as rendered application content.'))
+image_grid([
+('docs/evidence/wine-notepad.png','Fresh prefix: Wine 11.0 Notepad rendered, accepted text, and exited 0.'),
+('docs/evidence/webview2-install.png','Bundled WebView2 157.0.4341.60 installer reached completion inside Wine.'),
+('docs/evidence/webview2-baseline-crash.png','Baseline Octane: Wine debugger captured the IDropTarget_Release access violation.'),
+('docs/evidence/webview2-final.png',status.get('finalScreenshotCaption','Final controlled WebView2 result.')),
+])
+p('Screenshots were captured from the authenticated loopback WineGUI/Selkies stream. They contain no desktop password. Full stage logs, exit-code files, manifests, and run metadata were collected before each disposable container and its anonymous volume were removed.')
+
+page(18,'Verification record')
 p('<b>Verification date:</b> November 13, 2026, America/Chicago. GitHub timestamps may display November 14 in UTC.')
 table(['Check','Observed result'],[
 ['Repository','Created under TheSlayer455; GitHub API returned private=true; source pushed to main.'],
@@ -301,17 +337,24 @@ table(['Check','Observed result'],[
 ['PowerShell harness','8 assertions passed using a mock WSLC executable: loopback bind, no host mounts, no privileged flag, no persisted password, cp collection, volume cleanup, unrelated-name rejection, hash mismatch rejection.'],
 ['Static scripts','All five PowerShell scripts parsed. Bash helper passed bash -n.'],
 ['Rust and Windows build',status.get('windowsBuild','In progress at document generation; see linked workflow for current status.')],
-['WSLC runtime','WSL/WSLC 3.0.1.0 detected. hello-world and container listing both failed with ERROR_TIMEOUT.'],
-['Wine GUI acceptance','NOT TESTED: desktop, Notepad, WebView2 installation, installed GUI, native dialogs, ingestion/export inside Wine.'],
-['Native Windows GUI','NOT TESTED: no host installation performed. Compilation does not exercise installed GUI behavior.']],[116,376])
-if status.get('runUrl'):link('Verified Windows build run',status['runUrl'])
-if status.get('sourceCommit'):p('<b>Installer source commit:</b> '+html.escape(status['sourceCommit']))
-if status.get('installerSha256'):
-    p('<b>Installer SHA-256:</b>')
-    code(status['installerSha256'][:32]+'\n'+status['installerSha256'][32:])
-p('Local script and frontend mocks validate control flow only. The four Rust tests cover the eight-file fixture contract and known SHA-256, repeated/missing/non-regular paths, export roundtrip/no-overwrite, and count/size limits. They do not establish full native dialog, IPC, rendering, or Wine behavior. Unexecuted acceptance gates remain explicitly open.')
+['WSLC runtime',status.get('wslcRuntime','See the host diagnosis and retry before running the lab.')],
+['Wine desktop',status.get('wineDesktop','Not tested.')],
+['Installer / WebView2',status.get('installerAcceptance','Not tested.')],
+['Octane launch',status.get('webviewAcceptance','Not tested.')],
+['Workload / export',status.get('workloadAcceptance','Not tested.')],
+['Native Windows GUI','NOT TESTED: no host installation performed. Compilation does not exercise installed GUI behavior.']],[116,376],compact=True)
+run_links=[]
+if status.get('baselineRunUrl'):run_links.append(f'<link href="{html.escape(status["baselineRunUrl"],quote=True)}" color="#14658c">baseline build</link>')
+if status.get('dragDropRunUrl'):run_links.append(f'<link href="{html.escape(status["dragDropRunUrl"],quote=True)}" color="#14658c">drag/drop-disabled build</link>')
+if status.get('runUrl'):run_links.append(f'<link href="{html.escape(status["runUrl"],quote=True)}" color="#14658c">final controlled build</link>')
+if run_links:story.append(Paragraph('<b>Build records:</b> '+' | '.join(run_links),styles['CompactNote']))
+identity=[]
+if status.get('sourceCommit'):identity.append('<b>Installer source commit:</b> '+html.escape(status['sourceCommit']))
+if status.get('installerSha256'):identity.append('<b>Installer SHA-256:</b> '+html.escape(status['installerSha256']))
+if identity:story.append(Paragraph('<br/>'.join(identity),styles['CompactNote']))
+p('Local script and frontend mocks validate control flow only. The four Rust tests cover the eight-file fixture contract and known SHA-256, repeated/missing/non-regular paths, export roundtrip/no-overwrite, and count/size limits. Measured Wine results are reported separately and never inferred from these tests. Unexecuted acceptance gates remain explicitly open.')
 
-page(18,'Repository inventory')
+page(19,'Repository inventory')
 table(['Path','Purpose'],[
 ['Cargo.toml / Cargo.lock','Rust workspace membership and resolved crate graph.'],
 ['crates/octane-core/','File-analysis library, report serialization, export rules, four core unit tests.'],
@@ -333,19 +376,21 @@ table(['Path','Purpose'],[
 ['docs/ / tools/build-guide.py','Single PDF reference, validation snapshot and reproducible guide authoring source.']],[173,319])
 p('Generated directories are artifacts/ for installer+manifest, runs/ for run metadata, evidence/ for collected output, target/ for Rust build products, and node_modules/ for CLI dependencies. They are excluded from Git. Do not commit a desktop password, production file report, credential file, or container dump.')
 
-page(19,'References and extension roadmap')
+page(20,'References and extension roadmap')
 p('Primary technical references were checked while implementing this lab. Upstream documentation establishes supported interfaces and prerequisites; it does not establish a successful run of this particular combination.')
 for label,url in [
 ('Microsoft: WSL container feature and minimum WSL version','https://learn.microsoft.com/en-us/windows/wsl/wsl-container'),
 ('Microsoft: get started with containers on WSL','https://learn.microsoft.com/en-us/windows/wsl/tutorials/wsl-containers'),
 ('Microsoft: WSLC settings','https://learn.microsoft.com/en-us/windows/wsl/wsl-container-settings'),
+('Microsoft WSL issue 41740: Consommé networking and full-tunnel VPN timeout','https://github.com/microsoft/WSL/issues/41740'),
 ('LinuxServer: WineGUI image, desktop access and security','https://docs.linuxserver.io/images/docker-winegui/'),
 ('Tauri: Windows installer and WebView2 installation modes','https://v2.tauri.app/distribute/windows-installer/'),
 ('Tauri: development prerequisites','https://v2.tauri.app/start/prerequisites/'),
 ('Tauri: configuration reference','https://v2.tauri.app/reference/config/'),
+('Microsoft: WebView2 supported Windows versions','https://learn.microsoft.com/en-us/microsoft-edge/webview2/'),
 ('Source conversation: Run Windows App Containers','chatgpt-conversation://6af79ffb-6048-83ea-b689-8269484af53d')]:link(label,url)
 h('Next acceptance milestone')
-p('Restore basic WSLC operation, launch a fresh desktop, and execute gates B-I. The immediate target is a usable installed Tauri window that analyzes the sample set and exports the expected JSON. If WebView2 blocks progress, preserve the failure evidence before trying a separately recorded runtime configuration.')
+p(status.get('nextMilestone','Repeat the measured build in a fresh prefix, preserve all failure evidence, and compare the same artifact on native Windows before broadening a Wine workaround.'))
 h('Optional extensions after the first measured run')
 p('Pin a validated image digest and Rust/tooling versions; add stable structured error codes, per-file progress and cancellation; make log filenames collision-resistant; add native Windows GUI automation and artifact attestation; automate evidence validation; and create an independently scoped Windows VM baseline. These changes should follow the measured compatibility outcome.')
 p('Adapting the harness to a different compiled installer requires only that installer and its runtime requirements, not its application source code. Do not assume that Octane\'s per-user installation path, executable discovery, sample contract, or WebView2 configuration applies to an unrelated program. Keep the separate application\'s test results and artifacts distinct.')
@@ -355,7 +400,7 @@ def decorate(canvas,doc):
     canvas.setAuthor('Octane Lab')
     canvas.setStrokeColor(colors.HexColor('#dce5eb'));canvas.line(54,44,558,44)
     canvas.setFont('Helvetica',8);canvas.setFillColor(colors.HexColor('#657989'))
-    canvas.drawString(54,30,'OCTANE / PRIVATE PROJECT REFERENCE / 0.1.0')
+    canvas.drawString(54,30,'OCTANE / PRIVATE PROJECT REFERENCE / GUIDE REVISION 2')
     canvas.drawRightString(558,30,str(doc.page))
 
 doc=SimpleDocTemplate(str(DEST),pagesize=(612,792),rightMargin=54,leftMargin=54,topMargin=44,bottomMargin=60)
