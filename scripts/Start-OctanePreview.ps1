@@ -50,6 +50,7 @@ $password=[Convert]::ToHexString([Security.Cryptography.RandomNumberGenerator]::
 New-Item -ItemType Directory -Path $secretDirectory -Force | Out-Null
 $secretPath=Join-Path $secretDirectory 'viewer-password'
 [IO.File]::WriteAllText($secretPath,$password,[Text.UTF8Encoding]::new($false))
+$runtimeSecretCreated=$false
 $inputManifestPath=Join-Path $runs "$name-input-manifest.json"
 $inputManifest=Get-OctaneDirectoryManifest -Path $inputPath
 Write-OctaneJsonAtomic -Path $inputManifestPath -Value $inputManifest
@@ -102,7 +103,8 @@ try{
     Update-OctaneRunStage -Path $statePath -Stage imageBuild -Status PASS -Detail "Reused prebuilt browser image $Image ($($imageObject.Id)); no application prefix was cached."
     Set-OctaneRunMetadata -Path $statePath -Values @{resolvedImageId=[string]$imageObject.Id;resolvedBaseImage=[string]$imageObject.Id}
 
-    $runtimeSecret=ConvertTo-OctaneRuntimePath -Engine Docker -WslDistro $WslDistro -Path $secretPath
+    $runtimeSecret=New-OctaneRuntimeSecretFile -Engine Docker -WslDistro $WslDistro -Container $name -Secret $password -ControllerPath $secretPath
+    $runtimeSecretCreated=$true
     $runArgs=@(
         'run','-d','--name',$name,
         '--label','com.octanelab.managed=true','--label','com.octanelab.engine=docker','--label','com.octanelab.profile=DockerWineStaging1121VisRgnBrowser',
@@ -115,7 +117,7 @@ try{
     $activeStage='containerCreate'
     $created=Invoke-OctaneRuntime -Engine Docker -WslDistro $WslDistro -Arguments $runArgs -TimeoutSeconds 180
     Set-OctaneRunResource -Path $statePath -Resource containerCreated -Value $true
-    Update-OctaneRunStage -Path $statePath -Stage containerCreate -Status PASS -Detail "Created fresh container $name with one loopback browser publication and one read-only credential-file bind."
+    Update-OctaneRunStage -Path $statePath -Stage containerCreate -Status PASS -Detail "Created fresh container $name with one loopback browser publication and one read-only distro-local credential-file bind."
     Set-OctaneRunMetadata -Path $statePath -Values @{containerId=$created.StdOut.Trim()}
 
     $activeStage='desktopEndpoint'
@@ -171,6 +173,9 @@ try{
     try{Update-OctaneRunStage -Path $statePath -Stage $activeStage -Status FAIL -Detail $_.Exception.Message}catch{}
     try{Block-OctaneRunStages -Path $statePath -Detail "Blocked after $activeStage failed."}catch{}
     $record=Get-Content -LiteralPath $statePath -Raw | ConvertFrom-Json
-    if(-not $record.resources.containerCreated){Remove-Item -LiteralPath $secretDirectory -Recurse -Force -ErrorAction SilentlyContinue}
+    if(-not $record.resources.containerCreated){
+        if($runtimeSecretCreated){try{Remove-OctaneRuntimeSecretFile -Engine Docker -WslDistro $WslDistro -Container $name}catch{}}
+        Remove-Item -LiteralPath $secretDirectory -Recurse -Force -ErrorAction SilentlyContinue
+    }
     throw "Preview start failed at $activeStage. Any created container was retained under exact run identity $name for collection and diagnosis. $($_.Exception.Message)"
 }

@@ -128,6 +128,53 @@ function ConvertTo-OctaneRuntimePath {
     return $result.StdOut.Trim()
 }
 
+function New-OctaneRuntimeSecretFile {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)][ValidateSet('Wslc','Docker')][string]$Engine,
+        [string]$WslDistro,
+        [Parameter(Mandatory=$true)][ValidatePattern('^octane-[a-f0-9]{10}$')][string]$Container,
+        [Parameter(Mandatory=$true)][string]$Secret,
+        [Parameter(Mandatory=$true)][string]$ControllerPath
+    )
+
+    if ($Engine -eq 'Docker' -and $IsWindows) {
+        if (-not $WslDistro) { throw 'Staging a Docker secret on Windows requires -WslDistro.' }
+        $directory = "/var/lib/octane/runtime-secrets/$Container"
+        $path = "$directory/viewer-password"
+        $script = 'set -euo pipefail; install -d -m 0711 -- "$1"; umask 133; cat > "$2"; test -s "$2"'
+        $result = Invoke-OctaneNativeProcess -FileName 'wsl.exe' -Arguments @(
+            '-d',$WslDistro,'-u','root','--exec','bash','-c',$script,'octane-secret',$directory,$path
+        ) -TimeoutSeconds 30 -StandardInput $Secret
+        if ($result.TimedOut -or $result.ExitCode -ne 0) {
+            throw "Unable to stage the per-run viewer credential inside $WslDistro. $($result.StdErr.Trim())"
+        }
+        return $path
+    }
+
+    return ConvertTo-OctaneRuntimePath -Engine $Engine -WslDistro $WslDistro -Path $ControllerPath
+}
+
+function Remove-OctaneRuntimeSecretFile {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)][ValidateSet('Wslc','Docker')][string]$Engine,
+        [string]$WslDistro,
+        [Parameter(Mandatory=$true)][ValidatePattern('^octane-[a-f0-9]{10}$')][string]$Container
+    )
+
+    if ($Engine -ne 'Docker' -or -not $IsWindows) { return }
+    if (-not $WslDistro) { throw 'Removing a staged Docker secret on Windows requires -WslDistro.' }
+    $directory = "/var/lib/octane/runtime-secrets/$Container"
+    $script = 'set -euo pipefail; test "$1" = "/var/lib/octane/runtime-secrets/$2"; rm -f -- "$1/viewer-password"; rmdir -- "$1" 2>/dev/null || true'
+    $result = Invoke-OctaneNativeProcess -FileName 'wsl.exe' -Arguments @(
+        '-d',$WslDistro,'-u','root','--exec','bash','-c',$script,'octane-secret-cleanup',$directory,$Container
+    ) -TimeoutSeconds 30
+    if ($result.TimedOut -or $result.ExitCode -ne 0) {
+        throw "Unable to remove the staged viewer credential from $WslDistro. $($result.StdErr.Trim())"
+    }
+}
+
 function Assert-OctaneContainer {
     [CmdletBinding()]
     param(

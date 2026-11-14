@@ -29,6 +29,7 @@ $manifest = if (Test-Path -LiteralPath $manifestPath) { Get-Content -LiteralPath
 $expectedHash = if ($manifest) { [string]$manifest.sha256 } else { $null }
 $viewerSecretDirectory = $null
 $viewerPassword = $null
+$runtimeSecretCreated = $false
 
 if ($profile.ProfileKind -eq 'DockerWineBrowser' -and $Engine -ne 'Docker') {
     throw 'The browser candidate is a Docker-only profile. Historical WSLC support remains separate.'
@@ -88,7 +89,8 @@ try {
         New-Item -ItemType Directory -Path $viewerSecretDirectory -Force | Out-Null
         $viewerSecretPath = Join-Path $viewerSecretDirectory 'viewer-password'
         [IO.File]::WriteAllText($viewerSecretPath,$viewerPassword,[Text.UTF8Encoding]::new($false))
-        $runtimeSecretPath = ConvertTo-OctaneRuntimePath -Engine $Engine -WslDistro $WslDistro -Path $viewerSecretPath
+        $runtimeSecretPath = New-OctaneRuntimeSecretFile -Engine $Engine -WslDistro $WslDistro -Container $name -Secret $viewerPassword -ControllerPath $viewerSecretPath
+        $runtimeSecretCreated = $true
         foreach ($argument in @(
             '--platform','linux/amd64','--mount',"type=bind,src=$runtimeSecretPath,dst=/run/octane/viewer-password,readonly",
             '-e','RDP_SERVER=no','-e','USE_XVFB=yes','-e','USER_SUDO=no','-e',"OCTANE_RUN_ID=$id",
@@ -137,6 +139,7 @@ try {
     try { Update-OctaneRunStage -Path $statePath -Stage $activeStage -Status FAIL -Detail $_.Exception.Message } catch { }
     try { Block-OctaneRunStages -Path $statePath -Detail "Blocked after $activeStage failed." } catch { }
     if ($viewerSecretDirectory -and -not (Get-Content -LiteralPath $statePath -Raw | ConvertFrom-Json).resources.containerCreated) {
+        if ($runtimeSecretCreated) { try { Remove-OctaneRuntimeSecretFile -Engine $Engine -WslDistro $WslDistro -Container $name } catch { } }
         Remove-Item -LiteralPath $viewerSecretDirectory -Recurse -Force -ErrorAction SilentlyContinue
     }
     Write-Error "Octane lab start failed at $activeStage. Run metadata: $statePath. Any created resource was preserved for diagnosis. $($_.Exception.Message)"

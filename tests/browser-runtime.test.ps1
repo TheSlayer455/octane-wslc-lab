@@ -86,6 +86,11 @@ try{
     $preview=Get-Content -LiteralPath (Join-Path $root 'scripts/Start-OctanePreview.ps1') -Raw
     Check ($preview -notmatch 'Write-Output\s+"Password:') 'Preview startup must not echo the viewer credential into controller output.'
     Check ($preview -match 'Get-OctaneViewerCredential\.ps1') 'Preview startup must direct the operator to explicit credential retrieval.'
+    Check ($preview -match 'New-OctaneRuntimeSecretFile') 'Preview startup must stage its bind source inside the selected WSL distribution.'
+    $runtime=Get-Content -LiteralPath (Join-Path $root 'scripts/Runtime.ps1') -Raw
+    Check ($runtime -match 'StandardInput \$Secret') 'WSL-native credential staging must send the secret over standard input rather than command arguments.'
+    $stop=Get-Content -LiteralPath (Join-Path $root 'scripts/Stop-OctaneLab.ps1') -Raw
+    Check ($stop -match 'Remove-OctaneRuntimeSecretFile') 'Exact run cleanup must remove the distro-local credential file.'
     $target=Get-Content -LiteralPath (Join-Path $root 'lab/browser/octane-target') -Raw
     Check ($target -match 'WebView2 drift') 'Target launcher must fail visibly on a declared WebView2 version mismatch.'
 

@@ -19,6 +19,7 @@ $remove=Invoke-OctaneRuntime -Engine $Engine -WslDistro $WslDistro -Arguments @(
 $image=if($runRecord){$runRecord.image}else{'octane-lab:'+$Container.Substring(7)}
 if($RemoveImage){Invoke-OctaneRuntime -Engine $Engine -WslDistro $WslDistro -Arguments @('image','rm',$image) -TimeoutSeconds 180 | Out-Null}
 if($runRecord){
+    Remove-OctaneRuntimeSecretFile -Engine $Engine -WslDistro $WslDistro -Container $Container
     Update-OctaneRunStage -Path $metadata -Stage cleanup -Status PASS -Detail "Removed container, anonymous volumes$(if($RemoveImage){', and run image'}else{''})." -DurationMs $remove.DurationMs
     Set-OctaneRunResource -Path $metadata -Resource containerCreated -Value $false
     if($RemoveImage){Set-OctaneRunResource -Path $metadata -Resource imageCreated -Value $false}
