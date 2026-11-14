@@ -36,6 +36,7 @@ try {
     Assert ($metadata.wineProfile -eq 'WineGui') 'Run metadata must record the Wine profile'
     Assert ($metadata.stages.runtimeDoctor.status -eq 'PASS') 'Runtime doctor must be a named stage'
     Assert ($metadata.stages.desktopEndpoint.status -eq 'PASS') 'Desktop endpoint must be verified'
+    Assert ($metadata.stages.webviewDiagnostic.status -eq 'NOT_RUN') 'Native WebView2 diagnostic must be an independent acceptance stage'
     Assert ($metadata.evidenceDirectory -eq '/config/octane-evidence') 'Run metadata must record the profile evidence directory'
     Assert ($runCall -contains "127.0.0.1:${port}:3001") 'Desktop must bind loopback'
     Assert ($runCall -contains 'com.octanelab.engine=wslc') 'Container must record its engine label'
@@ -77,6 +78,14 @@ try {
     Assert ($dockerWine.EndpointKind -eq 'Rdp') 'Docker-Wine profile must expose RDP'
     Assert ($dockerWine.Dockerfile -eq 'lab/Dockerfile.docker-wine') 'Docker-Wine must use its own image adapter'
     Assert ($dockerWine.BaseImage -match '@sha256:[a-f0-9]{64}$') 'Docker-Wine default must be digest pinned'
+    $oleControl=Get-OctaneWineProfile -WineProfile WineGuiOle32Control
+    $olePatched=Get-OctaneWineProfile -WineProfile WineGuiOle32Mr12477
+    Assert ($oleControl.Dockerfile -eq $olePatched.Dockerfile) 'OLE control and candidate must use the same Dockerfile'
+    Assert ($oleControl.BuildArguments.WINE_VARIANT -eq 'control') 'OLE control must request the stock source-built binary'
+    Assert ($olePatched.BuildArguments.WINE_VARIANT -eq 'mr12477') 'OLE candidate must request MR !12477 only'
+    Assert ($oleControl.BaseImage -eq $olePatched.BaseImage) 'OLE comparison must use the same pinned desktop base'
+    Assert ($olePatched.ProfileKind -eq 'WineGui') 'OLE comparison must preserve the WineGUI desktop path'
+    Assert ($olePatched.BuildTimeoutSeconds -eq 7200) 'Source-built Wine profiles need a bounded extended build timeout'
     $hash=New-OctaneUnixPasswordHash -Password 'not-secret' -WslDistro Ubuntu-24.04
     Assert ($hash -like '$1$*') 'Docker-Wine password must be hashed before container creation'
 
@@ -87,7 +96,7 @@ try {
     $rejected=$false
     try { & (Join-Path $temp 'scripts/Start-OctaneLab.ps1') -Port $port -SkipDeepDoctor | Out-Null } catch {$rejected=$true}
     Assert $rejected 'Must reject mismatched installer hash'
-    Write-Output 'PowerShell harness: 30 assertions passed (mock runtimes; not a GUI compatibility test).'
+    Write-Output 'PowerShell harness: 37 assertions passed (mock runtimes; not a GUI compatibility test).'
 } finally {
     Remove-Item Function:\Invoke-OctaneNativeProcess -ErrorAction SilentlyContinue
     Remove-Item Function:\Wait-OctaneEndpoint -ErrorAction SilentlyContinue

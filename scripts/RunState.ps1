@@ -21,7 +21,7 @@ function Initialize-OctaneRunState {
         [Parameter(Mandatory=$true)][hashtable]$Identity
     )
     $stages = [ordered]@{}
-    foreach ($stage in @('artifact','runtimeDoctor','imageBuild','containerCreate','desktopEndpoint','basicWine','installer','application','workload','nativeDialogs','export','evidence','cleanup')) {
+    foreach ($stage in @('artifact','runtimeDoctor','imageBuild','containerCreate','desktopEndpoint','basicWine','installer','webviewDiagnostic','application','workload','nativeDialogs','export','evidence','cleanup')) {
         $stages[$stage] = [ordered]@{status='NOT_RUN'}
     }
     $record = [ordered]@{

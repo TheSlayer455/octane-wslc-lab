@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory=$true)][string]$Container,
-    [Parameter(Mandatory=$true)][ValidateSet('artifact','runtimeDoctor','imageBuild','containerCreate','desktopEndpoint','basicWine','installer','application','workload','nativeDialogs','export','evidence','cleanup')][string]$Stage,
+    [Parameter(Mandatory=$true)][ValidateSet('artifact','runtimeDoctor','imageBuild','containerCreate','desktopEndpoint','basicWine','installer','webviewDiagnostic','application','workload','nativeDialogs','export','evidence','cleanup')][string]$Stage,
     [Parameter(Mandatory=$true)][ValidateSet('PASS','FAIL','BLOCKED','NOT_RUN')][string]$Status,
     [string]$Detail,
     [Nullable[int64]]$DurationMs,

@@ -1,0 +1,233 @@
+From 22a16b053991f95e8bbf91e4784e73f833835b72 Mon Sep 17 00:00:00 2001
+From: "Jason A. Donenfeld" <Jason@zx2c4.com>
+Date: Thu, 29 Oct 2026 00:20:58 +0100
+Subject: [PATCH] ole32: revoke foreign drop targets in their own process
+
+The UA Dream 65 plugin's UI has a drop target registered by WebView2, which is in another process
+from the main plugin, which is causing issues. When the plugin is closed, the host calls
+RevokeDragDrop() for that window. It then proceeds to fetch the drop target pointer from the window
+property and call Release() on it in the host, which crashes, because the pointer is only valid in
+the other process. Windows detects that it's invalid and returns RPC_E_WRONG_THREAD for this call,
+but then it still removes the registration incorrectly, crashing. Fix this by giving the drop target
+wrapper a private COM method to do the cleanup in the registering apartment, and then return the
+error as before. It seems outrageous that code is relying on Windows fixing up its incorrect API
+usage, but I guess Windows is doing so, so we follow.
+
+Signed-off-by: Jason A. Donenfeld <Jason@zx2c4.com>
+---
+ dlls/ole32/Makefile.in      |   1 +
+ dlls/ole32/dragdrop.idl     |  12 +++++
+ dlls/ole32/ole2.c           | 100 +++++++++++++++++++++++++++++++++---
+ dlls/ole32/ole32_oleidl.idl |   1 +
+ 4 files changed, 106 insertions(+), 8 deletions(-)
+ create mode 100644 dlls/ole32/dragdrop.idl
+
+diff --git a/dlls/ole32/Makefile.in b/dlls/ole32/Makefile.in
+index d91833b11352ea7140ebbe29b1f150ba6a546baf..905639cff659cb59a399a8e98e674ac1da027acd 100644
+--- a/dlls/ole32/Makefile.in
++++ b/dlls/ole32/Makefile.in
+@@ -21,6 +21,7 @@ SOURCES = \
+ 	drag_copy.svg \
+ 	drag_link.svg \
+ 	drag_move.svg \
++	dragdrop.idl \
+ 	filelockbytes.c \
+ 	filemoniker.c \
+ 	ftmarshal.c \
+diff --git a/dlls/ole32/dragdrop.idl b/dlls/ole32/dragdrop.idl
+new file mode 100644
+index 0000000000000000000000000000000000000000..f66abcb037d3937a9d6956da6ef4467664c6b4f3
+--- /dev/null
++++ b/dlls/ole32/dragdrop.idl
+@@ -0,0 +1,12 @@
++#pragma makedep header ident
++
++import "unknwn.idl";
++
++[
++    object,
++    uuid(0a10e172-e529-4002-b768-c2de6567af9e)
++]
++interface IWineDropTarget : IUnknown
++{
++    HRESULT Revoke();
++}
+diff --git a/dlls/ole32/ole2.c b/dlls/ole32/ole2.c
+index c18a46a31315cf13c1b66395328c6db76f638f07..77f954ba65c29c3202786fcebe3bf93aa09fb20c 100644
+--- a/dlls/ole32/ole2.c
++++ b/dlls/ole32/ole2.c
+@@ -40,6 +40,7 @@
+ #include "winreg.h"
+ #include "ole2.h"
+ #include "ole2ver.h"
++#include "dragdrop.h"
+ 
+ #include "compobj_private.h"
+ #include "olestd.h"
+@@ -376,6 +377,7 @@ static HRESULT create_stream_from_map(HANDLE map, IStream **stream)
+  * RevokeDragDrop.  The only (long-term) ref is held by the window prop. */
+ typedef struct {
+     IDropTarget IDropTarget_iface;
++    IWineDropTarget IWineDropTarget_iface;
+     HWND hwnd;
+     LONG refs;
+ } DropTargetWrapper;
+@@ -392,13 +394,16 @@ static HRESULT WINAPI DropTargetWrapper_QueryInterface(IDropTarget* iface,
+     DropTargetWrapper* This = impl_from_IDropTarget(iface);
+     if (IsEqualIID(riid, &IID_IUnknown) ||
+         IsEqualIID(riid, &IID_IDropTarget))
+-    {
+-        IDropTarget_AddRef(&This->IDropTarget_iface);
+         *ppvObject = &This->IDropTarget_iface;
+-        return S_OK;
++    else if (IsEqualIID(riid, &IID_IWineDropTarget))
++        *ppvObject = &This->IWineDropTarget_iface;
++    else
++    {
++        *ppvObject = NULL;
++        return E_NOINTERFACE;
+     }
+-    *ppvObject = NULL;
+-    return E_NOINTERFACE;
++    IDropTarget_AddRef(&This->IDropTarget_iface);
++    return S_OK;
+ }
+ 
+ static ULONG WINAPI DropTargetWrapper_AddRef(IDropTarget* iface)
+@@ -498,6 +503,43 @@ static const IDropTargetVtbl DropTargetWrapperVTbl =
+     DropTargetWrapper_Drop
+ };
+ 
++static inline DropTargetWrapper *impl_from_IWineDropTarget(IWineDropTarget *iface)
++{
++    return CONTAINING_RECORD(iface, DropTargetWrapper, IWineDropTarget_iface);
++}
++
++static HRESULT WINAPI WineDropTarget_QueryInterface(IWineDropTarget *iface, REFIID iid, void **obj)
++{
++    DropTargetWrapper *wrapper = impl_from_IWineDropTarget(iface);
++    return IDropTarget_QueryInterface(&wrapper->IDropTarget_iface, iid, obj);
++}
++
++static ULONG WINAPI WineDropTarget_AddRef(IWineDropTarget *iface)
++{
++    DropTargetWrapper *wrapper = impl_from_IWineDropTarget(iface);
++    return IDropTarget_AddRef(&wrapper->IDropTarget_iface);
++}
++
++static ULONG WINAPI WineDropTarget_Release(IWineDropTarget *iface)
++{
++    DropTargetWrapper *wrapper = impl_from_IWineDropTarget(iface);
++    return IDropTarget_Release(&wrapper->IDropTarget_iface);
++}
++
++static HRESULT WINAPI WineDropTarget_Revoke(IWineDropTarget *iface)
++{
++    DropTargetWrapper *wrapper = impl_from_IWineDropTarget(iface);
++    return RevokeDragDrop(wrapper->hwnd);
++}
++
++static const IWineDropTargetVtbl WineDropTargetVtbl =
++{
++    WineDropTarget_QueryInterface,
++    WineDropTarget_AddRef,
++    WineDropTarget_Release,
++    WineDropTarget_Revoke
++};
++
+ static IDropTarget* WrapDropTarget( HWND hwnd )
+ {
+     DropTargetWrapper* This = HeapAlloc(GetProcessHeap(), 0, sizeof(*This));
+@@ -505,6 +547,7 @@ static IDropTarget* WrapDropTarget( HWND hwnd )
+     if (This)
+     {
+         This->IDropTarget_iface.lpVtbl = &DropTargetWrapperVTbl;
++        This->IWineDropTarget_iface.lpVtbl = &WineDropTargetVtbl;
+         This->hwnd = hwnd;
+         This->refs = 1;
+     }
+@@ -622,6 +665,44 @@ HRESULT WINAPI RegisterDragDrop(HWND hwnd, LPDROPTARGET pDropTarget)
+   return hr;
+ }
+ 
++static HRESULT revoke_remote_droptarget(HANDLE map, DWORD pid)
++{
++    HANDLE process, local_map = NULL;
++    IWineDropTarget *target;
++    IStream *stream;
++    HRESULT hr, init_hr;
++
++    if (!(process = OpenProcess(PROCESS_DUP_HANDLE, FALSE, pid)))
++        return HRESULT_FROM_WIN32(GetLastError());
++    if (!DuplicateHandle(process, map, GetCurrentProcess(), &local_map, 0, FALSE, DUPLICATE_SAME_ACCESS))
++    {
++        hr = HRESULT_FROM_WIN32(GetLastError());
++        CloseHandle(process);
++        return hr;
++    }
++    CloseHandle(process);
++
++    hr = create_stream_from_map(local_map, &stream);
++    CloseHandle(local_map);
++    if (FAILED(hr)) return hr;
++
++    init_hr = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
++    if (SUCCEEDED(init_hr) || init_hr == RPC_E_CHANGED_MODE)
++    {
++        hr = CoUnmarshalInterface(stream, &IID_IWineDropTarget, (void **)&target);
++        if (SUCCEEDED(hr))
++        {
++            hr = IWineDropTarget_Revoke(target);
++            IWineDropTarget_Release(target);
++            if (SUCCEEDED(hr)) hr = RPC_E_WRONG_THREAD;
++        }
++        if (SUCCEEDED(init_hr)) CoUninitialize();
++    }
++    else hr = init_hr;
++    IStream_Release(stream);
++    return hr;
++}
++
+ /***********************************************************************
+  *           RevokeDragDrop (OLE32.@)
+  */
+@@ -630,6 +711,7 @@ HRESULT WINAPI RevokeDragDrop(HWND hwnd)
+   HANDLE map;
+   IStream *stream;
+   IDropTarget *drop_target;
++  DWORD pid;
+   HRESULT hr;
+ 
+   TRACE("(%p)\n", hwnd);
+@@ -644,11 +726,13 @@ HRESULT WINAPI RevokeDragDrop(HWND hwnd)
+   if (!(map = get_droptarget_handle(hwnd)))
+     return DRAGDROP_E_NOTREGISTERED;
+ 
+-  drop_target = GetPropW(hwnd, prop_oledroptarget);
+-  if(drop_target) IDropTarget_Release(drop_target);
++  /* The target pointer and mapping handle belong to the registering process. */
++  GetWindowThreadProcessId(hwnd, &pid);
++  if (pid != GetCurrentProcessId()) return revoke_remote_droptarget(map, pid);
+ 
+-  RemovePropW(hwnd, prop_oledroptarget);
++  drop_target = RemovePropW(hwnd, prop_oledroptarget);
+   RemovePropW(hwnd, prop_marshalleddroptarget);
++  if(drop_target) IDropTarget_Release(drop_target);
+ 
+   hr = create_stream_from_map(map, &stream);
+   if(SUCCEEDED(hr))
+diff --git a/dlls/ole32/ole32_oleidl.idl b/dlls/ole32/ole32_oleidl.idl
+index 1d7c0ebca65a9eeeedb78df96551baa58d078b65..fa9f67a7b94450bcd15f0f4ea519315b351debbe 100644
+--- a/dlls/ole32/ole32_oleidl.idl
++++ b/dlls/ole32/ole32_oleidl.idl
+@@ -20,6 +20,7 @@
+ #pragma makedep register
+ 
+ #include "oleidl.idl"
++#include "dragdrop.idl"
+ 
+ [
+     threading(both),
+-- 
+2.55.0.windows.3
+

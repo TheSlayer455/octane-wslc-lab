@@ -32,21 +32,56 @@ run_logged() {
     printf '%s\n' "$rc" > "$evidence/$stage-$stamp.exitcode"
     return "$rc"
 }
+record_environment() {
+    wine --version > "$evidence/wine-version.txt"
+    uname -a > "$evidence/kernel.txt"
+    cp /opt/octane/installer-manifest.json "$evidence/"
+    [[ ! -f /opt/octane/diagnostic-manifest.json ]] || cp /opt/octane/diagnostic-manifest.json "$evidence/"
+    sha256sum /opt/wine-stable/lib/wine/x86_64-windows/ole32.dll > "$evidence/ole32-active.sha256"
+    if [[ -d /opt/octane/wine-overlay ]]; then
+        cp /opt/octane/wine-overlay/wine-build.json "$evidence/"
+        cp /opt/octane/wine-overlay/ole32.sha256 "$evidence/ole32-source-build.sha256"
+        cp /opt/octane/wine-overlay/ole32.packaged.sha256 "$evidence/"
+    fi
+}
+find_octane() {
+    mapfile -d '' apps < <(find "$WINEPREFIX/drive_c/users" -type f -iname 'octane.exe' -print0)
+    if [[ ${#apps[@]} -ne 1 ]]; then
+        echo 'Expected one installed octane.exe. Complete the current-user installer first.' >&2
+        exit 1
+    fi
+    printf '%s' "${apps[0]}"
+}
 case "${1:-help}" in
+    environment)
+        record_environment
+        echo "Environment recorded beneath $evidence" ;;
     notepad)
-        wine --version > "$evidence/wine-version.txt"
-        uname -a > "$evidence/kernel.txt"
-        cp /opt/octane/installer-manifest.json "$evidence/"
+        record_environment
         run_logged notepad wine notepad ;;
     install)
         run_logged install wine /opt/octane/Octane-setup.exe ;;
     launch)
-        mapfile -d '' apps < <(find "$WINEPREFIX/drive_c/users" -type f -iname 'octane.exe' -print0)
-        if [[ ${#apps[@]} -ne 1 ]]; then
-            echo 'Expected one installed octane.exe. Complete the current-user installer first.' >&2; exit 1
+        app=$(find_octane)
+        run_logged launch wine "$app" ;;
+    launch-ole)
+        app=$(find_octane)
+        export WINEDEBUG="${OCTANE_OLE_WINEDEBUG:-+timestamp,+ole,+seh}"
+        run_logged launch-ole wine "$app" ;;
+    diagnostic)
+        if [[ ! -f /opt/octane/WebView2Diagnostic.exe ]]; then
+            echo 'WebView2Diagnostic.exe is not present in this image.' >&2
+            exit 1
         fi
-        run_logged launch wine "${apps[0]}" ;;
+        record_environment
+        mkdir -p "$state_dir/webview2-diagnostic-user-data"
+        export OCTANE_DIAGNOSTIC_LOG
+        export OCTANE_WEBVIEW2_USER_DATA
+        OCTANE_DIAGNOSTIC_LOG=$(winepath -w "$evidence/webview2-diagnostic-events.log")
+        OCTANE_WEBVIEW2_USER_DATA=$(winepath -w "$state_dir/webview2-diagnostic-user-data")
+        export WINEDEBUG="${OCTANE_OLE_WINEDEBUG:-+timestamp,+ole,+seh}"
+        run_logged webview2-diagnostic wine /opt/octane/WebView2Diagnostic.exe ;;
     help|*)
-        echo 'Usage: octane-lab {notepad|install|launch}'
+        echo 'Usage: octane-lab {environment|notepad|install|diagnostic|launch|launch-ole}'
         echo "Run as the desktop user. Export JSON beneath Z:${evidence//\//\\}." ;;
 esac

@@ -1,0 +1,80 @@
+ARG WINE_BUILDER_IMAGE=ubuntu@sha256:2198e4c65076e9cb0b3d695219df667c0e3b0072da64ca3c2648aca17dcecaf5
+ARG BASE_IMAGE=lscr.io/linuxserver/winegui@sha256:2a4b95b7a8bcb0306509b622c44344efb6c3bc6ce671c3adf6cfb569c12284ab
+
+FROM ${WINE_BUILDER_IMAGE} AS wine-builder
+ARG WINE_VARIANT=control
+ARG WINE_SOURCE_COMMIT=db11d0fe6a169c457e23d007e20404643d067aa8
+ARG WINE_MR_COMMIT=22a16b053991f95e8bbf91e4784e73f833835b72
+ARG WINE_PATCH_SHA256=f88cb13cc115d7138dc5bb1d72882b3c38b188bd1b96649596c5b0236f3eac62
+
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential ca-certificates flex bison git pkg-config \
+        gcc-mingw-w64-x86-64 \
+        libfreetype-dev libfontconfig-dev \
+        libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxi-dev \
+        libxcomposite-dev libxinerama-dev libxrender-dev libxfixes-dev \
+        libgl-dev libegl-dev libvulkan-dev \
+        libgnutls28-dev libkrb5-dev libxml2-dev \
+        libpulse-dev libasound2-dev libudev-dev libdbus-1-dev \
+        libcups2-dev libusb-1.0-0-dev libpcap-dev libv4l-dev \
+        libsdl2-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /src
+RUN git init \
+    && git remote add origin https://github.com/wine-mirror/wine.git \
+    && git fetch --depth 1 origin "${WINE_SOURCE_COMMIT}" \
+    && git checkout --detach FETCH_HEAD \
+    && test "$(git rev-parse HEAD)" = "${WINE_SOURCE_COMMIT}"
+
+COPY lab/patches/0001-ole32-revoke-foreign-drop-targets-in-their-own-proce.patch /tmp/wine-mr-12477.patch
+RUN echo "${WINE_PATCH_SHA256}  /tmp/wine-mr-12477.patch" | sha256sum -c - \
+    && case "${WINE_VARIANT}" in \
+         control) ;; \
+         mr12477) git apply --check /tmp/wine-mr-12477.patch && git apply /tmp/wine-mr-12477.patch ;; \
+         *) echo "Unsupported WINE_VARIANT=${WINE_VARIANT}" >&2; exit 2 ;; \
+       esac \
+    && git diff --check
+
+RUN ./configure --enable-win64 --disable-tests \
+    && make -j"$(nproc)" \
+    && test -s dlls/ole32/x86_64-windows/ole32.dll
+
+RUN mkdir -p /out \
+    && cp dlls/ole32/x86_64-windows/ole32.dll /out/ole32.dll \
+    && cd /out \
+    && sha256sum ole32.dll > ole32.sha256 \
+    && printf '{\n  "schemaVersion": 1,\n  "variant": "%s",\n  "wineSourceCommit": "%s",\n  "wineMr": 12477,\n  "wineMrCommit": "%s",\n  "patchSha256": "%s"\n}\n' \
+         "${WINE_VARIANT}" "${WINE_SOURCE_COMMIT}" "${WINE_MR_COMMIT}" "${WINE_PATCH_SHA256}" \
+         > /out/wine-build.json
+
+FROM ${BASE_IMAGE}
+ARG WINE_VARIANT=control
+ARG WINE_SOURCE_COMMIT=db11d0fe6a169c457e23d007e20404643d067aa8
+ARG WINE_MR_COMMIT=22a16b053991f95e8bbf91e4784e73f833835b72
+
+USER root
+RUN mkdir -p /opt/octane/wine-overlay
+COPY --from=wine-builder /out/ole32.dll /opt/octane/wine-overlay/ole32.dll
+COPY --from=wine-builder /out/ole32.sha256 /opt/octane/wine-overlay/ole32.sha256
+COPY --from=wine-builder /out/wine-build.json /opt/octane/wine-overlay/wine-build.json
+RUN test -s /opt/wine-stable/lib/wine/x86_64-windows/ole32.dll \
+    && cp /opt/wine-stable/lib/wine/x86_64-windows/ole32.dll /opt/octane/wine-overlay/ole32.packaged.dll \
+    && install -m 0644 /opt/octane/wine-overlay/ole32.dll /opt/wine-stable/lib/wine/x86_64-windows/ole32.dll \
+    && sha256sum /opt/octane/wine-overlay/ole32.packaged.dll > /opt/octane/wine-overlay/ole32.packaged.sha256 \
+    && cd /opt/octane/wine-overlay \
+    && sha256sum -c ole32.sha256
+
+COPY artifacts/Octane-setup.exe /opt/octane/Octane-setup.exe
+COPY artifacts/installer-manifest.json /opt/octane/installer-manifest.json
+COPY diagnostics/webview2-win32/artifacts/WebView2Diagnostic.exe /opt/octane/WebView2Diagnostic.exe
+COPY diagnostics/webview2-win32/artifacts/diagnostic-manifest.json /opt/octane/diagnostic-manifest.json
+COPY fixtures/ /opt/octane/fixtures/
+COPY lab/octane-lab /usr/local/bin/octane-lab
+RUN chmod 755 /usr/local/bin/octane-lab
+
+LABEL com.octanelab.wine-source-commit="${WINE_SOURCE_COMMIT}" \
+      com.octanelab.wine-mr="12477" \
+      com.octanelab.wine-mr-commit="${WINE_MR_COMMIT}" \
+      com.octanelab.wine-variant="${WINE_VARIANT}"
