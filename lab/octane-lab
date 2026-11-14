@@ -32,6 +32,20 @@ run_logged() {
     printf '%s\n' "$rc" > "$evidence/$stage-$stamp.exitcode"
     return "$rc"
 }
+run_logged_direct() {
+    local stage="$1"; shift
+    local stamp rc log
+    stamp=$(date -u +%Y%m%dT%H%M%SZ)
+    log="$evidence/$stage-$stamp.log"
+    set +e
+    # Do not use a pipe here: long-lived EdgeUpdate children inherit the
+    # installer's descriptors and can otherwise keep `tee` alive after NSIS.
+    "$@" > "$log" 2>&1
+    rc=$?
+    set -e
+    printf '%s\n' "$rc" > "$evidence/$stage-$stamp.exitcode"
+    return "$rc"
+}
 record_environment() {
     wine --version > "$evidence/wine-version.txt"
     command -v wine > "$evidence/wine-command.txt"
@@ -123,7 +137,7 @@ case "${1:-help}" in
         run_logged install wine /opt/octane/Octane-setup.exe ;;
     install-silent)
         ensure_display
-        run_logged install-silent wine /opt/octane/Octane-setup.exe /S ;;
+        run_logged_direct install-silent wine /opt/octane/Octane-setup.exe /S ;;
     launch)
         ensure_display
         app=$(find_octane)

@@ -42,7 +42,8 @@ test('Docker-Wine GUI commands verify the discovered xrdp display',()=>{
   assert.match(labCommand,/ensure_display\(\)/);
   assert.match(labCommand,/DISPLAY="\$candidate" XAUTHORITY="\$authority" xdpyinfo/);
   assert.match(labCommand,/No usable X11 display was found/);
-  assert.match(labCommand,/install-silent\).*Octane-setup\.exe \/S/s);
+  assert.match(labCommand,/install-silent\).*run_logged_direct install-silent wine \/opt\/octane\/Octane-setup\.exe \/S/s);
+  assert.match(labCommand,/EdgeUpdate children inherit/);
 });
 
 test('pixel comparison survives Bash errexit when identify emits dimensions',()=>{
