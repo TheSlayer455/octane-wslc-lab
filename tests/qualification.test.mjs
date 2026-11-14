@@ -13,6 +13,11 @@ test('strict qualification separates normal readiness from later window behavior
   assert.match(qualification,/normal-window-activate-once/);
   assert.match(qualification,/wait_dialog_ready/);
   assert.match(qualification,/OCTANE_DIALOG_FOREGROUND_TIMEOUT_SECONDS/);
+  assert.match(qualification,/xclip -selection clipboard -out/);
+  assert.match(qualification,/write_gate pathEdgeCases PASS/);
+  assert.match(qualification,/unicode-path-report\.json/);
+  assert.match(qualification,/missing-input-report\.json/);
+  assert.doesNotMatch(qualification,/xdotool type/);
   assert.match(qualification,/forcedRepaintUsed:\$forcedRepaintUsed/);
   assert.match(qualification,/acceptance-resize-to-900x650/);
   assert.match(qualification,/acceptance-minimize-once/);
@@ -28,6 +33,8 @@ test('file-dialog probe logging avoids the cross-thread lock inversion found dur
   assert.ok(foreground>=0 && lock>foreground,'window state must be sampled before the log lock');
   assert.match(dialogRunner,/probeTimedOut/);
   assert.match(dialogRunner,/click_common_dialog_button/);
+  assert.match(dialogRunner,/selectedPathsExact/);
+  assert.match(dialogRunner,/xclip -selection clipboard -out/);
   assert.doesNotMatch(dialogRunner,/received Escape/);
 });
 
@@ -39,6 +46,8 @@ test('batch declares ten runs before execution and requires exact cleanup and ev
   assert.match(batch,/requiredEvidence/);
   assert.match(batch,/Wait-QualificationPortAvailable/);
   assert.match(batch,/interRunPortAvailabilityTimeoutSeconds/);
+  assert.match(batch,/output\/unicode-path-report\.json/);
+  assert.match(batch,/output\/missing-input-report\.json/);
   assert.match(batch,/127\.0\.0\.1:\$\{Port\}:3389/);
   assert.doesNotMatch(batch,/--privileged|--network[= ]host|docker\.sock|--device/);
   assert.doesNotMatch(batch,/Podman|podman/);

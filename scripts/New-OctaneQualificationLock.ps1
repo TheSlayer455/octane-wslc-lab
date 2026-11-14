@@ -51,7 +51,8 @@ jq -cn \
   --arg stagingListSha256 "$(sha256sum /opt/octane-wine/share/octane/wine-staging-patches.sha256 | cut -d' ' -f1)" \
   --arg win32uSha256 "$(sha256sum /opt/octane-wine/lib/wine/x86_64-unix/win32u.so | cut -d' ' -f1)" \
   --arg ole32Sha256 "$(sha256sum /opt/octane-wine/lib/wine/x86_64-windows/ole32.dll | cut -d' ' -f1)" \
-  '{wineBuild:$wine[0],wineVersion:$wineVersion,architecture:$architecture,wineBuildSha256:$wineBuildSha256,stagingListSha256:$stagingListSha256,win32uSha256:$win32uSha256,ole32Sha256:$ole32Sha256}'
+  --arg xclipVersion "$(dpkg-query -W -f='${Version}' xclip)" \
+  '{wineBuild:$wine[0],wineVersion:$wineVersion,architecture:$architecture,wineBuildSha256:$wineBuildSha256,stagingListSha256:$stagingListSha256,win32uSha256:$win32uSha256,ole32Sha256:$ole32Sha256,tools:{xclipVersion:$xclipVersion}}'
 '@
 $embeddedResult = Invoke-OctaneRuntime -Engine Docker -WslDistro $WslDistro -Arguments @(
     'run','--rm','--label','com.octanelab.managed=true','--label','com.octanelab.purpose=qualification-lock-inspection',
@@ -105,8 +106,8 @@ $lock = [ordered]@{
     }
     fixtures = [ordered]@{expected=[ordered]@{files=8;extensionGroups=6;duplicateSets=1;errors=0;totalBytes=176};files=@($fixtureFiles)}
     security = [ordered]@{desktopBinding='127.0.0.1 only';authenticated=$true;privileged=$false;hostNetwork=$false;dockerSocketMount=$false;hostGpuMapping=$false;noSandboxArgument=$false;rdpCertificateAccommodation='FreeRDP /cert:ignore for container self-signed certificate on loopback only'}
-    automation = [ordered]@{unattended=$true;forcedRepaintAllowed=$false;hiddenRetriesAllowed=0;manualOverridesAllowed=0;initialPresentationTimeoutSeconds=45;dialogForegroundTimeoutSeconds=5;scenarioTimeoutSeconds=900;interRunPortAvailabilityTimeoutSeconds=120}
-    contract = [ordered]@{schemaVersion=2;plannedRuns=10;freshContainer=$true;freshWinePrefix=$true;freshWebView2UserData=$true;sequential=$true}
+    automation = [ordered]@{unattended=$true;forcedRepaintAllowed=$false;hiddenRetriesAllowed=0;manualOverridesAllowed=0;textEntry='X11 clipboard round-trip verification followed by Ctrl+V';initialPresentationTimeoutSeconds=45;dialogForegroundTimeoutSeconds=5;scenarioTimeoutSeconds=900;interRunPortAvailabilityTimeoutSeconds=120}
+    contract = [ordered]@{schemaVersion=3;plannedRuns=10;freshContainer=$true;freshWinePrefix=$true;freshWebView2UserData=$true;sequential=$true;requiredGates=@('installedIdentity','initialVisible','pathEdgeCases','nativeOpenDialog','workload','nativeSaveDialog','export','existingOutputAndInputs','continuingPresentation','runtimeIdentity')}
 }
 $parent = Split-Path $LockPath -Parent
 New-Item -ItemType Directory -Path $parent -Force | Out-Null

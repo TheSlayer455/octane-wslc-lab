@@ -153,7 +153,7 @@ foreach ($plannedRunId in $plannedRunIds) {
             wine=$lock.profile.wine;webView2=$lock.profile.webView2;display=$lock.profile.display;security=$lock.security
         } | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath (Join-Path $runDirectory 'environment.json') -Encoding utf8
         [ordered]@{schemaVersion=1;batchId=$batchId;runId=$plannedRunId;lockSha256=$lockHash;imageId=[string]$lock.image.id;container=$container;mode='locked';freshContainer=$true;freshWinePrefix=$true;freshWebView2UserData=$true;securityExceptions=@('FreeRDP /cert:ignore on loopback for the container self-signed XRDP certificate.')} | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath (Join-Path $runDirectory 'run.json') -Encoding utf8
-        $requiredEvidence = @('run.json','environment.json','installer-manifest.json','profile.json','results.json','junit.xml','scenario.json','report.json','report-validation.json','recording.mp4')
+        $requiredEvidence = @('run.json','environment.json','installer-manifest.json','profile.json','results.json','junit.xml','scenario.json','report.json','report-validation.json','recording.mp4','output/unicode-path-report.json','output/missing-input-report.json')
         $allEvidencePresent = @($requiredEvidence | Where-Object { -not (Test-Path -LiteralPath (Join-Path $runDirectory $_) -PathType Leaf) }).Count -eq 0
         $evidenceStatus = if ($scenarioStatus -eq 'PASS' -and $reportValidation -eq 'PASS' -and -not $forcedRepaint -and $hiddenRetries -eq 0 -and $manualOverrides -eq 0 -and $allEvidencePresent) { 'PASS' } else { 'FAIL' }
     } catch {

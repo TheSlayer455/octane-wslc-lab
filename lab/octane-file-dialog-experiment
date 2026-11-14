@@ -92,8 +92,10 @@ type_filename() {
     # it appears. Synthetic activation of the X11 top-level can reactivate the
     # probe owner instead, so preserve the observed foreground/focus and send
     # ordinary input to that focused control.
+    printf '%s' "$value" | xclip -selection clipboard -in
+    [[ "$(xclip -selection clipboard -out)" == "$value" ]] || return 1
     xdotool key --clearmodifiers ctrl+a
-    xdotool type --clearmodifiers --delay 8 "$value"
+    xdotool key --clearmodifiers ctrl+v
 }
 
 click_common_dialog_button() {
@@ -209,8 +211,12 @@ for definition in "${case_definitions[@]}"; do
         dialog_observed=true
         window_snapshot "$dialog_id" "$case_dir/dialog-window-before.txt"
         import -window root "$run_dir/screenshots/$case_id.png" 2> "$case_dir/import.log" || true
-        active_id=$(xdotool getactivewindow 2>/dev/null || true)
-        [[ "$active_id" == "$dialog_id" ]] && focus_verified=true
+        focus_deadline=$((SECONDS + 5))
+        while (( SECONDS < focus_deadline )); do
+            active_id=$(xdotool getactivewindow 2>/dev/null || true)
+            if [[ "$active_id" == "$dialog_id" ]]; then focus_verified=true; break; fi
+            sleep 0.2
+        done
         case "$action" in
             select)
                 type_filename "$dialog_id" "$fixture_one" >> "$case_dir/automation.log" 2>&1 || true
@@ -263,11 +269,21 @@ for definition in "${case_definitions[@]}"; do
     if [[ -f "$case_dir/probe-result.json" ]]; then
         probe_outcome=$(jq -r '.outcome // "missing"' "$case_dir/probe-result.json")
         selected_count=$(jq -r '.selectedPaths | length' "$case_dir/probe-result.json")
+        selected_paths_exact=false
+        if [[ "$action" == select ]] && jq -e --arg expected "$fixture_one" '.selectedPaths == [$expected]' "$case_dir/probe-result.json" >/dev/null; then
+            selected_paths_exact=true
+        elif [[ "$action" == multi ]] && jq -e --arg first "$fixture_one" --arg second "$fixture_two" \
+            '(.selectedPaths | sort) == ([$first,$second] | sort)' "$case_dir/probe-result.json" >/dev/null; then
+            selected_paths_exact=true
+        elif [[ "$action" != select && "$action" != multi ]]; then
+            selected_paths_exact=true
+        fi
         probe_hresult=$(jq -r '.hresult // "unknown"' "$case_dir/probe-result.json")
         probe_timed_out=$(jq -r '.timedOut // false' "$case_dir/probe-result.json")
     else
         probe_outcome=missing
         selected_count=0
+        selected_paths_exact=false
         probe_hresult=unknown
         probe_timed_out=false
     fi
@@ -294,10 +310,10 @@ for definition in "${case_definitions[@]}"; do
         classification='automation-synchronization-failure'; detail='probe watchdog, rather than the requested interaction, closed the dialog'
     elif [[ "$action" == cancel && "$probe_outcome" == canceled ]]; then
         status=PASS; classification='expected-cancel'; detail='dialog appeared, its visible Cancel control was activated, and the API returned cancellation'
-    elif [[ "$action" == select && "$probe_outcome" == selected && "$selected_count" == 1 ]]; then
-        status=PASS; classification='selected'; detail='one Unicode/space fixture was returned'
-    elif [[ "$action" == multi && "$probe_outcome" == selected && "$selected_count" == 2 ]]; then
-        status=PASS; classification='selected'; detail='two fixtures were returned from one modern open dialog'
+    elif [[ "$action" == select && "$probe_outcome" == selected && "$selected_count" == 1 && "$selected_paths_exact" == true ]]; then
+        status=PASS; classification='selected'; detail='the exact Unicode/space fixture path was returned'
+    elif [[ "$action" == multi && "$probe_outcome" == selected && "$selected_count" == 2 && "$selected_paths_exact" == true ]]; then
+        status=PASS; classification='selected'; detail='the exact two Unicode/space fixture paths were returned from one modern open dialog'
     elif [[ "$action" == save-new && "$probe_outcome" == selected && "$selected_count" == 1 ]]; then
         status=PASS; classification='selected'; detail='new save destination was returned'
     elif [[ "$action" == save-existing-decline && "$probe_outcome" == canceled && "$confirmation_observed" == true && "$existing_before" == "$existing_after" ]]; then
@@ -321,13 +337,15 @@ for definition in "${case_definitions[@]}"; do
         --argjson processExitCode "$process_rc" --argjson dialogObserved "$dialog_observed" \
         --argjson focusVerified "$focus_verified" --argjson confirmationObserved "$confirmation_observed" \
         --argjson dialogClosedAfterAction "$dialog_closed_after_action" \
-        --argjson selectedCount "$selected_count" --arg existingBefore "$existing_before" --arg existingAfter "$existing_after" \
+        --argjson selectedCount "$selected_count" --argjson selectedPathsExact "$selected_paths_exact" \
+        --arg existingBefore "$existing_before" --arg existingAfter "$existing_after" \
         '{schemaVersion:1,caseId:$caseId,mode:$mode,action:$action,ownerMode:$ownerMode,threadMode:$threadMode,
           startedAtUtc:$startedAtUtc,completedAtUtc:$completedAtUtc,status:$status,classification:$classification,
           detail:$detail,probeOutcome:$probeOutcome,hresult:$hresult,probeTimedOut:$probeTimedOut,processExitCode:$processExitCode,
           dialogObserved:$dialogObserved,focusVerified:$focusVerified,confirmationObserved:$confirmationObserved,
           dialogClosedAfterAction:$dialogClosedAfterAction,
-          selectedCount:$selectedCount,existingDestination:{sha256Before:$existingBefore,sha256After:$existingAfter}}' \
+          selectedCount:$selectedCount,selectedPathsExact:$selectedPathsExact,
+          existingDestination:{sha256Before:$existingBefore,sha256After:$existingAfter}}' \
         > "$case_dir/case.json"
     case_results+=("$case_dir/case.json")
 done

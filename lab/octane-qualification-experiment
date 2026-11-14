@@ -170,8 +170,10 @@ click_main_fraction() {
 
 type_filename() {
     local value="$1"
+    printf '%s' "$value" | xclip -selection clipboard -in
+    [[ "$(xclip -selection clipboard -out)" == "$value" ]] || return 1
     xdotool key --clearmodifiers ctrl+a
-    xdotool type --clearmodifiers --delay 8 "$value"
+    xdotool key --clearmodifiers ctrl+v
 }
 
 click_common_dialog_button() {
@@ -198,6 +200,24 @@ capture_root() {
     import -window root "$1" 2>> "$run_dir/logs/import.log" || true
 }
 
+save_current_report() {
+    local label="$1" windows_path="$2" unix_path="$3" save_dialog deadline
+    log_action post-initial "click-export-for-$label"
+    click_main_fraction 33 26 >> "$interaction_log" 2>&1 || return 1
+    save_dialog=$(wait_visible_title '^Save$' 15 || true)
+    [[ -n "$save_dialog" ]] && wait_dialog_ready "$save_dialog" "$label-save" || return 1
+    capture_root "$run_dir/screenshots/$label-save-dialog.png"
+    log_action post-initial "paste-$label-path-and-save"
+    type_filename "$windows_path" >> "$interaction_log" 2>&1 || return 1
+    click_common_dialog_button "$save_dialog" accept >> "$interaction_log" 2>&1 || return 1
+    deadline=$((SECONDS + 30))
+    while (( SECONDS < deadline )); do
+        if [[ -s "$unix_path" ]] && ! window_is_viewable "$save_dialog" && wait_active_window "$window_id" 5; then return 0; fi
+        sleep 0.2
+    done
+    return 1
+}
+
 mapfile -d '' apps < <(find "$WINEPREFIX/drive_c/users" -type f -iname 'octane.exe' -print0)
 if [[ ${#apps[@]} -ne 1 ]]; then
     write_gate installedIdentity FAIL 'Expected exactly one installed octane.exe.'
@@ -212,12 +232,18 @@ fixture_dir=/opt/octane/fixtures
 find "$fixture_dir" -maxdepth 1 -type f -print0 | sort -z | xargs -0 sha256sum > "$run_dir/fixture-checksums-before.sha256"
 mkdir -p "$WINEPREFIX/drive_c/octane-qualification/output"
 report_path="$WINEPREFIX/drive_c/octane-qualification/output/octane-report.json"
+unicode_report_path="$WINEPREFIX/drive_c/octane-qualification/output/unicode-path-report.json"
+missing_report_path="$WINEPREFIX/drive_c/octane-qualification/output/missing-input-report.json"
 protected_path="$WINEPREFIX/drive_c/octane-qualification/output/protected.json"
 printf 'protected-existing-output\n' > "$protected_path"
 protected_before=$(sha256sum "$protected_path" | cut -d' ' -f1)
 report_windows='C:\octane-qualification\output\octane-report.json'
+unicode_report_windows='C:\octane-qualification\output\unicode-path-report.json'
+missing_report_windows='C:\octane-qualification\output\missing-input-report.json'
 protected_windows='C:\octane-qualification\output\protected.json'
 unicode_windows=$(winepath -w '/opt/octane/dialog-fixtures/Space Ω/sample one.txt')
+unicode_fixture_sha=$(sha256sum '/opt/octane/dialog-fixtures/Space Ω/sample one.txt' | cut -d' ' -f1)
+missing_windows='C:\octane-qualification\missing input.txt'
 selection=''
 while IFS= read -r -d '' fixture; do
     selection+="\"$(winepath -w "$fixture")\" "
@@ -303,6 +329,9 @@ fi
 
 open_cancel=FAIL
 open_unicode=FAIL
+unicode_contract=FAIL
+open_missing=FAIL
+missing_contract=FAIL
 open_standard=FAIL
 workload_visual=FAIL
 save_cancel=FAIL
@@ -341,8 +370,46 @@ if [[ "$(gate_status initialVisible)" == PASS ]]; then
         fi
     fi
 
+    # Prove that the exact Unicode/space path reached the Rust backend, then
+    # exercise a deliberately missing input as a distinct bounded case.
+    if [[ "$open_unicode" == PASS ]] && save_current_report unicode-path "$unicode_report_windows" "$unicode_report_path"; then
+        if jq -e --arg expectedSha "$unicode_fixture_sha" '
+            .schemaVersion == 1 and (.files|length) == 1 and (.errors|length) == 0 and
+            .totalBytes == 25 and .files[0].sha256 == $expectedSha and
+            (.files[0].path | contains("Space Ω")) and (.files[0].path | endswith("sample one.txt"))
+        ' "$unicode_report_path" >/dev/null; then
+            unicode_contract=PASS
+            cp "$unicode_report_path" "$run_dir/output/unicode-path-report.json"
+        fi
+    fi
+
+    if [[ "$unicode_contract" == PASS ]]; then
+        baseline="$run_dir/screenshots/before-missing-selection.png"; import -window "$window_id" "$baseline" 2>> "$run_dir/logs/import.log" || true
+        log_action post-initial click-choose-for-missing-input
+        click_main_fraction 8 26 >> "$interaction_log" 2>&1 || true
+        open_dialog=$(wait_visible_title 'Choose files to analyze' 15 || true)
+        if [[ -n "$open_dialog" ]] && wait_dialog_ready "$open_dialog" open-missing; then
+            log_action post-initial paste-deliberately-missing-input-and-open
+            type_filename "$missing_windows" >> "$interaction_log" 2>&1 || true
+            click_common_dialog_button "$open_dialog" accept >> "$interaction_log" 2>&1 || true
+            if wait_window_not_viewable "$open_dialog" 15 && wait_active_window "$window_id" 15; then
+                if read -r missing_colors missing_difference < <(wait_client_change "$baseline" "$run_dir/screenshots/after-missing-selection.png" 30); then open_missing=PASS; fi
+            fi
+        fi
+    fi
+
+    if [[ "$open_missing" == PASS ]] && save_current_report missing-input "$missing_report_windows" "$missing_report_path"; then
+        if jq -e '
+            .schemaVersion == 1 and (.files|length) == 0 and (.errors|length) == 1 and
+            .totalBytes == 0 and (.errors[0].path | endswith("missing input.txt"))
+        ' "$missing_report_path" >/dev/null; then
+            missing_contract=PASS
+            cp "$missing_report_path" "$run_dir/output/missing-input-report.json"
+        fi
+    fi
+
     # Reopen again and select the immutable standard eight-file fixture set.
-    if [[ "$open_unicode" == PASS ]]; then
+    if [[ "$unicode_contract" == PASS && "$missing_contract" == PASS ]]; then
         baseline="$run_dir/screenshots/before-standard-selection.png"; import -window "$window_id" "$baseline" 2>> "$run_dir/logs/import.log" || true
         log_action post-initial click-choose-for-standard-workload
         click_main_fraction 8 26 >> "$interaction_log" 2>&1 || true
@@ -360,10 +427,16 @@ if [[ "$(gate_status initialVisible)" == PASS ]]; then
     fi
 fi
 
-if [[ "$open_cancel" == PASS && "$open_unicode" == PASS && "$open_standard" == PASS ]]; then
-    write_gate nativeOpenDialog PASS 'Cancel returned, Unicode/space selection returned, and a repeated eight-file selection returned through the installed application.'
+if [[ "$unicode_contract" == PASS && "$missing_contract" == PASS ]]; then
+    write_gate pathEdgeCases PASS 'The exact Unicode/space path produced a one-file zero-error report, and a deliberate missing input produced a zero-file one-error report.'
 else
-    write_gate nativeOpenDialog FAIL "cancel=$open_cancel; unicodeSelection=$open_unicode; repeatedStandardSelection=$open_standard"
+    write_gate pathEdgeCases FAIL "unicodePath=$unicode_contract; missingInput=$missing_contract"
+fi
+
+if [[ "$open_cancel" == PASS && "$open_unicode" == PASS && "$open_missing" == PASS && "$open_standard" == PASS ]]; then
+    write_gate nativeOpenDialog PASS 'Cancel returned, exact Unicode/space and missing-input selections returned, and a repeated eight-file selection returned through the installed application.'
+else
+    write_gate nativeOpenDialog FAIL "cancel=$open_cancel; unicodeSelection=$open_unicode; missingSelection=$open_missing; repeatedStandardSelection=$open_standard"
 fi
 
 if [[ "$open_standard" == PASS && "$workload_visual" == PASS ]]; then
