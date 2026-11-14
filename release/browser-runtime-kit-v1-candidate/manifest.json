@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 1,
+  "kind": "private-browser-runtime-kit-release-candidate",
+  "version": "browser-runtime-kit-v1-candidate",
+  "createdAtUtc": "2026-11-14T20:48:26Z",
+  "status": "candidate-end-to-end-blocked",
+  "publication": {
+    "status": "BLOCKED",
+    "reason": "Mandatory browser end-to-end acceptance and the browser-specific ten-run qualification were not executed. No tag, release, upload, or replacement of v0.1.1 is authorized by component evidence alone."
+  },
+  "source": {
+    "branch": "browser-runtime-kit-v1",
+    "runtimeImageCommit": "b227260e579bc4806cbd92659ea9956b06fbb253",
+    "runtimeKitSourceCommit": "dc6ffa545e5c36f25acf799ac47b8f29760f1364"
+  },
+  "runtimeKit": {
+    "fileName": "octane-browser-runtime-kit-v1-candidate.zip",
+    "localPath": "work/release-candidate-20261114-204826/octane-browser-runtime-kit-v1-candidate.zip",
+    "length": 818309,
+    "sha256": "b82bff248736fa47130a1bdd136a8744bea1638c3d4bc019f53ee85dceebd9d4",
+    "runtimeKitManifestSha256": "f23487abb35b88eccfa55a0f6cc586e163abd829b7dbffc1ce0dc3765291605e",
+    "checksumsManifestSha256": "58806f9c2856bbe7f8da2b81e8578ad320d763083022b46e686f858bea7b70ea",
+    "archiveExtraction": "PASS in a path containing spaces and Unicode",
+    "everyListedFileHash": "PASS"
+  },
+  "browserImage": {
+    "reference": "octane-lab:browser-candidate-v1",
+    "imageId": "sha256:243cbc44326d000f26e26dbd0e769b3e300cc1ded51e7543a891d2aebecc15ba",
+    "baseImageId": "sha256:0443029e26be1d0590fd37491d69ab8fc1e186ef7e80d4d75cb191628188259c",
+    "recoveryArchive": "work/recovery/octane-browser-candidate-b227260.tar",
+    "recoveryArchiveLength": 2083884032,
+    "recoveryArchiveSha256": "6c1f4f9fd364ed970fc1ba1796a71952e2f917ae7603ea3cf10903d6209dbfb5",
+    "restoreValidation": "PASS for in-place archive/hash/image-ID verification; cold restore and second-laptop restore NOT_TESTED"
+  },
+  "identities": {
+    "candidateLockSha256": "edea2b6489601775489dbc2a5ac6aae4bc2572940632040e98baa053c5077234",
+    "installerSha256": "adde062d79c2857cb2f5e676c5d6870986070252ac3cf7ca7a6b78c8d829080a",
+    "installerLength": 219839154,
+    "installerSourceCommit": "7088eed9adb8403b9575afe1cc9e9c2984b29049",
+    "guidePageCount": 36,
+    "guideSha256": "b2e7472b4e519dd49fb829b546f6ac156228e6b793ad3d796c6b65af3cd13cb2"
+  },
+  "validation": {
+    "finalExtractedKitRun": "a50a92f68c",
+    "finalExtractedKitLifecycle": "PASS for kit checksums, generic overlay/profile, immutable installer staging, fresh installation, exact executable and WebView2 identity, component checks, collection, and exact cleanup",
+    "finalExtractedKitBrowserAcceptance": "BLOCKED; browser pixels and browser-originated input were not exercised",
+    "manualBrowserHandoffRun": "c71f9b509b",
+    "manualBrowserSmoke": "NOT_RUN",
+    "automatedBrowserAcceptance": "BLOCKED",
+    "browserQualification": "BLOCKED; 0/10 declared runs executed",
+    "powerShellBrowserRuntimeAssertions": 32,
+    "powerShellHarnessAssertions": 48,
+    "powerShellQualificationAssertions": 12,
+    "nodeTests": 19,
+    "gitLabPowerShellContainerWrapper": "PASS for portable 32 + 12 assertions in mcr.microsoft.com/powershell:7.5-ubuntu-24.04",
+    "gitLabNodeContainerWrapper": "PASS for 19 tests in node:24-bookworm",
+    "liveCiPipeline": "NOT_RUN"
+  },
+  "security": {
+    "newSecurityExceptions": [],
+    "viewerPublication": "127.0.0.1 only with per-run RFB credential",
+    "rawVncPublished": false,
+    "rdpDependency": false,
+    "credentialsIncluded": false,
+    "installerIncluded": false,
+    "imageIncluded": false,
+    "rawEvidenceIncluded": false
+  }
+}
