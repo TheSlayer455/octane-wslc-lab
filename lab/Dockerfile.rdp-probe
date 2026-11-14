@@ -1,0 +1,14 @@
+FROM ubuntu@sha256:2198e4c65076e9cb0b3d695219df667c0e3b0072da64ca3c2648aca17dcecaf5
+
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        freerdp2-x11 netpbm x11-apps xdotool xvfb \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY lab/rdp-probe-entrypoint.sh /usr/local/bin/rdp-probe-entrypoint
+RUN chmod 755 /usr/local/bin/rdp-probe-entrypoint \
+    && mkdir -p /run/secrets \
+    && chmod 700 /run/secrets
+
+ENTRYPOINT ["/usr/local/bin/rdp-probe-entrypoint"]

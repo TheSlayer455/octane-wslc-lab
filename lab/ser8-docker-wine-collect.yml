@@ -1,0 +1,164 @@
+---
+- name: Collect one exact labeled Octane SER8 run
+  hosts: ser8
+  gather_facts: false
+  vars:
+    octane_run_id: "{{ octane_run_id_required }}"
+    octane_container: "octane-ser8-{{ octane_run_id }}"
+    octane_image: "octane-lab-ser8:{{ octane_run_id }}"
+    octane_probe: "octane-rdp-probe-{{ octane_run_id }}"
+    octane_probe_image: "octane-rdp-probe:{{ octane_run_id }}"
+    octane_root: "/srv/homelab/octane-lab-runs/{{ octane_run_id }}"
+    octane_collected: "{{ octane_root }}/collected"
+    octane_archive: "{{ octane_root }}/ser8-evidence.tar.gz"
+  tasks:
+    - name: Enforce the collection contract
+      ansible.builtin.assert:
+        that:
+          - octane_run_id is match('^[a-z0-9]{10}$')
+          - octane_root.startswith('/srv/homelab/octane-lab-runs/')
+          - octane_root != '/srv/homelab/octane-lab-runs/'
+          - octane_fetch_destination_required | length > 0
+
+    - name: Resolve and verify the exact run directory
+      become: true
+      ansible.builtin.command:
+        argv: [realpath, -m, "{{ octane_root }}"]
+      register: octane_root_resolved
+      changed_when: false
+
+    - name: Require the expected resolved path
+      ansible.builtin.assert:
+        that:
+          - octane_root_resolved.stdout == octane_root
+
+    - name: Verify both exact run labels
+      become: true
+      ansible.builtin.shell: |
+        set -euo pipefail
+        for name in {{ octane_container | quote }} {{ octane_probe | quote }}; do
+          test "$(docker inspect --format '{{ "{{" }} index .Config.Labels "com.octanelab.managed" {{ "}}" }}' "$name")" = true
+          test "$(docker inspect --format '{{ "{{" }} index .Config.Labels "com.octanelab.remote" {{ "}}" }}' "$name")" = ser8
+          test "$(docker inspect --format '{{ "{{" }} index .Config.Labels "com.octanelab.run" {{ "}}" }}' "$name")" = {{ octane_run_id | quote }}
+        done
+      args:
+        executable: /bin/bash
+      changed_when: false
+
+    - name: Require a new collection destination
+      become: true
+      ansible.builtin.stat:
+        path: "{{ octane_collected }}"
+      register: octane_collected_stat
+
+    - name: Refuse to overwrite collected evidence
+      ansible.builtin.assert:
+        that:
+          - not octane_collected_stat.stat.exists
+
+    - name: Create the exact collection directories
+      become: true
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: root
+        group: root
+        mode: '0700'
+      loop:
+        - "{{ octane_collected }}"
+        - "{{ octane_collected }}/evidence"
+
+    - name: Copy the container evidence and immutable manifests
+      become: true
+      ansible.builtin.shell: |
+        set -euo pipefail
+        docker cp {{ octane_container | quote }}:/home/wineuser/.octane/evidence/. {{ (octane_collected + '/evidence') | quote }}
+        docker cp {{ octane_container | quote }}:/opt/octane/installer-manifest.json {{ (octane_collected + '/installer-manifest.json') | quote }}
+        docker cp {{ octane_container | quote }}:/opt/octane/diagnostic-manifest.json {{ (octane_collected + '/diagnostic-manifest.json') | quote }}
+      args:
+        executable: /bin/bash
+      changed_when: true
+
+    - name: Record container and image inspection JSON
+      become: true
+      ansible.builtin.shell: |
+        set -euo pipefail
+        docker inspect {{ octane_container | quote }} > {{ (octane_collected + '/container-inspect.json') | quote }}
+        docker inspect {{ octane_probe | quote }} > {{ (octane_collected + '/probe-inspect.json') | quote }}
+        docker image inspect {{ octane_image | quote }} > {{ (octane_collected + '/image-inspect.json') | quote }}
+        docker image inspect {{ octane_probe_image | quote }} > {{ (octane_collected + '/probe-image-inspect.json') | quote }}
+      args:
+        executable: /bin/bash
+      changed_when: true
+
+    - name: Record host, engine, and Wine environment
+      become: true
+      ansible.builtin.shell: |
+        set -euo pipefail
+        {
+          echo "run_id={{ octane_run_id }}"
+          echo "host=$(hostname)"
+          echo "captured_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          echo HOST_UNAME
+          uname -a
+          echo HOST_OS_RELEASE
+          cat /etc/os-release
+          echo DOCKER_VERSION
+          docker version
+          echo DOCKER_INFO
+          docker info
+          echo CONTAINER_ENVIRONMENT
+          docker exec -u wineuser {{ octane_container | quote }} bash -lc '
+            wine --version
+            uname -a
+            printf "display_sockets="
+            find /tmp/.X11-unix -maxdepth 1 -type s -printf "%f "
+            printf "\nwebview_versions="
+            find "$WINEPREFIX/drive_c/Program Files (x86)/Microsoft/EdgeWebView/Application" -mindepth 1 -maxdepth 1 -type d -name "[0-9]*" -printf "%f " 2>/dev/null || true
+            printf "\n"
+            sha256sum /opt/octane/Octane-setup.exe /opt/octane/WebView2Diagnostic.exe
+          '
+          echo SERVER_IMAGE
+          docker inspect --format '{{ "{{" }}.Image{{ "}}" }}' {{ octane_container | quote }}
+          echo PROBE_IMAGE
+          docker inspect --format '{{ "{{" }}.Image{{ "}}" }}' {{ octane_probe | quote }}
+        } > {{ (octane_collected + '/environment.txt') | quote }}
+      args:
+        executable: /bin/bash
+      changed_when: true
+
+    - name: Checksum every collected file before archiving
+      become: true
+      ansible.builtin.shell: |
+        set -euo pipefail
+        cd {{ octane_collected | quote }}
+        find . -type f ! -name checksums.sha256 -print0 | sort -z | xargs -0 sha256sum > checksums.sha256
+      args:
+        executable: /bin/bash
+      changed_when: true
+
+    - name: Create the portable evidence archive
+      become: true
+      ansible.builtin.command:
+        argv:
+          - tar
+          - -C
+          - "{{ octane_root }}"
+          - -czf
+          - "{{ octane_archive }}"
+          - collected
+      changed_when: true
+
+    - name: Fetch the evidence archive
+      become: true
+      ansible.builtin.fetch:
+        src: "{{ octane_archive }}"
+        dest: "{{ octane_fetch_destination_required }}"
+        flat: true
+
+    - name: Report the collected archive
+      ansible.builtin.debug:
+        msg:
+          run_id: "{{ octane_run_id }}"
+          remote_archive: "{{ octane_archive }}"
+          local_archive: "{{ octane_fetch_destination_required }}"

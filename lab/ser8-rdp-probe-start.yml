@@ -1,0 +1,156 @@
+---
+- name: Start a disposable black-box RDP probe for one Octane run
+  hosts: ser8
+  gather_facts: false
+  vars:
+    octane_run_id: "{{ octane_run_id_required }}"
+    octane_container: "octane-ser8-{{ octane_run_id }}"
+    octane_probe: "octane-rdp-probe-{{ octane_run_id }}"
+    octane_probe_image: "octane-rdp-probe:{{ octane_run_id }}"
+    octane_root: "/srv/homelab/octane-lab-runs/{{ octane_run_id }}"
+    octane_context: "{{ octane_root }}/context"
+    octane_rdp_target: "{{ octane_rdp_target_required | default('192.168.1.159:3391') }}"
+  tasks:
+    - name: Enforce the run and secret contract
+      ansible.builtin.assert:
+        that:
+          - octane_run_id is match('^[a-z0-9]{10}$')
+          - octane_rdp_password_b64_required | length >= 12
+          - octane_rdp_password_b64_required | b64decode | length >= 8
+          - octane_rdp_target is match('^(100\\.103\\.13\\.4|192\\.168\\.1\\.159):[0-9]{4,5}$')
+
+    - name: Verify the exact server container label
+      become: true
+      ansible.builtin.shell: |
+        set -euo pipefail
+        test "$(docker inspect --format '{{ "{{" }} index .Config.Labels "com.octanelab.remote" {{ "}}" }}' {{ octane_container | quote }})" = ser8
+        test "$(docker inspect --format '{{ "{{" }} index .Config.Labels "com.octanelab.run" {{ "}}" }}' {{ octane_container | quote }})" = {{ octane_run_id | quote }}
+        test -z "$(docker ps -a -q --filter name=^/{{ octane_probe }}$)"
+      args:
+        executable: /bin/bash
+      changed_when: false
+
+    - name: Copy the RDP probe build files
+      become: true
+      ansible.builtin.copy:
+        src: "{{ octane_source_root_required }}/{{ item.src }}"
+        dest: "{{ octane_context }}/{{ item.dest }}"
+        owner: root
+        group: root
+        mode: "{{ item.mode }}"
+      loop:
+        - { src: 'lab/Dockerfile.rdp-probe', dest: 'lab/Dockerfile.rdp-probe', mode: '0644' }
+        - { src: 'lab/rdp-probe-entrypoint.sh', dest: 'lab/rdp-probe-entrypoint.sh', mode: '0755' }
+
+    - name: Build the disposable RDP probe image
+      become: true
+      ansible.builtin.command:
+        argv:
+          - docker
+          - build
+          - -f
+          - "{{ octane_context }}/lab/Dockerfile.rdp-probe"
+          - -t
+          - "{{ octane_probe_image }}"
+          - "{{ octane_context }}"
+      changed_when: true
+
+    - name: Create the probe container without a credential in its environment
+      become: true
+      ansible.builtin.command:
+        argv:
+          - docker
+          - create
+          - --name
+          - "{{ octane_probe }}"
+          - --label
+          - com.octanelab.managed=true
+          - --label
+          - com.octanelab.remote=ser8
+          - --label
+          - "com.octanelab.run={{ octane_run_id }}"
+          - --network
+          - host
+          - --shm-size
+          - 512m
+          - -e
+          - "RDP_TARGET={{ octane_rdp_target }}"
+          - "{{ octane_probe_image }}"
+      changed_when: true
+
+    - name: Allocate a temporary remote credential file
+      become: true
+      no_log: true
+      ansible.builtin.tempfile:
+        state: file
+        prefix: octane-rdp-
+      register: octane_secret_file
+
+    - name: Write the one-time RDP credential
+      become: true
+      no_log: true
+      ansible.builtin.copy:
+        content: "{{ octane_rdp_password_b64_required | b64decode }}"
+        dest: "{{ octane_secret_file.path }}"
+        owner: root
+        group: root
+        mode: '0600'
+
+    - name: Copy the credential into the stopped probe container
+      become: true
+      no_log: true
+      ansible.builtin.command:
+        argv:
+          - docker
+          - cp
+          - "{{ octane_secret_file.path }}"
+          - "{{ octane_probe }}:/run/secrets/rdp_password"
+      changed_when: true
+
+    - name: Remove the host-side temporary credential
+      become: true
+      no_log: true
+      ansible.builtin.file:
+        path: "{{ octane_secret_file.path }}"
+        state: absent
+
+    - name: Start the disposable RDP probe
+      become: true
+      ansible.builtin.command:
+        argv: [docker, start, "{{ octane_probe }}"]
+      changed_when: true
+
+    - name: Wait for a visible FreeRDP client window
+      become: true
+      ansible.builtin.shell: |
+        set -euo pipefail
+        docker exec {{ octane_probe | quote }} bash -lc 'DISPLAY=:99 xdotool search --onlyvisible --class xfreerdp | head -1'
+      args:
+        executable: /bin/bash
+      register: octane_probe_window
+      changed_when: false
+      retries: 60
+      delay: 2
+      until: octane_probe_window.rc == 0 and octane_probe_window.stdout | length > 0
+
+    - name: Verify that XRDP created a real desktop session
+      become: true
+      ansible.builtin.shell: |
+        set -euo pipefail
+        docker exec -u wineuser {{ octane_container | quote }} bash -lc '
+          pgrep -a Xorg
+          pgrep -a xfce4-session
+          find /tmp/.X11-unix -maxdepth 1 -type s -printf "%f\n"
+        '
+      args:
+        executable: /bin/bash
+      register: octane_desktop
+      changed_when: false
+
+    - name: Report the black-box desktop probe
+      ansible.builtin.debug:
+        msg:
+          probe_container: "{{ octane_probe }}"
+          probe_image: "{{ octane_probe_image }}"
+          rdp_window_id: "{{ octane_probe_window.stdout }}"
+          server_desktop: "{{ octane_desktop.stdout_lines }}"

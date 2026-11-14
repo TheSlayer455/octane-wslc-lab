@@ -119,7 +119,7 @@ def image_grid(items):
 page(1, "Octane<br/>Windows installer compatibility lab")
 p(
     "<b>Complete implementation, operation, and measured-validation reference</b><br/>"
-    "Guide revision 3 | November 13, 2026 | Windows x64 + WSLC/Docker + Wine 11"
+    "Guide revision 4 | November 13, 2026 | Windows x64 + WSLC/Docker/Ansible + Wine 11"
 )
 p(
     "Octane is a repository-independent, container-runtime-independent lab for a real "
@@ -146,8 +146,9 @@ h("How to read this guide")
 p(
     "Pages 3-9 explain architecture, engine choice, diagnosis, artifact intake, and startup. "
     "Pages 10-17 specify the workload, code, evidence, security, and acceptance protocol. "
-    "Pages 18-22 diagnose failures and show the measured desktop results. Pages 23-24 record "
-    "verification, repository inventory, sources, and remaining work. Commands run in "
+    "Pages 18-24 diagnose failures and show the measured WineGUI, Docker-Wine, controlled "
+    "ole32, and native SER8 results. Pages 25-26 record verification, repository inventory, "
+    "sources, and remaining work. Commands run in "
     "<b>PowerShell 7 from the repository root</b> unless a desktop terminal is named."
 )
 
@@ -163,15 +164,17 @@ topics = [
     "Controller and container implementation", "Evidence, status, and cleanup",
     "Security and reproducibility", "Executable acceptance protocol",
     "Runtime and desktop troubleshooting", "Wine and WebView2 troubleshooting",
-    "Measured environment and comparison", "WineGUI visual evidence",
-    "Docker-Wine RDP visual evidence", "Verification and repository inventory",
+    "Measured environment and comparison", "Controlled Wine ole32 experiment",
+    "WineGUI visual evidence", "Docker-Wine RDP visual evidence",
+    "Native SER8 Ansible result", "Verification and repository inventory",
     "References and roadmap",
 ]
 table(["Page", "Topic"], [[str(i), topic] for i, topic in enumerate(topics, 1)], [38, 454], compact=True)
 p(
     "<b>Delivered scope:</b> explicit WSLC and Docker adapters; Windows-host Docker through "
-    "a named WSL distribution; WineGUI/Selkies and Docker-Wine/RDP profiles; fresh-prefix "
-    "installation; machine-readable stages; evidence copy-out and exact cleanup."
+    "a named WSL distribution; a strict Ansible path to native Docker on the SER8; "
+    "WineGUI/Selkies and Docker-Wine/RDP profiles; fresh-prefix installation; machine-readable "
+    "stages; evidence copy-out and exact cleanup."
 )
 p(
     "<b>Outside scope:</b> Podman, Kubernetes, arbitrary malware, production multi-user "
@@ -241,11 +244,13 @@ table(["Adapter", "Invocation and identity", "Important behavior"], [
     ["Wslc", "wslc.exe on Windows; context wslc:windows", "Requires the Windows host tool and WSLC utility session."],
     ["Docker on Windows", "wsl.exe -d DISTRO --exec docker; context docker:wsl:DISTRO", "Requires -WslDistro; never guesses a daemon or uses another distribution."],
     ["Docker on Linux", "local docker CLI; context docker:local", "Same scripts can run on a Linux controller with PowerShell 7."],
+    ["SER8 via Ansible", "strict inventory alias ser8; svc.ansible; jakeubuntu", "Playbooks pin target identity, approved bind address, run labels, artifacts, evidence, and cleanup."],
 ], [92, 180, 220], compact=True)
 p(
     "An acceptance run never silently changes engines. A Docker pass remains a Docker pass; "
     "a WSLC failure remains a WSLC failure. The operator explicitly starts a different run "
-    "when comparing engines."
+    "when comparing engines. The SER8 path is a native-Linux Docker measurement, not Docker "
+    "inside WSL, and its Ansible orchestration is recorded separately from the shared runtime adapter."
 )
 h("Environment profiles")
 table(["Profile", "Desktop / user", "State and evidence"], [
@@ -281,6 +286,12 @@ code("""# Windows PowerShell 7
 ./scripts/Doctor-OctaneLab.ps1 -Engine Docker -WslDistro Ubuntu-24.04 -Port 3002 -Deep""")
 h("Measured Docker doctor")
 p(html.escape(status.get("dockerDoctor", "Docker doctor not recorded.")))
+h("Native SER8 preflight")
+p(
+    "The strict inventory reached svc.ansible@jakeubuntu, confirmed native Ubuntu 24.04.4 "
+    "x86_64 and Docker 29.6.0, found about 25.1 GB free storage and 20.1 GB available memory, "
+    "verified the selected RDP port was free, and counted 66 unrelated running containers."
+)
 h("Measured WSLC doctor")
 p(html.escape(status.get("wslcRuntime", "WSLC doctor not recorded.")))
 h("Prerequisites")
@@ -355,7 +366,7 @@ Get-Content ./artifacts/installer-manifest.json
 h("Private GitHub delivery")
 p(
     "The v0.1.1 private prerelease retains the measured EXE, manifest, and this guide. Current "
-    "run 43549532904 verified implementation commit 2a3540a with locked Rust/core and Node "
+    "application-build run 43549532904 verified implementation commit 2a3540a with locked Rust/core and Node "
     "checks, the 30-assertion PowerShell harness, Tauri's NSIS build, and artifact upload. "
     "Workflow artifacts expire; release assets remain until explicitly removed. Artifact "
     "production and runtime acceptance remain separate concerns."
@@ -365,7 +376,7 @@ link(
     "https://github.com/TheSlayer455/octane-wslc-lab/releases/tag/v0.1.1",
 )
 link(
-    "Current implementation CI (PASS)",
+    "Recorded application-build CI (PASS)",
     "https://github.com/TheSlayer455/octane-wslc-lab/actions/runs/43549532904",
 )
 h("Measured artifact identity")
@@ -374,6 +385,16 @@ code("""Installer source commit:
 Installer SHA-256:
 adde062d79c2857cb2f5e676c5d6870986070252ac3cf7ca7a6b78c8d829080a
 Size: 219,839,154 bytes   Signed: false   WebView mode: offlineInstaller""")
+h("Diagnostic artifact intake")
+p(
+    "The separate webview2-diagnostic workflow builds Release|x64 and uploads "
+    "WebView2Diagnostic.exe plus diagnostic-manifest.json. Before a diagnostic or SER8 run, "
+    "download that private workflow artifact into diagnostics/webview2-win32/artifacts and "
+    "verify its manifest hash. The measured diagnostic came from commit "
+    "feea96bd35957401e92560154142fd86a8925224 with SDK 1.0.3856.49; its SHA-256 was "
+    "59213db9a027dada8cb7643cd885473c091b4acbfc4eeccc9390a2d72237f37f. Generated binaries "
+    "remain Git-ignored and do not make the source repository self-executing without artifact intake."
+)
 p(
     "The manifest is an integrity companion, not a signature: an actor able to replace both "
     "files can create a matching pair. GitHub is the implemented producer wrapper; the local "
@@ -439,6 +460,26 @@ p(
     "octane-lab detected that live socket. The visible desktop is Linux XFCE and Wine draws "
     "Windows programs within it. This is useful for comparing display stacks, not proof of a "
     "Windows VM."
+)
+h("Native SER8 through Ansible")
+p(
+    "Run these playbooks from the existing Village ansible directory with its strict "
+    "ANSIBLE_CONFIG and inventory alias ser8. They require svc.ansible@jakeubuntu, accept only "
+    "the reviewed SER8 addresses, label every disposable resource with a ten-character run ID, "
+    "and verify the exact target path before cleanup. Values named *_b64 carry secrets across "
+    "the controller boundary without placing clear text in command arguments."
+)
+table(["Playbook", "Required extra variables"], [
+    ["ser8-docker-wine-preflight.yml", "bind address and high RDP port (defaults exist)"],
+    ["ser8-docker-wine.yml", "run ID, source root, MD5-crypt hash as base64, bind address, port"],
+    ["ser8-rdp-probe-start.yml", "run ID, source root, raw password as base64, approved host:port"],
+    ["ser8-docker-wine-collect.yml", "run ID and new local fetch destination"],
+    ["ser8-docker-wine-stop.yml", "run ID only"],
+], [182, 310], compact=True)
+p(
+    "The caller generates one random password, derives Docker-Wine's required $1$ MD5-crypt "
+    "server value with LF-only input, and passes the raw value only to the stopped probe's "
+    "one-use 0600 file. Page 24 records the measured run and cleanup proof."
 )
 h("Profile-specific export paths")
 code(r"""WineGUI:    Z:\config\octane-evidence\report.json
@@ -593,6 +634,7 @@ table(["Path", "Responsibility"], [
     ["Collect-Evidence.ps1", "Logs/copy-out, environment, results, JUnit, optional screenshots/recording, checksums."],
     ["Stop-OctaneLab.ps1", "Exact labeled removal, anonymous volumes, optional run image, final evidence synchronization."],
     ["lab/octane-lab", "Display discovery, fresh prefix, logged Notepad/install/launch stages."],
+    ["lab/ser8-*.yml", "Strict Ansible preflight, native-Docker build/start, black-box RDP probe, collection, and exact cleanup on the SER8."],
 ], [145, 347], compact=True)
 h("Failure-safe state")
 p(
@@ -648,10 +690,20 @@ p(
 page(16, "Security and reproducibility")
 h("Conservative defaults")
 p(
-    "Desktop ports bind only 127.0.0.1. Every run gets a random password. There is no host "
-    "filesystem mount, container-engine socket, host networking, GPU device, privileged mode, "
-    "or automatic security-profile bypass. Only the generated, labeled resource name can be "
-    "removed. Failed environments stay available until explicitly collected and removed."
+    "The shared Windows controller binds desktop ports only to 127.0.0.1. Every run gets a "
+    "random password. There is no broad host mount, container-engine socket, host networking, "
+    "GPU device, privileged mode, or automatic security-profile bypass. Only the generated, "
+    "labeled resource name can be removed. Failed environments stay available until explicitly "
+    "collected and removed."
+)
+h("Measured SER8 exception")
+p(
+    "The native SER8 run temporarily published RDP on the explicitly approved LAN address "
+    "192.168.1.159 because the Windows controller could not reach the SER8 RDP service over its "
+    "Tailscale address. The Ansible playbook validates that address and the chosen high port. "
+    "The server received only Docker-Wine's required MD5-crypt password hash; the black-box probe "
+    "received the raw random secret through a mode-0600, one-use file that was removed before it "
+    "started. Exact labeled cleanup freed port 3391 and left all 66 pre-existing containers running."
 )
 h("Trust boundaries")
 p(
@@ -759,24 +811,26 @@ p(
 )
 h("Measured failure signature")
 p(
-    "The final installer disables Tauri drag/drop and passes --disable-gpu. Under both WineGUI "
-    "and Docker-Wine, the WebView browser process, crashpad, network/storage utilities, renderer, "
-    "and GPU process started. The renderer used --disable-gpu-compositing. GPU processes still "
-    "restarted with gpu-recent-crash-count 0, 1, 2 and later values; DRI3 device errors appeared; "
-    "then every WebView2 child exited while octane.exe remained with blank or black content."
+    "The final installer disables Tauri drag/drop and passes --disable-gpu. Under WineGUI and "
+    "Docker-Wine, the WebView browser process, crashpad, utilities, renderer, and GPU process "
+    "started. GPU processes restarted and WebView2 children later exited while octane.exe "
+    "remained with blank or black content. A separate minimal Win32 diagnostic sharpened the "
+    "result: environment/controller creation and local navigation succeeded, JavaScript reported "
+    "DOM-ready plus changing repaint ticks, yet the actual desktop pixels remained blank."
 )
 p(
-    "This makes application=FAIL. It is not an installer failure, a desktop failure, or evidence "
-    "that the DOM was usable. The same behavior across WSLC/Docker and Selkies/RDP narrows the "
-    "problem toward the Wine/WebView combination rather than one container engine or stream."
+    "A live DOM, process, or internal repaint signal does not satisfy the visible-application gate. "
+    "The repeated blank pixels make application=FAIL, not installer or desktop FAIL. Reproduction "
+    "under WSLC, Docker-in-WSL, and native Linux on the SER8, using both Selkies and RDP, rules out "
+    "WSL and either display transport as necessary conditions for the failure."
 )
-h("Controlled next experiments")
+h("Controlled comparison and next experiments")
 p(
-    "A Fixed Version WebView2 build can separate Evergreen installation/servicing from webview "
-    "execution and improve reproducibility. It must have a new artifact hash and identity. "
-    "A deliberately selected older/newer Wine or WebView combination is also a new profile. "
-    "Change one variable at a time, preserve the current evidence, and compare against native "
-    "Windows."
+    "Wine 11.0 control and MR !12477 ole32 builds were compared with the same image, installer, "
+    "runtime, diagnostic, display, and fresh-prefix procedure. The patch did not change rendering, "
+    "and neither run reproduced the older IDropTarget_Release crash. The next authority is the "
+    "unchanged installer on supported Windows. A separately hashed Fixed Version WebView2 build "
+    "can later isolate Evergreen installation/servicing from webview execution."
 )
 p(
     "Do not accumulate DLL overrides, old runtimes, no-sandbox flags, privileged mode, or broad "
@@ -791,16 +845,21 @@ table(["Combination", "Runtime/desktop", "Wine + installer", "Application / late
     ["WSLC + WineGUI", "PASS / PASS", "Notepad PASS; NSIS + WebView2 PASS", "WebView FAIL; workload/dialog/export BLOCKED"],
     ["Docker + WineGUI", "Doctor PASS; HTTPS PASS", "Notepad PASS; NSIS + WebView2 PASS", "White blank; application FAIL; later BLOCKED"],
     ["Docker + Docker-Wine", "Doctor PASS; RDP PASS", "Notepad PASS; NSIS + WebView2 PASS", "Blank/black; application FAIL; later BLOCKED"],
+    ["SER8 native Docker + Docker-Wine", "Ansible + RDP PASS", "Notepad PASS; NSIS + WebView2 PASS", "Diagnostic/Octane blank; application FAIL; later BLOCKED"],
+    ["WineGUI + MR !12477 ole32", "Docker + HTTPS PASS", "Notepad PASS; NSIS + WebView2 PASS", "Same blank diagnostic/Octane result; later BLOCKED"],
 ], [102, 112, 152, 126], compact=True)
 h("Exact measured identity")
 table(["Item", "Value"], [
     ["Installer", status.get("installerSha256", "")],
     ["Source commit", status.get("sourceCommit", "")],
+    ["Diagnostic", "59213db9a027dada8cb7643cd885473c091b4acbfc4eeccc9390a2d72237f37f"],
     ["WSLC", status.get("wslcVersion", "")],
     ["Docker", f'{status.get("dockerVersion", "")}; {status.get("dockerOperatingSystem", "")}; {status.get("dockerArchitecture", "")}'],
     ["Docker execution", f'rootless={status.get("dockerRootless", "")}; {status.get("dockerStorageDriver", "")}; {status.get("dockerMemoryGiB", "")} GiB'],
+    ["SER8", f'{status.get("ser8Hostname", "")}; Docker {status.get("ser8DockerVersion", "")}; {status.get("ser8OperatingSystem", "")}; run {status.get("ser8RunId", "")}'],
     ["Wine", status.get("wineVersion", "")],
     ["WebView2", f'Evergreen {status.get("webview2Version", "")}'],
+    ["ole32 experiment", "Wine MR !12477 commit 22a16b053991f95e8bbf91e4784e73f833835b72"],
     ["Docker/WineGUI run", "octane-78047fb0ca; endpoint 1.110 s; cleanup 0.882 s"],
     ["Docker-Wine run", "octane-08a0b3f5c3; endpoint 1.022 s; cleanup 0.921 s"],
 ], [126, 366], compact=True)
@@ -813,7 +872,40 @@ p(
 )
 
 
-page(21, "WineGUI visual evidence")
+page(21, "Controlled Wine ole32 experiment")
+p(
+    "WineHQ bug 60225 and upstream MR !12477 closely matched the earlier Tauri/WebView2 "
+    "IDropTarget_Release signature. The lab therefore built a source Wine 11.0 control and a "
+    "candidate differing only by MR !12477's ole32 change. Both used the same WineGUI digest, "
+    "installer, WebView2 runtime, diagnostic executable, desktop, and fresh-prefix procedure."
+)
+table(["Gate or observation", "Wine 11 control", "MR !12477 candidate"], [
+    ["Basic Wine", "PASS: Notepad repaint/input", "PASS: Notepad repaint/input"],
+    ["NSIS + WebView2 install", "PASS", "PASS"],
+    ["Minimal diagnostic", "FAIL: DOM/ticks active; pixels blank", "FAIL: DOM/ticks active; pixels blank"],
+    ["Process failure", "GPU kind 6 reason 3; 0x80000003", "GPU kind 6 reason 3; 0x80000003"],
+    ["Octane", "FAIL: no usable visible UI", "FAIL: no usable visible UI"],
+    ["OLE close sequence", "2 RegisterDragDrop; host RevokeDragDrop; exit 0", "2 RegisterDragDrop; host RevokeDragDrop; exit 0"],
+    ["IDropTarget_Release crash", "Not reproduced", "Not reproduced"],
+], [142, 175, 175], compact=True)
+image_grid([
+    (
+        "docs/evidence/control-diagnostic-initial.png",
+        "Control: diagnostic events showed navigation and repaint activity while visible content stayed blank.",
+    ),
+    (
+        "docs/evidence/patched-diagnostic.png",
+        "MR !12477: the same blank visible result and process-failure signature.",
+    ),
+])
+p(
+    "Conclusion: the candidate did not restore rendering. The lack of a crash in this pair does "
+    "not rewrite the earlier observation; it means the current controlled blocker is visible "
+    "WebView2 rendering, and this ole32 change made no measured improvement."
+)
+
+
+page(22, "WineGUI visual evidence")
 p(
     "These screenshots are visible desktop observations, not inferred process states. The "
     "WSLC and Docker runs used the same pinned WineGUI profile and unchanged installer."
@@ -842,7 +934,7 @@ p(
 )
 
 
-page(22, "Docker-Wine RDP visual evidence")
+page(23, "Docker-Wine RDP visual evidence")
 p(
     "The measured alternative resolved scottyhardy/docker-wine:latest to the digest now pinned "
     "by the profile, and used xrdp/xorgxrdp, XFCE, Wine 11, and FreeRDP 3 over the "
@@ -870,16 +962,53 @@ p(
 )
 
 
-page(23, "Verification and repository inventory")
+page(24, "Native SER8 Ansible result")
+p(
+    "The SER8 run answered the key portability question outside WSL. The strict existing inventory "
+    "connected as svc.ansible to jakeubuntu (Ubuntu 24.04.4, kernel 6.8.0-142-generic), validated "
+    "the hostname and Docker server, built the pinned Docker-Wine profile, and drove its XRDP/XFCE "
+    "desktop through a separate FreeRDP probe container. Docker 29.6.0 reported 16 CPUs and "
+    "27.16 GiB; the final server image was sha256:bd5a698cb85a59fa75b43a2704b0f95fc5f1bed9f490dea402466eb2f2743e13."
+)
+code("""ansible-playbook -i inventory.yml lab/ser8-docker-wine-preflight.yml
+ansible-playbook -i inventory.yml lab/ser8-docker-wine.yml
+ansible-playbook -i inventory.yml lab/ser8-rdp-probe-start.yml
+ansible-playbook -i inventory.yml lab/ser8-docker-wine-collect.yml
+ansible-playbook -i inventory.yml lab/ser8-docker-wine-stop.yml""")
+table(["SER8 gate", "Measured result"], [
+    ["Preflight / runtime / desktop", "PASS: strict host identity, native Docker, XRDP/Xorg :10, XFCE 1280x800"],
+    ["Basic Wine", "PASS: visible Notepad repaint and typed acceptance string"],
+    ["Installer", "PASS: NSIS and offline Evergreen WebView2 157.0.4341.60"],
+    ["Minimal diagnostic", "FAIL: local navigation and DOM/repaint ticks; pixels blank; child failures"],
+    ["Octane application", "FAIL: white after installer handoff; black on traced standalone launch"],
+    ["Workload / dialogs / export", "BLOCKED: no usable visible application"],
+    ["Evidence / cleanup", "PASS: checksum-verified bundle; port 3391 free; 66 prior containers preserved"],
+], [150, 342], compact=True)
+image_grid([
+    ("docs/evidence/ser8-notepad-input.png", "Native SER8 RDP: Notepad visible repaint and input PASS."),
+    ("docs/evidence/ser8-installer-complete.png", "NSIS completion after bundled WebView2 installation PASS."),
+    ("docs/evidence/ser8-webview2-diagnostic.png", "Diagnostic: events progressed, but window pixels remained blank; FAIL."),
+    ("docs/evidence/ser8-octane-ole.png", "Octane traced launch: no usable WebView content; application FAIL."),
+])
+p(
+    "Three setup defects were corrected before the measured run: artifact mode 0600 blocked "
+    "wineuser, Docker-Wine required MD5-crypt rather than SHA-512, and CRLF added a hidden byte "
+    "to an early hash. Those aborted attempts were cleaned and are not compatibility results."
+)
+
+
+page(25, "Verification and repository inventory")
 table(["Verification", "Observed result"], [
-    ["Private repository", "TheSlayer455/octane-wslc-lab; private main; implementation commit 2a3540a; private release."],
+    ["Private repository", "TheSlayer455/octane-wslc-lab; private main and private v0.1.1 prerelease."],
     ["Windows artifact", status.get("windowsBuild", "")],
     ["Node checks", "6 PASS: formatting, summary, literal paths, cancellation, native failure recovery, export state."],
     ["Rust core", "4 PASS in measured installer build: fixtures/hash, path errors, export/no-overwrite, resource limits."],
-    ["PowerShell", "30 mocked assertions PASS; every script parses in PowerShell 7."],
-    ["Bash", "lab/octane-lab passes bash -n."],
+    ["PowerShell", "37 mocked assertions PASS; every script parses in PowerShell 7."],
+    ["Bash / Ansible", "Container helpers pass bash -n; all five SER8 playbooks pass strict-inventory syntax checks."],
     ["Docker doctor", "PASS with real alpine run, known-file copy-out, and managed cleanup."],
-    ["Live GUI", "WineGUI and Docker-Wine Notepad/installer PASS; both WebView application runs FAIL."],
+    ["Minimal diagnostic", "Environment/controller/navigation/DOM ticks PASS; visible pixels FAIL across tested Wine profiles."],
+    ["Controlled ole32", "Control/MR !12477 comparison completed; rendering unchanged; no crash in either member."],
+    ["Live GUI", "WSLC, Docker-in-WSL, and native SER8 paths passed Notepad/installer; WebView application failed."],
     ["Cleanup", "No Octane-managed Docker container remained after measured runs; unrelated resources untouched."],
 ], [112, 380], compact=True)
 h("Repository map")
@@ -887,10 +1016,11 @@ table(["Path", "Purpose"], [
     ["crates/octane-core/", "Analysis/report/export library and unit tests."],
     ["src-tauri/", "Windows Tauri host, config, resources, icon, NSIS/WebView settings."],
     ["ui/ and fixtures/", "Static frontend and deterministic eight-file workload."],
+    ["diagnostics/webview2-win32/", "Minimal native Win32 WebView2 diagnostic and event logging."],
     ["scripts/Runtime*.ps1", "Engine adapter and Wine environment profiles."],
     ["scripts/RunState.ps1", "Atomic state, normalized results, JUnit, checksum synchronization."],
     ["scripts/Doctor/Start/Record/Collect/Stop", "Public operator lifecycle."],
-    ["lab/", "Pinned profile Dockerfiles and shared in-container helper."],
+    ["lab/", "Pinned profile Dockerfiles, helpers, and strict native-SER8 Ansible lifecycle."],
     ["tests/", "Node behavior tests and mocked adapter/lifecycle harness."],
     [".github/workflows/", "Private Windows installer build and artifact upload."],
     ["docs/ and tools/", "Validation snapshot, visual evidence, PDF, and generator."],
@@ -902,7 +1032,7 @@ p(
 )
 
 
-page(24, "References and roadmap")
+page(26, "References and roadmap")
 p(
     "Primary sources define supported interfaces and upstream behavior; they do not prove this "
     "particular Wine/WebView combination. Measured claims come from the retained run metadata, "
@@ -919,6 +1049,11 @@ for label, url in [
     ("Tauri: configuration reference", "https://v2.tauri.app/reference/config/"),
     ("Microsoft: WebView2 distribution modes", "https://learn.microsoft.com/en-us/microsoft-edge/webview2/concepts/distribution"),
     ("Microsoft: WebView2 supported platforms", "https://learn.microsoft.com/en-us/microsoft-edge/webview2/"),
+    ("Microsoft: WebView2 Win32 getting started", "https://learn.microsoft.com/en-us/microsoft-edge/webview2/get-started/win32"),
+    ("Microsoft: WebView2 process-related events", "https://learn.microsoft.com/en-us/microsoft-edge/webview2/concepts/process-related-events"),
+    ("MicrosoftEdge: WebView2Samples", "https://github.com/MicrosoftEdge/WebView2Samples"),
+    ("Wine MR !12477: revoke foreign drop targets in their own process", "https://gitlab.winehq.org/wine/wine/-/merge_requests/12477"),
+    ("G6rm0k: wine-ole32-fix proof of concept", "https://github.com/G6rm0k/wine-ole32-fix"),
     ("Source conversation: Run Windows App Containers", "chatgpt-conversation://6af79ffb-6048-83ea-b689-8269484af53d"),
 ]:
     link(label, url)
@@ -946,7 +1081,7 @@ def decorate(canvas, doc):
     canvas.line(54, 44, 558, 44)
     canvas.setFont("Helvetica", 8)
     canvas.setFillColor(colors.HexColor("#657989"))
-    canvas.drawString(54, 30, "OCTANE / PRIVATE PROJECT REFERENCE / GUIDE REVISION 3")
+    canvas.drawString(54, 30, "OCTANE / PRIVATE PROJECT REFERENCE / GUIDE REVISION 4")
     canvas.drawRightString(558, 30, str(doc.page))
 
 

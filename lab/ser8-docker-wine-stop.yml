@@ -1,0 +1,116 @@
+---
+- name: Remove one exact labeled Octane SER8 lab run
+  hosts: ser8
+  gather_facts: false
+  vars:
+    octane_run_id: "{{ octane_run_id_required }}"
+    octane_container: "octane-ser8-{{ octane_run_id }}"
+    octane_image: "octane-lab-ser8:{{ octane_run_id }}"
+    octane_probe: "octane-rdp-probe-{{ octane_run_id }}"
+    octane_probe_image: "octane-rdp-probe:{{ octane_run_id }}"
+    octane_root: "/srv/homelab/octane-lab-runs/{{ octane_run_id }}"
+  tasks:
+    - name: Enforce the exact run identifier
+      ansible.builtin.assert:
+        that:
+          - octane_run_id is match('^[a-z0-9]{10}$')
+          - octane_root.startswith('/srv/homelab/octane-lab-runs/')
+          - octane_root != '/srv/homelab/octane-lab-runs/'
+
+    - name: Inspect the exact container if it exists
+      become: true
+      ansible.builtin.command:
+        argv: [docker, inspect, "{{ octane_container }}"]
+      register: octane_inspect
+      changed_when: false
+      failed_when: octane_inspect.rc not in [0, 1]
+
+    - name: Verify the container labels before removal
+      ansible.builtin.assert:
+        that:
+          - (octane_inspect.stdout | from_json)[0].Config.Labels['com.octanelab.managed'] == 'true'
+          - (octane_inspect.stdout | from_json)[0].Config.Labels['com.octanelab.remote'] == 'ser8'
+          - (octane_inspect.stdout | from_json)[0].Config.Labels['com.octanelab.run'] == octane_run_id
+      when: octane_inspect.rc == 0
+
+    - name: Remove the exact container and anonymous volumes
+      become: true
+      ansible.builtin.command:
+        argv: [docker, rm, -f, -v, "{{ octane_container }}"]
+      when: octane_inspect.rc == 0
+      changed_when: true
+
+    - name: Inspect the exact probe container if it exists
+      become: true
+      ansible.builtin.command:
+        argv: [docker, inspect, "{{ octane_probe }}"]
+      register: octane_probe_inspect
+      changed_when: false
+      failed_when: octane_probe_inspect.rc not in [0, 1]
+
+    - name: Verify the probe labels before removal
+      ansible.builtin.assert:
+        that:
+          - (octane_probe_inspect.stdout | from_json)[0].Config.Labels['com.octanelab.managed'] == 'true'
+          - (octane_probe_inspect.stdout | from_json)[0].Config.Labels['com.octanelab.remote'] == 'ser8'
+          - (octane_probe_inspect.stdout | from_json)[0].Config.Labels['com.octanelab.run'] == octane_run_id
+      when: octane_probe_inspect.rc == 0
+
+    - name: Remove the exact probe container and anonymous volumes
+      become: true
+      ansible.builtin.command:
+        argv: [docker, rm, -f, -v, "{{ octane_probe }}"]
+      when: octane_probe_inspect.rc == 0
+      changed_when: true
+
+    - name: Inspect the exact run image tag
+      become: true
+      ansible.builtin.command:
+        argv: [docker, image, inspect, "{{ octane_image }}"]
+      register: octane_image_inspect
+      changed_when: false
+      failed_when: octane_image_inspect.rc not in [0, 1]
+
+    - name: Remove the exact run image tag
+      become: true
+      ansible.builtin.command:
+        argv: [docker, image, rm, "{{ octane_image }}"]
+      when: octane_image_inspect.rc == 0
+      changed_when: true
+
+    - name: Inspect the exact probe image tag
+      become: true
+      ansible.builtin.command:
+        argv: [docker, image, inspect, "{{ octane_probe_image }}"]
+      register: octane_probe_image_inspect
+      changed_when: false
+      failed_when: octane_probe_image_inspect.rc not in [0, 1]
+
+    - name: Remove the exact probe image tag
+      become: true
+      ansible.builtin.command:
+        argv: [docker, image, rm, "{{ octane_probe_image }}"]
+      when: octane_probe_image_inspect.rc == 0
+      changed_when: true
+
+    - name: Resolve the run directory before removal
+      become: true
+      ansible.builtin.command:
+        argv: [realpath, -m, "{{ octane_root }}"]
+      register: octane_root_resolved
+      changed_when: false
+
+    - name: Verify the resolved cleanup target
+      ansible.builtin.assert:
+        that:
+          - octane_root_resolved.stdout == octane_root
+
+    - name: Remove only the exact run directory
+      become: true
+      ansible.builtin.file:
+        path: "{{ octane_root }}"
+        state: absent
+
+    - name: Report exact cleanup
+      ansible.builtin.debug:
+        msg: "Removed only the {{ octane_run_id }} server/probe containers, their run image tags, and {{ octane_root }}."

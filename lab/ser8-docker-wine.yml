@@ -1,0 +1,178 @@
+---
+- name: Start an isolated Octane Docker-Wine lab on SER8
+  hosts: ser8
+  gather_facts: false
+  vars:
+    octane_run_id: "{{ octane_run_id_required }}"
+    octane_container: "octane-ser8-{{ octane_run_id }}"
+    octane_image: "octane-lab-ser8:{{ octane_run_id }}"
+    octane_root: "/srv/homelab/octane-lab-runs/{{ octane_run_id }}"
+    octane_context: "{{ octane_root }}/context"
+    octane_rdp_password_hash: "{{ octane_rdp_password_hash_b64_required | b64decode }}"
+    octane_bind_address: "{{ octane_bind_address_required | default('100.103.13.4') }}"
+    octane_rdp_port: "{{ octane_rdp_port_required | default(3391) | int }}"
+    octane_base_image: scottyhardy/docker-wine@sha256:c61cfc490aaee10b96782b88733a0f3d0e7b425d93b4e96617d9ab9a2b6bcfd2
+  tasks:
+    - name: Verify the dedicated automation identity
+      ansible.builtin.command: id -un
+      register: octane_identity
+      changed_when: false
+
+    - name: Verify the SER8 hostname
+      ansible.builtin.command: hostname
+      register: octane_hostname
+      changed_when: false
+
+    - name: Enforce target and input identities
+      ansible.builtin.assert:
+        that:
+          - octane_identity.stdout == 'svc.ansible'
+          - octane_hostname.stdout == 'jakeubuntu'
+          - octane_run_id is match('^[a-z0-9]{10}$')
+          - octane_bind_address in ['100.103.13.4', '192.168.1.159']
+          - octane_rdp_port | int >= 1024
+          - octane_rdp_port | int <= 65535
+          - octane_rdp_password_hash.startswith('$1$')
+          - octane_rdp_password_hash | length > 20
+        fail_msg: Refusing a target, run identifier, or password hash outside the reviewed contract.
+
+    - name: Check that the exact lab identity is unused
+      become: true
+      ansible.builtin.shell: |
+        set -euo pipefail
+        test -z "$(docker ps -a -q --filter name=^/{{ octane_container }}$)"
+        test -z "$(docker image ls -q {{ octane_image }})"
+        test ! -e {{ octane_root | quote }}
+        ! ss -H -ltn '( sport = :{{ octane_rdp_port }} )' | grep -q .
+      args:
+        executable: /bin/bash
+      changed_when: false
+
+    - name: Create the private, run-scoped build context
+      become: true
+      ansible.builtin.file:
+        path: "{{ item.path }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "{{ item.mode }}"
+      loop:
+        - { path: "{{ octane_root }}", mode: '0700' }
+        - { path: "{{ octane_context }}", mode: '0700' }
+        - { path: "{{ octane_context }}/lab", mode: '0700' }
+        - { path: "{{ octane_context }}/artifacts", mode: '0700' }
+        - { path: "{{ octane_context }}/fixtures", mode: '0700' }
+        - { path: "{{ octane_context }}/diagnostics/webview2-win32/artifacts", mode: '0700' }
+
+    - name: Copy the reviewed Docker-Wine lab inputs
+      become: true
+      ansible.builtin.copy:
+        src: "{{ octane_source_root_required }}/{{ item.src }}"
+        dest: "{{ octane_context }}/{{ item.dest }}"
+        owner: root
+        group: root
+        mode: "{{ item.mode }}"
+      loop:
+        - { src: 'lab/Dockerfile.docker-wine', dest: 'lab/Dockerfile.docker-wine', mode: '0644' }
+        - { src: 'lab/octane-lab', dest: 'lab/octane-lab', mode: '0755' }
+        - { src: 'artifacts/Octane-setup.exe', dest: 'artifacts/Octane-setup.exe', mode: '0644' }
+        - { src: 'artifacts/installer-manifest.json', dest: 'artifacts/installer-manifest.json', mode: '0644' }
+        - { src: 'diagnostics/webview2-win32/artifacts/WebView2Diagnostic.exe', dest: 'diagnostics/webview2-win32/artifacts/WebView2Diagnostic.exe', mode: '0644' }
+        - { src: 'diagnostics/webview2-win32/artifacts/diagnostic-manifest.json', dest: 'diagnostics/webview2-win32/artifacts/diagnostic-manifest.json', mode: '0644' }
+
+    - name: Copy the fixture directory
+      become: true
+      ansible.builtin.copy:
+        src: "{{ octane_source_root_required }}/fixtures/"
+        dest: "{{ octane_context }}/fixtures/"
+        owner: root
+        group: root
+        mode: preserve
+
+    - name: Verify the frozen installer hash on SER8
+      become: true
+      ansible.builtin.shell: |
+        set -euo pipefail
+        actual=$(sha256sum {{ (octane_context + '/artifacts/Octane-setup.exe') | quote }} | awk '{print $1}')
+        test "$actual" = adde062d79c2857cb2f5e676c5d6870986070252ac3cf7ca7a6b78c8d829080a
+      args:
+        executable: /bin/bash
+      changed_when: false
+
+    - name: Build the pinned Docker-Wine lab image
+      become: true
+      ansible.builtin.command:
+        argv:
+          - docker
+          - build
+          - --build-arg
+          - "BASE_IMAGE={{ octane_base_image }}"
+          - -f
+          - "{{ octane_context }}/lab/Dockerfile.docker-wine"
+          - -t
+          - "{{ octane_image }}"
+          - "{{ octane_context }}"
+      register: octane_build
+      changed_when: true
+
+    - name: Start the isolated Docker-Wine container on the approved address
+      become: true
+      no_log: true
+      ansible.builtin.command:
+        argv:
+          - docker
+          - run
+          - -d
+          - --name
+          - "{{ octane_container }}"
+          - --label
+          - com.octanelab.managed=true
+          - --label
+          - com.octanelab.remote=ser8
+          - --label
+          - "com.octanelab.run={{ octane_run_id }}"
+          - --restart
+          - "no"
+          - --shm-size
+          - 1gb
+          - --platform
+          - linux/amd64
+          - -p
+          - "{{ octane_bind_address }}:{{ octane_rdp_port }}:3389"
+          - -e
+          - TZ=America/Chicago
+          - -e
+          - RDP_SERVER=yes
+          - -e
+          - "USER_PASSWD={{ octane_rdp_password_hash }}"
+          - "{{ octane_image }}"
+      changed_when: true
+
+    - name: Wait for the bound RDP endpoint
+      ansible.builtin.wait_for:
+        host: "{{ octane_bind_address }}"
+        port: "{{ octane_rdp_port }}"
+        timeout: 240
+        state: started
+
+    - name: Verify the running lab identity and artifact
+      become: true
+      ansible.builtin.shell: |
+        set -euo pipefail
+        test "$(docker inspect --format '{{ "{{" }}.State.Running{{ "}}" }}' {{ octane_container | quote }})" = true
+        test "$(docker inspect --format '{{ "{{" }} index .Config.Labels "com.octanelab.remote" {{ "}}" }}' {{ octane_container | quote }})" = ser8
+        docker exec -u wineuser {{ octane_container | quote }} sha256sum /opt/octane/Octane-setup.exe
+        docker exec -u wineuser {{ octane_container | quote }} wine --version
+      args:
+        executable: /bin/bash
+      register: octane_verify
+      changed_when: false
+
+    - name: Report the started lab without disclosing credentials
+      ansible.builtin.debug:
+        msg:
+          run_id: "{{ octane_run_id }}"
+          container: "{{ octane_container }}"
+          image: "{{ octane_image }}"
+          endpoint: "{{ octane_bind_address }}:{{ octane_rdp_port }}"
+          verification: "{{ octane_verify.stdout_lines }}"
