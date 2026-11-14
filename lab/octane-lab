@@ -2,6 +2,13 @@
 set -euo pipefail
 export WINEPREFIX=/config/octane-prefix
 export WINEARCH=win64
+# LinuxServer WineGUI's interactive desktop is Xwayland display :0.  The image
+# metadata currently advertises :1 to non-interactive exec sessions, so select
+# the live socket when the helper is launched with `wslc exec`.
+if [[ -S /tmp/.X11-unix/X0 ]]; then
+    export DISPLAY=:0
+fi
+export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/config/.XDG}"
 evidence=/config/octane-evidence
 mkdir -p "$evidence"
 export WINEDEBUG="${WINEDEBUG:--all,+timestamp,+seh}"
