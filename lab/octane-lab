@@ -170,7 +170,15 @@ case "${1:-help}" in
         fi
         record_environment
         exec /usr/local/bin/octane-webview2-experiment ;;
+    application-experiment)
+        ensure_display
+        if [[ ! -x /usr/local/bin/octane-application-experiment ]]; then
+            echo 'The installed-application experiment runner is not present in this image.' >&2
+            exit 1
+        fi
+        record_environment
+        exec /usr/local/bin/octane-application-experiment ;;
     help|*)
-        echo 'Usage: octane-lab {environment|notepad|install|install-silent|diagnostic|experiment|launch|launch-ole}'
+        echo 'Usage: octane-lab {environment|notepad|install|install-silent|diagnostic|experiment|application-experiment|launch|launch-ole}'
         echo "Run as the desktop user. Export JSON beneath Z:${evidence//\//\\}." ;;
 esac

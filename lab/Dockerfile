@@ -11,4 +11,5 @@ COPY diagnostics/webview2-win32/artifacts/diagnostic-manifest.json /opt/octane/d
 COPY fixtures/ /opt/octane/fixtures/
 COPY lab/octane-lab /usr/local/bin/octane-lab
 COPY lab/octane-webview2-experiment /usr/local/bin/octane-webview2-experiment
-RUN chmod 755 /usr/local/bin/octane-lab /usr/local/bin/octane-webview2-experiment
+COPY lab/octane-application-experiment /usr/local/bin/octane-application-experiment
+RUN chmod 755 /usr/local/bin/octane-lab /usr/local/bin/octane-webview2-experiment /usr/local/bin/octane-application-experiment

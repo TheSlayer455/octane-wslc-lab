@@ -101,6 +101,25 @@ try {
     $hash=New-OctaneUnixPasswordHash -Password 'not-secret' -WslDistro Ubuntu-24.04
     Assert ($hash -like '$1$*') 'Docker-Wine password must be hashed before container creation'
 
+    $fixtureDirectory=Join-Path $temp 'validator-fixtures'
+    New-Item -ItemType Directory -Path $fixtureDirectory | Out-Null
+    Set-Content -LiteralPath (Join-Path $fixtureDirectory 'a.txt') -Value 'same' -NoNewline
+    Set-Content -LiteralPath (Join-Path $fixtureDirectory 'b.txt') -Value 'same' -NoNewline
+    $fixtureHash=(Get-FileHash -LiteralPath (Join-Path $fixtureDirectory 'a.txt') -Algorithm SHA256).Hash.ToLowerInvariant()
+    $validReport=[ordered]@{schemaVersion=1;files=@(
+        [ordered]@{path='C:\fixtures\a.txt';extension='txt';bytes=4;sha256=$fixtureHash},
+        [ordered]@{path='C:\fixtures\b.txt';extension='txt';bytes=4;sha256=$fixtureHash}
+    );errors=@();groups=[ordered]@{txt=2};duplicateSets=@(,@('C:\fixtures\a.txt','C:\fixtures\b.txt'));totalBytes=8}
+    $validReportPath=Join-Path $temp 'valid-report.json'
+    $validReport | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $validReportPath
+    $validation=& (Join-Path $temp 'scripts/Validate-OctaneReport.ps1') -ReportPath $validReportPath -FixtureDirectory $fixtureDirectory | ConvertFrom-Json
+    Assert ($validation.status -eq 'PASS') 'Independent report validator must accept exact fixture hashes and counts'
+    $validReport.totalBytes=9
+    $validReport | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $validReportPath
+    $failed=$false
+    try { & (Join-Path $temp 'scripts/Validate-OctaneReport.ps1') -ReportPath $validReportPath -FixtureDirectory $fixtureDirectory | Out-Null } catch {$failed=$true}
+    Assert $failed 'Independent report validator must reject a changed expected total'
+
     $rejected=$false
     try { & (Join-Path $temp 'scripts/Stop-OctaneLab.ps1') -Container 'some-other-container' } catch {$rejected=$true}
     Assert $rejected 'Must reject unrelated container names'
@@ -108,7 +127,7 @@ try {
     $rejected=$false
     try { & (Join-Path $temp 'scripts/Start-OctaneLab.ps1') -Port $port -SkipDeepDoctor | Out-Null } catch {$rejected=$true}
     Assert $rejected 'Must reject mismatched installer hash'
-    Write-Output 'PowerShell harness: 46 assertions passed (mock runtimes; not a GUI compatibility test).'
+    Write-Output 'PowerShell harness: 48 assertions passed (mock runtimes; not a GUI compatibility test).'
 } finally {
     Remove-Item Function:\Invoke-OctaneNativeProcess -ErrorAction SilentlyContinue
     Remove-Item Function:\Wait-OctaneEndpoint -ErrorAction SilentlyContinue

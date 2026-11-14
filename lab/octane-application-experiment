@@ -1,0 +1,235 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+state_dir="${OCTANE_STATE_DIR:-/config}"
+evidence_root="${OCTANE_EVIDENCE_DIR:-$state_dir/octane-evidence}"
+run_id="${OCTANE_APPLICATION_EXPERIMENT_ID:-$(date -u +%Y%m%dT%H%M%SZ)-$(od -An -N4 -tx1 /dev/urandom | tr -d ' \n')}"
+if [[ ! "$run_id" =~ ^[A-Za-z0-9._-]{8,96}$ ]]; then
+    echo 'OCTANE_APPLICATION_EXPERIMENT_ID must contain only letters, digits, dot, underscore, or dash.' >&2
+    exit 2
+fi
+
+run_dir="$evidence_root/applications/$run_id"
+if [[ -e "$run_dir" ]]; then
+    echo "Application experiment directory already exists: $run_dir" >&2
+    exit 2
+fi
+mkdir -p "$run_dir/logs" "$run_dir/screenshots"
+
+mapfile -d '' apps < <(find "$WINEPREFIX/drive_c/users" -type f -iname 'octane.exe' -print0)
+if [[ ${#apps[@]} -ne 1 ]]; then
+    echo 'Expected exactly one installed octane.exe.' >&2
+    exit 1
+fi
+app="${apps[0]}"
+app_sha=$(sha256sum "$app" | cut -d' ' -f1)
+started_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+app_pid=''
+window_id=''
+
+finish_processes() {
+    if [[ -n "$app_pid" ]] && kill -0 "$app_pid" 2>/dev/null; then
+        kill -TERM "$app_pid" 2>/dev/null || true
+    fi
+    WINEPREFIX="$WINEPREFIX" wineserver -k >/dev/null 2>&1 || true
+}
+trap finish_processes EXIT INT TERM
+
+{
+    echo "started_at_utc=$started_at"
+    echo "run_id=$run_id"
+    echo "display=${DISPLAY:-unset}"
+    echo "wineprefix=$WINEPREFIX"
+    echo "winearch=${WINEARCH:-unset}"
+    echo "installed_executable=$app"
+    echo "installed_executable_sha256=$app_sha"
+    echo "wine_dll_overrides=${WINEDLLOVERRIDES:-unset}"
+} > "$run_dir/requested-settings.txt"
+
+WINEDEBUG="${OCTANE_APPLICATION_WINEDEBUG:--all,+timestamp,+seh}" wine "$app" > "$run_dir/logs/wine.log" 2>&1 &
+app_pid=$!
+echo "$app_pid" > "$run_dir/launcher-linux-pid.txt"
+
+deadline=$((SECONDS + 75))
+while (( SECONDS < deadline )); do
+    window_id=$(xdotool search --onlyvisible --name 'Octane.*File analysis lab' 2>/dev/null | tail -n 1 || true)
+    [[ -n "$window_id" ]] && break
+    kill -0 "$app_pid" 2>/dev/null || break
+    sleep 0.5
+done
+
+native_window=FAIL
+screen_changed=FAIL
+workload=FAIL
+native_dialogs=FAIL
+export_status=FAIL
+overwrite_decline=FAIL
+report_path=''
+report_sha_before=''
+report_sha_after=''
+pixel_difference=0
+
+if [[ -n "$window_id" ]]; then
+    native_window=PASS
+    echo "$window_id" > "$run_dir/native-window-id.txt"
+    xwininfo -id "$window_id" > "$run_dir/logs/xwininfo.txt" 2>&1 || true
+    import -window "$window_id" "$run_dir/screenshots/octane-initial.png" 2> "$run_dir/logs/import-initial.log" || true
+
+    # The measured Wine-Staging control required a bounded focus/input repaint
+    # nudge before WebView2 presented its already-created client surface.
+    xdotool windowactivate --sync "$window_id" >> "$run_dir/logs/interaction.log" 2>&1 || true
+    xdotool mousemove --window "$window_id" 520 420 click 1 >> "$run_dir/logs/interaction.log" 2>&1 || true
+    xdotool key --window "$window_id" Tab Return >> "$run_dir/logs/interaction.log" 2>&1 || true
+    sleep 6
+    import -window "$window_id" "$run_dir/screenshots/octane-after-focus.png" 2> "$run_dir/logs/import-after-focus.log" || true
+
+    if [[ -s "$run_dir/screenshots/octane-initial.png" && -s "$run_dir/screenshots/octane-after-focus.png" ]]; then
+        set +e
+        pixel_difference=$(compare -metric AE "$run_dir/screenshots/octane-initial.png" "$run_dir/screenshots/octane-after-focus.png" null: 2>&1)
+        set -e
+        if [[ "$pixel_difference" =~ ^[0-9]+$ ]] && (( pixel_difference > 1000 )); then
+            screen_changed=PASS
+        fi
+    fi
+
+    # Invoke the real installed application's sample fixture command.
+    xdotool mousemove --window "$window_id" 225 190 click 1 >> "$run_dir/logs/interaction.log" 2>&1 || true
+    sleep 5
+    import -window "$window_id" "$run_dir/screenshots/octane-workload.png" 2> "$run_dir/logs/import-workload.log" || true
+
+    # Exercise a native open dialog and cancellation without changing results.
+    xdotool mousemove --window "$window_id" 95 190 click 1 >> "$run_dir/logs/interaction.log" 2>&1 || true
+    deadline=$((SECONDS + 15))
+    open_dialog=''
+    while (( SECONDS < deadline )); do
+        open_dialog=$(xdotool search --onlyvisible --name 'Choose files to analyze' 2>/dev/null | tail -n 1 || true)
+        [[ -n "$open_dialog" ]] && break
+        sleep 0.25
+    done
+    if [[ -n "$open_dialog" ]]; then
+        import -window root "$run_dir/screenshots/native-open-dialog.png" 2> "$run_dir/logs/import-open-dialog.log" || true
+        xdotool key --window "$open_dialog" Escape >> "$run_dir/logs/interaction.log" 2>&1 || true
+        native_dialogs=PASS
+        sleep 1
+    fi
+
+    # Export through the native save dialog. The fixed default filename makes
+    # the second save a deterministic existing-file/no-overwrite check.
+    xdotool mousemove --window "$window_id" 365 190 click 1 >> "$run_dir/logs/interaction.log" 2>&1 || true
+    deadline=$((SECONDS + 15))
+    save_dialog=''
+    while (( SECONDS < deadline )); do
+        save_dialog=$(xdotool search --onlyvisible --name '^Save$' 2>/dev/null | tail -n 1 || true)
+        [[ -n "$save_dialog" ]] && break
+        sleep 0.25
+    done
+    if [[ -n "$save_dialog" ]]; then
+        import -window root "$run_dir/screenshots/native-save-dialog.png" 2> "$run_dir/logs/import-save-dialog.log" || true
+        xdotool windowactivate --sync "$save_dialog" >> "$run_dir/logs/interaction.log" 2>&1 || true
+        xdotool key --window "$save_dialog" ctrl+a >> "$run_dir/logs/interaction.log" 2>&1 || true
+        xdotool type --window "$save_dialog" --delay 20 'octane-report.json' >> "$run_dir/logs/interaction.log" 2>&1 || true
+        xdotool key --window "$save_dialog" Return >> "$run_dir/logs/interaction.log" 2>&1 || true
+        deadline=$((SECONDS + 20))
+        while (( SECONDS < deadline )); do
+            report_path=$(find "$WINEPREFIX/drive_c/users" -type f -iname 'octane-report.json' -print -quit 2>/dev/null || true)
+            [[ -n "$report_path" ]] && break
+            sleep 0.25
+        done
+    fi
+
+    if [[ -n "$report_path" && -s "$report_path" ]] && jq -e '
+        .schemaVersion == 1 and
+        (.files | length) == 8 and
+        (.groups | length) == 6 and
+        (.duplicateSets | length) == 1 and
+        (.errors | length) == 0 and
+        .totalBytes == 176
+    ' "$report_path" >/dev/null; then
+        workload=PASS
+        export_status=PASS
+        cp "$report_path" "$run_dir/report.json"
+        report_sha_before=$(sha256sum "$report_path" | cut -d' ' -f1)
+
+        xdotool mousemove --window "$window_id" 365 190 click 1 >> "$run_dir/logs/interaction.log" 2>&1 || true
+        deadline=$((SECONDS + 15))
+        save_dialog=''
+        while (( SECONDS < deadline )); do
+            save_dialog=$(xdotool search --onlyvisible --name '^Save$' 2>/dev/null | head -n 1 || true)
+            [[ -n "$save_dialog" ]] && break
+            sleep 0.25
+        done
+        if [[ -n "$save_dialog" ]]; then
+            xdotool key --window "$save_dialog" Return >> "$run_dir/logs/interaction.log" 2>&1 || true
+            sleep 1
+            confirm_dialog=$(xdotool search --onlyvisible --name '^Save$' 2>/dev/null | tail -n 1 || true)
+            if [[ -n "$confirm_dialog" ]]; then
+                import -window root "$run_dir/screenshots/native-overwrite-confirmation.png" 2> "$run_dir/logs/import-overwrite.log" || true
+                xdotool key --window "$confirm_dialog" Tab Return >> "$run_dir/logs/interaction.log" 2>&1 || true
+                sleep 0.5
+                remaining_save=$(xdotool search --onlyvisible --name '^Save$' 2>/dev/null | head -n 1 || true)
+                [[ -z "$remaining_save" ]] || xdotool key --window "$remaining_save" Escape >> "$run_dir/logs/interaction.log" 2>&1 || true
+                sleep 1
+                report_sha_after=$(sha256sum "$report_path" | cut -d' ' -f1)
+                if [[ "$report_sha_before" = "$report_sha_after" ]]; then
+                    overwrite_decline=PASS
+                fi
+            fi
+        fi
+    fi
+
+    xdotool windowsize --sync "$window_id" 900 650 >> "$run_dir/logs/interaction.log" 2>&1 || true
+    sleep 1
+    xdotool windowminimize "$window_id" >> "$run_dir/logs/interaction.log" 2>&1 || true
+    sleep 1
+    xdotool windowmap "$window_id" >> "$run_dir/logs/interaction.log" 2>&1 || true
+    xdotool windowactivate --sync "$window_id" >> "$run_dir/logs/interaction.log" 2>&1 || true
+    xdotool mousemove --window "$window_id" 500 500 scroll --repeat 6 5 >> "$run_dir/logs/interaction.log" 2>&1 || true
+    sleep 2
+    import -window "$window_id" "$run_dir/screenshots/octane-restored-scrolled.png" 2> "$run_dir/logs/import-restored.log" || true
+fi
+
+ps -ww -eo pid,ppid,etimes,args > "$run_dir/logs/processes.txt"
+grep -i 'msedgewebview2.exe' "$run_dir/logs/processes.txt" > "$run_dir/logs/webview2-process-command-lines.txt" || true
+
+completed_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+jq -n \
+    --arg runId "$run_id" \
+    --arg startedAtUtc "$started_at" \
+    --arg completedAtUtc "$completed_at" \
+    --arg appSha256 "$app_sha" \
+    --arg nativeWindow "$native_window" \
+    --arg screenChanged "$screen_changed" \
+    --arg workload "$workload" \
+    --arg nativeDialogs "$native_dialogs" \
+    --arg exportStatus "$export_status" \
+    --arg overwriteDecline "$overwrite_decline" \
+    --arg reportSha256 "$report_sha_before" \
+    --arg pixelDifference "$pixel_difference" \
+    '{
+      schemaVersion: 1,
+      runId: $runId,
+      startedAtUtc: $startedAtUtc,
+      completedAtUtc: $completedAtUtc,
+      installedExecutableSha256: $appSha256,
+      observations: {
+        nativeWindow: $nativeWindow,
+        focusRepaintPixelChange: $screenChanged,
+        pixelDifference: (if ($pixelDifference | test("^[0-9]+$")) then ($pixelDifference | tonumber) else null end),
+        workload: $workload,
+        nativeDialogs: $nativeDialogs,
+        export: $exportStatus,
+        overwriteDecline: $overwriteDecline,
+        visualReview: "NOT_RUN"
+      },
+      reportSha256: (if $reportSha256 == "" then null else $reportSha256 end),
+      securityExceptions: [],
+      qualification: "Pixel change and report validation do not replace final native-window screenshot review."
+    }' > "$run_dir/scenario.json"
+
+(cd "$run_dir" && find . -type f ! -name checksums.sha256 -print0 | sort -z | xargs -0 sha256sum > checksums.sha256)
+cat "$run_dir/scenario.json"
+
+if [[ "$native_window" != PASS || "$screen_changed" != PASS || "$workload" != PASS || "$native_dialogs" != PASS || "$export_status" != PASS || "$overwrite_decline" != PASS ]]; then
+    exit 1
+fi
+

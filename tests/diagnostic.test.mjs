@@ -7,6 +7,10 @@ const runner=readFileSync(new URL('../lab/octane-webview2-experiment',import.met
 const labCommand=readFileSync(new URL('../lab/octane-lab',import.meta.url),'utf8');
 const controller=readFileSync(new URL('../scripts/Invoke-OctaneExperiment.ps1',import.meta.url),'utf8');
 const reviewer=readFileSync(new URL('../scripts/Review-OctaneExperiment.ps1',import.meta.url),'utf8');
+const appRunner=readFileSync(new URL('../lab/octane-application-experiment',import.meta.url),'utf8');
+const appController=readFileSync(new URL('../scripts/Invoke-OctaneApplicationExperiment.ps1',import.meta.url),'utf8');
+const appReviewer=readFileSync(new URL('../scripts/Review-OctaneApplicationExperiment.ps1',import.meta.url),'utf8');
+const reportValidator=readFileSync(new URL('../scripts/Validate-OctaneReport.ps1',import.meta.url),'utf8');
 const stagingImage=readFileSync(new URL('../lab/Dockerfile.wine-staging-11.21',import.meta.url),'utf8');
 
 test('native diagnostic separates DOM activity from animation frames',()=>{
@@ -62,4 +66,23 @@ test('visible review updates the original evidence bundle without rerunning it',
 test('source-built Wine profiles suppress unrelated Mono and Gecko prompts explicitly',()=>{
   assert.match(stagingImage,/WINEDLLOVERRIDES="mscoree,mshtml="/);
   assert.match(labCommand,/wine_dll_overrides=/);
+});
+
+test('installed application experiment requires visible repaint and real exported data',()=>{
+  assert.match(appRunner,/focus\/input repaint/);
+  assert.match(appRunner,/compare -metric AE/);
+  assert.match(appRunner,/Choose files to analyze/);
+  assert.match(appRunner,/native-overwrite-confirmation/);
+  assert.match(appRunner,/\.files \| length\) == 8/);
+  assert.match(appRunner,/wineserver -k/);
+  assert.doesNotMatch(appRunner,/--no-sandbox|--privileged/);
+  assert.match(appController,/Validate-OctaneReport\.ps1/);
+  assert.match(appReviewer,/visual review cannot pass/i);
+});
+
+test('report validator independently checks hashes and the fixture contract',()=>{
+  assert.match(reportValidator,/Get-FileHash/);
+  assert.match(reportValidator,/duplicateSetCount/);
+  assert.match(reportValidator,/extensionGroups/);
+  assert.match(reportValidator,/status=\$status/);
 });
