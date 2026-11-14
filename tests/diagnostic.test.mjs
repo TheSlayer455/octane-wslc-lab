@@ -72,6 +72,7 @@ test('installed application experiment requires visible repaint and real exporte
   assert.match(appRunner,/focus\/input repaint/);
   assert.match(appRunner,/resize-minimize-restore/);
   assert.match(appRunner,/repaintNudgeDurationMs/);
+  assert.match(appRunner,/clientColorCount/);
   assert.match(appRunner,/compare -metric AE/);
   assert.match(appRunner,/Choose files to analyze/);
   assert.match(appRunner,/native-overwrite-confirmation/);
