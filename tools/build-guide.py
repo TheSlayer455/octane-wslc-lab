@@ -366,8 +366,9 @@ Get-Content ./artifacts/installer-manifest.json
 h("Private GitHub delivery")
 p(
     "The v0.1.1 private prerelease retains the measured EXE, manifest, and this guide. Current "
-    "application-build run 43549532904 verified implementation commit 2a3540a with locked Rust/core and Node "
-    "checks, the 30-assertion PowerShell harness, Tauri's NSIS build, and artifact upload. "
+    "application-build run 43560204604 verified implementation commit 6199155 with locked Rust/core and Node "
+    "checks, the 37-assertion PowerShell harness, Tauri's NSIS build, and artifact upload. Its "
+    "new installer hash is 7a4ee192...e22c22 and is not substituted for the Wine-tested artifact. "
     "Workflow artifacts expire; release assets remain until explicitly removed. Artifact "
     "production and runtime acceptance remain separate concerns."
 )
@@ -376,8 +377,8 @@ link(
     "https://github.com/TheSlayer455/octane-wslc-lab/releases/tag/v0.1.1",
 )
 link(
-    "Recorded application-build CI (PASS)",
-    "https://github.com/TheSlayer455/octane-wslc-lab/actions/runs/43549532904",
+    "Final implementation CI (PASS)",
+    "https://github.com/TheSlayer455/octane-wslc-lab/actions/runs/43560204604",
 )
 h("Measured artifact identity")
 code("""Installer source commit:
