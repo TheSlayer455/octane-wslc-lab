@@ -2,7 +2,7 @@
 param(
     [ValidateSet('Wslc','Docker')][string]$Engine = 'Wslc',
     [string]$WslDistro,
-    [ValidateSet('WineGui','DockerWine','WineGuiOle32Control','WineGuiOle32Mr12477')][string]$WineProfile = 'WineGui',
+    [ValidateSet('WineGui','DockerWine','WineGuiOle32Control','WineGuiOle32Mr12477','DockerWineStaging1121Control','DockerWineStaging1121VisRgn')][string]$WineProfile = 'WineGui',
     [ValidateRange(1024,65535)][int]$Port = 3001,
     [string]$BaseImage,
     [ValidateRange(30,900)][int]$StartupTimeoutSeconds = 240,
@@ -77,7 +77,7 @@ try {
         foreach ($argument in @('-e','CUSTOM_USER=octane','-e',"PASSWORD=$password")) { $runArguments.Add($argument) }
     } else {
         $passwordHash = New-OctaneUnixPasswordHash -Password $password -WslDistro $WslDistro
-        foreach ($argument in @('--platform','linux/amd64','-e','RDP_SERVER=yes','-e',"USER_PASSWD=$passwordHash")) { $runArguments.Add($argument) }
+        foreach ($argument in @('--platform','linux/amd64','-e','RDP_SERVER=yes','-e','USER_SUDO=no','-e',"USER_PASSWD=$passwordHash")) { $runArguments.Add($argument) }
     }
     $runArguments.Add($image)
 
@@ -103,6 +103,7 @@ try {
     Write-Output 'Keep the password local. It is not stored in run metadata.'
     Write-Output "Run metadata: runs/$name.json"
     Write-Output 'Inside the desktop terminal run: octane-lab environment; octane-lab notepad; octane-lab install; octane-lab diagnostic; octane-lab launch-ole (one at a time).'
+    Write-Output "From the controller, run: ./scripts/Invoke-OctaneExperiment.ps1 -Container $name -Engine $Engine$(if($WslDistro){" -WslDistro '$WslDistro'"})"
 } catch {
     try { Update-OctaneRunStage -Path $statePath -Stage $activeStage -Status FAIL -Detail $_.Exception.Message } catch { }
     try { Block-OctaneRunStages -Path $statePath -Detail "Blocked after $activeStage failed." } catch { }

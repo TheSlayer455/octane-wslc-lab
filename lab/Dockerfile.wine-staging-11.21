@@ -1,0 +1,109 @@
+ARG WINE_BUILDER_IMAGE=ubuntu@sha256:2198e4c65076e9cb0b3d695219df667c0e3b0072da64ca3c2648aca17dcecaf5
+ARG BASE_IMAGE=scottyhardy/docker-wine@sha256:c61cfc490aaee10b96782b88733a0f3d0e7b425d93b4e96617d9ab9a2b6bcfd2
+
+FROM ${WINE_BUILDER_IMAGE} AS wine-source
+ARG WINE_SOURCE_COMMIT=2528aff26208257fdbf980666a4f0e66d47563ce
+ARG WINE_STAGING_COMMIT=04414fee61f7d283072d40905816b928875b2d4b
+ARG WINE_VISRGN_PATCH_SHA256
+
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        autoconf bison build-essential ca-certificates flex gettext git pkg-config python3 \
+        gcc-mingw-w64-i686 gcc-mingw-w64-x86-64 \
+        libcapi20-dev libcups2-dev libdbus-1-dev libegl-dev libfontconfig-dev libfreetype-dev \
+        libgl-dev libgnutls28-dev libgstreamer-plugins-base1.0-dev libgstreamer1.0-dev \
+        libkrb5-dev libpcap-dev libpulse-dev libsdl2-dev libudev-dev libunwind-dev \
+        libusb-1.0-0-dev libv4l-dev libvulkan-dev libwayland-dev libx11-dev libxcomposite-dev \
+        libxcursor-dev libxext-dev libxfixes-dev libxi-dev libxinerama-dev libxkbcommon-dev \
+        libxml2-dev libxrandr-dev libxrender-dev wayland-protocols \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /src/wine
+RUN git init \
+    && git remote add origin https://github.com/wine-mirror/wine.git \
+    && git fetch --depth 1 origin "${WINE_SOURCE_COMMIT}" \
+    && git checkout --detach FETCH_HEAD \
+    && test "$(git rev-parse HEAD)" = "${WINE_SOURCE_COMMIT}"
+
+WORKDIR /src/wine-staging
+RUN git init \
+    && git remote add origin https://github.com/wine-staging/wine-staging.git \
+    && git fetch --depth 1 origin "${WINE_STAGING_COMMIT}" \
+    && git checkout --detach FETCH_HEAD \
+    && test "$(git rev-parse HEAD)" = "${WINE_STAGING_COMMIT}" \
+    && test "$(cat staging/upstream-commit)" = "${WINE_SOURCE_COMMIT}" \
+    && test "$(cat staging/VERSION)" = "Wine Staging 11.21"
+
+WORKDIR /src/wine
+RUN DESTDIR=/src/wine python3 /src/wine-staging/staging/patchinstall.py --all \
+    && git diff --check
+
+COPY lab/patches/0002-win32u-recheck-visrgn-for-cross-process-children.patch /tmp/visrgn.patch
+RUN echo "${WINE_VISRGN_PATCH_SHA256}  /tmp/visrgn.patch" | sha256sum -c -
+
+FROM wine-source AS wine-control-builder
+WORKDIR /src/build
+RUN /src/wine/configure --prefix=/opt/octane-wine --enable-archs=i386,x86_64 --disable-tests \
+    && make -j"$(nproc)"
+
+FROM wine-control-builder AS wine-builder
+ARG WINE_VARIANT=control
+ARG WINE_SOURCE_COMMIT=2528aff26208257fdbf980666a4f0e66d47563ce
+ARG WINE_STAGING_COMMIT=04414fee61f7d283072d40905816b928875b2d4b
+ARG WINE_VISRGN_PATCH_SHA256
+WORKDIR /src/wine
+RUN case "${WINE_VARIANT}" in \
+         control) ;; \
+         solid-edge-visrgn) git apply --check /tmp/visrgn.patch && git apply /tmp/visrgn.patch ;; \
+         *) echo "Unsupported WINE_VARIANT=${WINE_VARIANT}" >&2; exit 2 ;; \
+       esac \
+    && git diff --check
+
+WORKDIR /src/build
+RUN make -j"$(nproc)" \
+    && make install DESTDIR=/out \
+    && test -x /out/opt/octane-wine/bin/wine
+
+RUN mkdir -p /out/opt/octane-wine/share/octane \
+    && find /src/wine-staging/patches -type f -name '*.patch' -print0 | sort -z | xargs -0 sha256sum > /out/opt/octane-wine/share/octane/wine-staging-patches.sha256 \
+    && sha256sum /out/opt/octane-wine/share/octane/wine-staging-patches.sha256 > /out/opt/octane-wine/share/octane/wine-staging-patch-list.sha256 \
+    && staging_list_sha="$(sha256sum /out/opt/octane-wine/share/octane/wine-staging-patches.sha256 | cut -d' ' -f1)" \
+    && if [ "${WINE_VARIANT}" = solid-edge-visrgn ]; then patch_applied=true; else patch_applied=false; fi \
+    && printf '{\n  "schemaVersion": 1,\n  "variant": "%s",\n  "wineVersion": "11.21",\n  "wineSourceCommit": "%s",\n  "wineStagingCommit": "%s",\n  "wineStagingVersion": "Wine Staging 11.21",\n  "orderedStagingPatchListSha256": "%s",\n  "visibleRegionPatchApplied": %s,\n  "visibleRegionPatchSource": "https://github.com/JustNotesa/solid-edge-wine-fixes",\n  "visibleRegionPatchSourceCommit": "d3fd3268536ed43c7e5c616bc1c98eec07a9d154",\n  "visibleRegionPatchSha256": "%s",\n  "architectures": ["i386", "x86_64"]\n}\n' \
+         "${WINE_VARIANT}" "${WINE_SOURCE_COMMIT}" "${WINE_STAGING_COMMIT}" "${staging_list_sha}" "${patch_applied}" "${WINE_VISRGN_PATCH_SHA256}" \
+         > /out/opt/octane-wine/share/octane/wine-build.json
+
+FROM ${BASE_IMAGE}
+ARG WINE_VARIANT=control
+ARG WINE_SOURCE_COMMIT=2528aff26208257fdbf980666a4f0e66d47563ce
+ARG WINE_STAGING_COMMIT=04414fee61f7d283072d40905816b928875b2d4b
+ARG WINE_VISRGN_PATCH_SHA256
+
+USER root
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ffmpeg imagemagick jq mesa-utils procps vulkan-tools xdotool x11-utils \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=wine-builder /out/opt/octane-wine /opt/octane-wine
+COPY artifacts/Octane-setup.exe /opt/octane/Octane-setup.exe
+COPY artifacts/installer-manifest.json /opt/octane/installer-manifest.json
+COPY diagnostics/webview2-win32/artifacts/WebView2Diagnostic.exe /opt/octane/WebView2Diagnostic.exe
+COPY diagnostics/webview2-win32/artifacts/diagnostic-manifest.json /opt/octane/diagnostic-manifest.json
+COPY fixtures/ /opt/octane/fixtures/
+COPY lab/octane-lab /usr/local/bin/octane-lab
+COPY lab/octane-webview2-experiment /usr/local/bin/octane-webview2-experiment
+RUN chmod 755 /usr/local/bin/octane-lab /usr/local/bin/octane-webview2-experiment \
+    && /opt/octane-wine/bin/wine --version | grep -F 'wine-11.21'
+
+ENV PATH=/opt/octane-wine/bin:${PATH} \
+    OCTANE_STATE_DIR=/home/wineuser/.octane \
+    OCTANE_EVIDENCE_DIR=/home/wineuser/.octane/evidence \
+    WINEPREFIX=/home/wineuser/.octane/prefix \
+    WINEARCH=win64
+
+LABEL com.octanelab.wine-version="11.21" \
+      com.octanelab.wine-source-commit="${WINE_SOURCE_COMMIT}" \
+      com.octanelab.wine-staging-commit="${WINE_STAGING_COMMIT}" \
+      com.octanelab.wine-variant="${WINE_VARIANT}" \
+      com.octanelab.wine-visrgn-patch-sha256="${WINE_VISRGN_PATCH_SHA256}"
+
+ENTRYPOINT ["/usr/bin/entrypoint"]

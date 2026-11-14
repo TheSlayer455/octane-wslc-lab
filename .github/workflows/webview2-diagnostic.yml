@@ -4,10 +4,12 @@ on:
     branches: [main]
     paths:
       - diagnostics/webview2-win32/**
+      - scripts/Build-WebView2Diagnostic.ps1
       - .github/workflows/webview2-diagnostic.yml
   pull_request:
     paths:
       - diagnostics/webview2-win32/**
+      - scripts/Build-WebView2Diagnostic.ps1
       - .github/workflows/webview2-diagnostic.yml
   workflow_dispatch:
 permissions:
@@ -22,39 +24,9 @@ jobs:
       - uses: NuGet/setup-nuget@v2
         with:
           nuget-version: 6.x
-      - name: Restore pinned WebView2 SDK
+      - name: Build and stage native x64 diagnostic
         shell: pwsh
-        run: >-
-          nuget restore diagnostics/webview2-win32/WebView2Diagnostic.sln
-          -PackagesDirectory diagnostics/webview2-win32/packages
-          -NonInteractive
-      - name: Build native x64 diagnostic
-        shell: pwsh
-        run: >-
-          msbuild diagnostics/webview2-win32/WebView2Diagnostic.sln
-          /m
-          /p:Configuration=Release
-          /p:Platform=x64
-          /p:ContinuousIntegrationBuild=true
-      - name: Stage diagnostic and manifest
-        shell: pwsh
-        run: |
-          $source = 'diagnostics/webview2-win32/bin/x64/Release/WebView2Diagnostic.exe'
-          if (!(Test-Path -LiteralPath $source)) { throw "Missing $source" }
-          $output = 'diagnostics/webview2-win32/artifacts'
-          New-Item -ItemType Directory -Path $output -Force | Out-Null
-          Copy-Item -LiteralPath $source -Destination "$output/WebView2Diagnostic.exe"
-          $hash = (Get-FileHash -LiteralPath "$output/WebView2Diagnostic.exe" -Algorithm SHA256).Hash.ToLowerInvariant()
-          [ordered]@{
-            schemaVersion = 1
-            file = 'WebView2Diagnostic.exe'
-            sha256 = $hash
-            sourceCommit = $env:GITHUB_SHA
-            builtAtUtc = [DateTime]::UtcNow.ToString('o')
-            architecture = 'x64'
-            webView2Sdk = '1.0.3856.49'
-            upstreamSampleReference = '06d49d546ba5dc0e2773798ee5b982f68275af4c'
-          } | ConvertTo-Json | Set-Content -LiteralPath "$output/diagnostic-manifest.json" -Encoding utf8
+        run: ./scripts/Build-WebView2Diagnostic.ps1
       - name: Upload diagnostic
         uses: actions/upload-artifact@v4
         with:

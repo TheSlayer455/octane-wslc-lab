@@ -3,7 +3,7 @@ Set-StrictMode -Version Latest
 function Get-OctaneWineProfile {
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory=$true)][ValidateSet('WineGui','DockerWine','WineGuiOle32Control','WineGuiOle32Mr12477')][string]$WineProfile,
+        [Parameter(Mandatory=$true)][ValidateSet('WineGui','DockerWine','WineGuiOle32Control','WineGuiOle32Mr12477','DockerWineStaging1121Control','DockerWineStaging1121VisRgn')][string]$WineProfile,
         [string]$BaseImage
     )
 
@@ -26,6 +26,35 @@ function Get-OctaneWineProfile {
             StateDirectory = '/config'
             EvidenceDirectory = '/config/octane-evidence'
             DesktopLabel = 'browser desktop'
+        }
+    }
+
+    if ($WineProfile -in @('DockerWineStaging1121Control','DockerWineStaging1121VisRgn')) {
+        $variant = if ($WineProfile -eq 'DockerWineStaging1121VisRgn') { 'solid-edge-visrgn' } else { 'control' }
+        return [pscustomobject]@{
+            Name = $WineProfile
+            ProfileKind = 'DockerWine'
+            BaseImage = if ($BaseImage) { $BaseImage } else { 'scottyhardy/docker-wine@sha256:c61cfc490aaee10b96782b88733a0f3d0e7b425d93b4e96617d9ab9a2b6bcfd2' }
+            Dockerfile = 'lab/Dockerfile.wine-staging-11.21'
+            BuildArguments = [ordered]@{
+                WINE_VARIANT = $variant
+                WINE_SOURCE_COMMIT = '2528aff26208257fdbf980666a4f0e66d47563ce'
+                WINE_STAGING_COMMIT = '04414fee61f7d283072d40905816b928875b2d4b'
+                WINE_VISRGN_PATCH_SHA256 = 'f0ea7e56c4b86ce6e1f99940c4c18ac80f2bee86442c800bc58c2f36bde92752'
+            }
+            BuildTimeoutSeconds = 7200
+            Experiment = if ($variant -eq 'control') {
+                'Wine 11.21 plus Wine-Staging 11.21 control, built from pinned source'
+            } else {
+                'Wine 11.21 plus Wine-Staging 11.21 and the pinned Solid Edge cross-process visible-region patch'
+            }
+            EndpointKind = 'Rdp'
+            ContainerPort = 3389
+            Username = 'wineuser'
+            ExecUser = 'wineuser'
+            StateDirectory = '/home/wineuser/.octane'
+            EvidenceDirectory = '/home/wineuser/.octane/evidence'
+            DesktopLabel = 'RDP desktop'
         }
     }
 

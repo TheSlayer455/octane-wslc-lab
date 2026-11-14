@@ -1,7 +1,9 @@
 #include <windows.h>
 #include <wrl.h>
 #include <WebView2.h>
+#include <WebView2EnvironmentOptions.h>
 
+#include <algorithm>
 #include <string>
 
 using Microsoft::WRL::Callback;
@@ -12,14 +14,33 @@ namespace {
 constexpr wchar_t kWindowClass[] = L"OctaneWebView2DiagnosticWindow";
 constexpr wchar_t kWindowTitle[] = L"Octane WebView2 Diagnostic";
 constexpr LONG kNativeStatusHeight = 56;
+constexpr UINT_PTR kProbeTimer = 1;
+
+enum class ProbeStage {
+    NativeHost,
+    Environment,
+    Controller,
+    Navigation,
+    DomReady,
+    Failed,
+};
 
 HWND g_window = nullptr;
 HANDLE g_log = INVALID_HANDLE_VALUE;
 SRWLOCK g_log_lock = SRWLOCK_INIT;
 std::wstring g_status = L"native host starting";
+ProbeStage g_stage = ProbeStage::NativeHost;
+ULONGLONG g_stage_started = 0;
+ULONGLONG g_dom_ready_at = 0;
+DWORD g_stage_timeout_seconds = 45;
+DWORD g_run_seconds = 0;
+int g_exit_code = 0;
+bool g_dom_poll_pending = false;
 ComPtr<ICoreWebView2Environment> g_environment;
 ComPtr<ICoreWebView2Controller> g_controller;
 ComPtr<ICoreWebView2> g_webview;
+
+void SetStatus(const std::wstring& status);
 
 const wchar_t kDiagnosticHtml[] = LR"HTML(
 <!doctype html>
@@ -36,7 +57,7 @@ const wchar_t kDiagnosticHtml[] = LR"HTML(
   .grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; }
   .card { background: white; border: 1px solid #c9d8e3; border-radius: 12px; padding: 18px; box-shadow: 0 2px 8px #17384d18; }
   .label { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: #54748b; }
-  #counter { font-size: 44px; font-variant-numeric: tabular-nums; font-weight: 700; }
+  .counter { font-size: 40px; font-variant-numeric: tabular-nums; font-weight: 700; }
   #pulse { height: 88px; border-radius: 10px; background: hsl(195 72% 48%); transition: background-color .18s linear; }
   button { border: 0; border-radius: 8px; padding: 11px 17px; color: white; background: #006f9f; font-weight: 700; cursor: pointer; }
   input { box-sizing: border-box; width: 100%; margin-top: 10px; padding: 10px 12px; border: 1px solid #9bb3c4; border-radius: 7px; font-size: 16px; }
@@ -52,7 +73,10 @@ const wchar_t kDiagnosticHtml[] = LR"HTML(
   <h1>Native Win32 WebView2 diagnostic</h1>
   <div class="sub">Local content only. Visible motion, input, click, and scroll are independent acceptance signals.</div>
   <div class="grid">
-    <section class="card"><div class="label">Repaint counter</div><div id="counter">0</div></section>
+    <section class="card">
+      <div class="label">Animation frames</div><div id="rafCounter" class="counter">0</div>
+      <div class="label">Interval callbacks</div><div id="intervalCounter" class="counter">0</div>
+    </section>
     <section class="card"><div class="label">Animated color</div><div id="pulse"></div></section>
     <section class="card">
       <div class="label">Input and click</div>
@@ -69,34 +93,70 @@ const wchar_t kDiagnosticHtml[] = LR"HTML(
 <script>
 (() => {
   const send = value => window.chrome.webview.postMessage(value);
-  const counter = document.getElementById('counter');
+  const rafCounter = document.getElementById('rafCounter');
+  const intervalCounter = document.getElementById('intervalCounter');
   const pulse = document.getElementById('pulse');
   const action = document.getElementById('action');
   const entry = document.getElementById('entry');
   const mirror = document.getElementById('mirror');
   const scrollbox = document.getElementById('scrollbox');
-  let ticks = 0;
-  let clicks = 0;
-  send('dom-ready');
+  const state = window.__octaneProbe = {
+    raf: 0, intervals: 0, clicks: 0, inputLength: 0, scrollTop: 0,
+    resizeCount: 0, visibility: document.visibilityState
+  };
+  const snapshot = () => ({
+    ...state,
+    visibility: document.visibilityState,
+    width: innerWidth,
+    height: innerHeight,
+    background: getComputedStyle(document.body).backgroundColor,
+    pulse: getComputedStyle(pulse).backgroundColor
+  });
+  const safeError = value => String(value || 'unknown').replace(/[\r\n\t]/g, ' ');
+  window.addEventListener('error', event => send(`javascript-error:${safeError(event.message)}`));
+  window.addEventListener('unhandledrejection', event => send(`javascript-rejection:${safeError(event.reason)}`));
+  const animate = () => {
+    state.raf += 1;
+    rafCounter.textContent = String(state.raf);
+    requestAnimationFrame(animate);
+  };
+  requestAnimationFrame(animate);
   setInterval(() => {
-    ticks += 1;
-    counter.textContent = String(ticks);
-    pulse.style.backgroundColor = `hsl(${(ticks * 17) % 360} 72% 48%)`;
-    if (ticks === 4 || ticks % 20 === 0) send(`repaint-tick:${ticks}`);
+    state.intervals += 1;
+    intervalCounter.textContent = String(state.intervals);
+    pulse.style.backgroundColor = `hsl(${(state.intervals * 17) % 360} 72% 48%)`;
   }, 250);
+  setInterval(() => send(`telemetry:${JSON.stringify(snapshot())}`), 1000);
   action.addEventListener('click', () => {
-    clicks += 1;
-    document.body.style.backgroundColor = clicks % 2 ? '#fff6df' : '#f5f8fb';
-    action.textContent = `Panel changed ${clicks}`;
-    send(`button-click:${clicks}`);
+    state.clicks += 1;
+    document.body.style.backgroundColor = state.clicks % 2 ? '#fff6df' : '#f5f8fb';
+    action.textContent = `Panel changed ${state.clicks}`;
+    send(`button-click:${state.clicks}`);
   });
   entry.addEventListener('input', () => {
     mirror.textContent = entry.value || 'Waiting for input';
-    send(`input-length:${entry.value.length}`);
+    state.inputLength = entry.value.length;
+    send(`input-length:${state.inputLength}`);
   });
   scrollbox.addEventListener('scroll', () => {
-    if (scrollbox.scrollTop > 450) send(`scroll-bottom:${Math.round(scrollbox.scrollTop)}`);
+    state.scrollTop = Math.round(scrollbox.scrollTop);
+    if (state.scrollTop > 450) send(`scroll-bottom:${state.scrollTop}`);
   }, { passive: true });
+  addEventListener('resize', () => {
+    state.resizeCount += 1;
+    send(`resize:${innerWidth}x${innerHeight}:${state.resizeCount}`);
+  });
+  document.addEventListener('visibilitychange', () => {
+    state.visibility = document.visibilityState;
+    send(`visibility:${state.visibility}`);
+  });
+  window.octaneProbeSetMagenta = () => {
+    document.body.style.backgroundColor = 'rgb(255, 0, 255)';
+    send(`script-mutation:${JSON.stringify(snapshot())}`);
+    return snapshot();
+  };
+  window.octaneProbeSnapshot = snapshot;
+  send('dom-ready');
 })();
 </script>
 </body>
@@ -111,6 +171,15 @@ std::wstring GetEnvironmentValue(const wchar_t* name) {
     if (written == 0 || written >= required) return {};
     value.resize(written);
     return value;
+}
+
+DWORD GetEnvironmentDword(const wchar_t* name, DWORD fallback, DWORD minimum, DWORD maximum) {
+    const std::wstring value = GetEnvironmentValue(name);
+    if (value.empty()) return fallback;
+    wchar_t* end = nullptr;
+    const unsigned long parsed = wcstoul(value.c_str(), &end, 10);
+    if (!end || *end != L'\0') return fallback;
+    return std::clamp<DWORD>(static_cast<DWORD>(parsed), minimum, maximum);
 }
 
 std::wstring HresultText(HRESULT value) {
@@ -161,6 +230,32 @@ void Log(const std::wstring& event, const std::wstring& detail = {}) {
     ReleaseSRWLockExclusive(&g_log_lock);
 }
 
+const wchar_t* StageName(ProbeStage stage) {
+    switch (stage) {
+    case ProbeStage::NativeHost: return L"native-host";
+    case ProbeStage::Environment: return L"environment";
+    case ProbeStage::Controller: return L"controller";
+    case ProbeStage::Navigation: return L"navigation";
+    case ProbeStage::DomReady: return L"dom-ready";
+    case ProbeStage::Failed: return L"failed";
+    }
+    return L"unknown";
+}
+
+void BeginStage(ProbeStage stage) {
+    g_stage = stage;
+    g_stage_started = GetTickCount64();
+    Log(L"stage-begin", L"stage=" + std::wstring(StageName(stage)));
+}
+
+void FailAndClose(const std::wstring& reason, int exit_code) {
+    g_exit_code = exit_code;
+    g_stage = ProbeStage::Failed;
+    Log(L"probe-failed", L"reason=" + reason + L"\texit_code=" + Number(exit_code));
+    SetStatus(reason);
+    if (g_window) PostMessageW(g_window, WM_CLOSE, 0, 0);
+}
+
 void SetStatus(const std::wstring& status) {
     g_status = status;
     if (g_window) {
@@ -179,6 +274,46 @@ void ResizeWebView() {
     if (bounds.bottom < bounds.top) bounds.bottom = bounds.top;
     const HRESULT hr = g_controller->put_Bounds(bounds);
     if (FAILED(hr)) Log(L"controller-bounds-failed", L"hresult=" + HresultText(hr));
+}
+
+void PollDomState() {
+    if (!g_webview || g_dom_poll_pending || g_stage != ProbeStage::DomReady) return;
+    g_dom_poll_pending = true;
+    const HRESULT hr = g_webview->ExecuteScript(
+        L"JSON.stringify(window.octaneProbeSnapshot ? window.octaneProbeSnapshot() : {error:'snapshot-unavailable'})",
+        Callback<ICoreWebView2ExecuteScriptCompletedHandler>(
+            [](HRESULT error_code, LPCWSTR result) -> HRESULT {
+                g_dom_poll_pending = false;
+                std::wstring detail = L"hresult=" + HresultText(error_code);
+                if (result) detail += L"\tresult=" + std::wstring(result);
+                Log(L"dom-snapshot", detail);
+                return S_OK;
+            }).Get());
+    if (FAILED(hr)) {
+        g_dom_poll_pending = false;
+        Log(L"dom-snapshot-request-failed", L"hresult=" + HresultText(hr));
+    }
+}
+
+void CheckProbeTimer() {
+    const ULONGLONG now = GetTickCount64();
+    if (g_stage == ProbeStage::Environment || g_stage == ProbeStage::Controller || g_stage == ProbeStage::Navigation) {
+        const ULONGLONG elapsed = now - g_stage_started;
+        if (elapsed > static_cast<ULONGLONG>(g_stage_timeout_seconds) * 1000ULL) {
+            const std::wstring stage = StageName(g_stage);
+            Log(L"stage-timeout", L"stage=" + stage + L"\telapsed_ms=" + Number(elapsed));
+            FailAndClose(L"timeout in " + stage, 20 + static_cast<int>(g_stage));
+            return;
+        }
+    }
+    if (g_stage == ProbeStage::DomReady) {
+        PollDomState();
+        if (g_run_seconds > 0 && now - g_dom_ready_at >= static_cast<ULONGLONG>(g_run_seconds) * 1000ULL) {
+            Log(L"probe-duration-complete", L"seconds=" + Number(g_run_seconds));
+            g_exit_code = 0;
+            PostMessageW(g_window, WM_CLOSE, 0, 0);
+        }
+    }
 }
 
 void ConfigureWebView() {
@@ -250,7 +385,11 @@ void ConfigureWebView() {
                 if (SUCCEEDED(message_hr) && message) {
                     const std::wstring value(message);
                     Log(L"web-message", L"value=" + value);
-                    if (value == L"dom-ready") SetStatus(L"DOM ready and messaging");
+                    if (value == L"dom-ready") {
+                        BeginStage(ProbeStage::DomReady);
+                        g_dom_ready_at = GetTickCount64();
+                        SetStatus(L"DOM ready; visible repaint unverified");
+                    }
                     CoTaskMemFree(message);
                 } else {
                     Log(L"web-message-failed", L"hresult=" + HresultText(message_hr));
@@ -263,21 +402,41 @@ void ConfigureWebView() {
     ResizeWebView();
     hr = g_webview->NavigateToString(kDiagnosticHtml);
     Log(L"navigate-to-string", L"hresult=" + HresultText(hr));
-    if (FAILED(hr)) SetStatus(L"NavigateToString failed " + HresultText(hr));
+    if (FAILED(hr)) {
+        FailAndClose(L"NavigateToString failed " + HresultText(hr), 14);
+    } else {
+        BeginStage(ProbeStage::Navigation);
+    }
 }
 
 void InitializeWebView() {
     const std::wstring user_data = GetEnvironmentValue(L"OCTANE_WEBVIEW2_USER_DATA");
-    Log(L"environment-create-request", user_data.empty() ? L"user_data=default" : L"user_data=" + user_data);
+    const std::wstring browser_folder = GetEnvironmentValue(L"OCTANE_WEBVIEW2_BROWSER_EXECUTABLE_FOLDER");
+    const std::wstring browser_arguments = GetEnvironmentValue(L"OCTANE_WEBVIEW2_BROWSER_ARGS");
+    std::wstring detail = user_data.empty() ? L"user_data=default" : L"user_data=" + user_data;
+    detail += browser_folder.empty() ? L"\tbrowser_folder=installed-runtime" : L"\tbrowser_folder=" + browser_folder;
+    detail += browser_arguments.empty() ? L"\trequested_browser_args=none" : L"\trequested_browser_args=" + browser_arguments;
+    Log(L"environment-create-request", detail);
+
+    auto options = Microsoft::WRL::Make<CoreWebView2EnvironmentOptions>();
+    if (!browser_arguments.empty()) {
+        const HRESULT options_hr = options->put_AdditionalBrowserArguments(browser_arguments.c_str());
+        Log(L"set-browser-arguments", L"hresult=" + HresultText(options_hr));
+        if (FAILED(options_hr)) {
+            FailAndClose(L"browser arguments rejected " + HresultText(options_hr), 10);
+            return;
+        }
+    }
+    BeginStage(ProbeStage::Environment);
     const HRESULT immediate_hr = CreateCoreWebView2EnvironmentWithOptions(
-        nullptr,
+        browser_folder.empty() ? nullptr : browser_folder.c_str(),
         user_data.empty() ? nullptr : user_data.c_str(),
-        nullptr,
+        options.Get(),
         Callback<ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandler>(
             [](HRESULT result, ICoreWebView2Environment* environment) -> HRESULT {
                 Log(L"environment-created", L"hresult=" + HresultText(result));
                 if (FAILED(result) || !environment) {
-                    SetStatus(L"environment failed " + HresultText(result));
+                    FailAndClose(L"environment failed " + HresultText(result), 11);
                     return S_OK;
                 }
 
@@ -324,39 +483,57 @@ void InitializeWebView() {
                 }
 
                 SetStatus(L"environment ready");
+                BeginStage(ProbeStage::Controller);
                 const HRESULT controller_hr = environment->CreateCoreWebView2Controller(
                     g_window,
                     Callback<ICoreWebView2CreateCoreWebView2ControllerCompletedHandler>(
                         [](HRESULT controller_result, ICoreWebView2Controller* controller) -> HRESULT {
                             Log(L"controller-created", L"hresult=" + HresultText(controller_result));
                             if (FAILED(controller_result) || !controller) {
-                                SetStatus(L"controller failed " + HresultText(controller_result));
+                                FailAndClose(L"controller failed " + HresultText(controller_result), 12);
                                 return S_OK;
                             }
                             g_controller = controller;
                             const HRESULT webview_hr = controller->get_CoreWebView2(&g_webview);
                             Log(L"get-core-webview2", L"hresult=" + HresultText(webview_hr));
                             if (FAILED(webview_hr) || !g_webview) {
-                                SetStatus(L"CoreWebView2 failed " + HresultText(webview_hr));
+                                FailAndClose(L"CoreWebView2 failed " + HresultText(webview_hr), 13);
                                 return S_OK;
                             }
+                            UINT32 browser_pid = 0;
+                            const HRESULT pid_hr = g_webview->get_BrowserProcessId(&browser_pid);
+                            Log(
+                                L"browser-process",
+                                L"hresult=" + HresultText(pid_hr) + L"\tbrowser_pid=" + Number(browser_pid));
                             SetStatus(L"controller ready");
                             ConfigureWebView();
                             return S_OK;
                         }).Get());
                 Log(L"controller-create-request", L"hresult=" + HresultText(controller_hr));
-                if (FAILED(controller_hr)) SetStatus(L"controller request failed " + HresultText(controller_hr));
+                if (FAILED(controller_hr)) FailAndClose(L"controller request failed " + HresultText(controller_hr), 12);
                 return S_OK;
             }).Get());
     Log(L"environment-create-return", L"hresult=" + HresultText(immediate_hr));
-    if (FAILED(immediate_hr)) SetStatus(L"environment request failed " + HresultText(immediate_hr));
+    if (FAILED(immediate_hr)) FailAndClose(L"environment request failed " + HresultText(immediate_hr), 11);
 }
 
 LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wparam, LPARAM lparam) {
     switch (message) {
+    case WM_TIMER:
+        if (wparam == kProbeTimer) CheckProbeTimer();
+        return 0;
     case WM_SIZE:
+        Log(
+            L"window-size",
+            L"state=" + Number(wparam) + L"\twidth=" + Number(LOWORD(lparam)) + L"\theight=" + Number(HIWORD(lparam)));
         ResizeWebView();
         return 0;
+    case WM_SHOWWINDOW:
+        Log(L"window-show", L"shown=" + Number(wparam));
+        return DefWindowProcW(window, message, wparam, lparam);
+    case WM_ACTIVATE:
+        Log(L"window-activate", L"state=" + Number(LOWORD(wparam)));
+        return DefWindowProcW(window, message, wparam, lparam);
     case WM_PAINT: {
         PAINTSTRUCT paint{};
         HDC device = BeginPaint(window, &paint);
@@ -379,6 +556,7 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wparam, LPARA
         return 0;
     case WM_DESTROY:
         Log(L"window-destroy-begin");
+        KillTimer(window, kProbeTimer);
         if (g_controller) {
             const HRESULT close_hr = g_controller->Close();
             Log(L"controller-close-return", L"hresult=" + HresultText(close_hr));
@@ -387,7 +565,7 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wparam, LPARA
         g_controller.Reset();
         g_environment.Reset();
         Log(L"window-destroy-complete");
-        PostQuitMessage(0);
+        PostQuitMessage(g_exit_code);
         return 0;
     default:
         return DefWindowProcW(window, message, wparam, lparam);
@@ -417,10 +595,17 @@ bool OpenLog() {
 
 int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show_command) {
     OpenLog();
-    Log(L"process-start");
+    g_stage_timeout_seconds = GetEnvironmentDword(L"OCTANE_DIAGNOSTIC_STAGE_TIMEOUT_SECONDS", 45, 5, 600);
+    g_run_seconds = GetEnvironmentDword(L"OCTANE_DIAGNOSTIC_RUN_SECONDS", 0, 0, 3600);
+    wchar_t executable[MAX_PATH]{};
+    GetModuleFileNameW(nullptr, executable, MAX_PATH);
+    Log(
+        L"process-start",
+        L"executable=" + std::wstring(executable) + L"\tcommand_line=" + std::wstring(GetCommandLineW()) +
+            L"\tstage_timeout_seconds=" + Number(g_stage_timeout_seconds) + L"\trun_seconds=" + Number(g_run_seconds));
     const HRESULT com_hr = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
     Log(L"coinitialize", L"hresult=" + HresultText(com_hr));
-    if (FAILED(com_hr) && com_hr != RPC_E_CHANGED_MODE) return 2;
+    if (FAILED(com_hr)) return 2;
 
     WNDCLASSEXW window_class{};
     window_class.cbSize = sizeof(window_class);
@@ -458,6 +643,8 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show_command) {
     ShowWindow(g_window, show_command);
     UpdateWindow(g_window);
     SetStatus(L"native host ready");
+    BeginStage(ProbeStage::NativeHost);
+    SetTimer(g_window, kProbeTimer, 1000, nullptr);
     InitializeWebView();
 
     MSG message{};
@@ -469,5 +656,5 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show_command) {
     if (SUCCEEDED(com_hr)) CoUninitialize();
     Log(L"process-exit");
     if (g_log != INVALID_HANDLE_VALUE) CloseHandle(g_log);
-    return static_cast<int>(message.wParam);
+    return g_exit_code != 0 ? g_exit_code : static_cast<int>(message.wParam);
 }

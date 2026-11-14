@@ -13,6 +13,7 @@ function global:Invoke-OctaneNativeProcess {
     $global:calls.Add([pscustomobject]@{file=$FileName;arguments=@($Arguments);standardInput=$StandardInput})
     $stdout=''
     if($Arguments -contains 'wslpath'){$stdout='/mnt/c/mock/octane'}
+    elseif($Arguments[0] -eq '--version'){$stdout='WSL version: 3.0.1.0'}
     elseif($Arguments[0] -eq 'version'){$stdout='wslc 3.0.1.0'}
     elseif($Arguments[0] -eq 'inspect'){$stdout='[{"Config":{"Labels":{"com.octanelab.managed":"true","com.octanelab.engine":"wslc","com.octanelab.profile":"WineGui"}}}]'}
     elseif($Arguments[0] -eq 'logs'){$stdout='mock container log'}
@@ -78,6 +79,7 @@ try {
     Assert ($dockerWine.EndpointKind -eq 'Rdp') 'Docker-Wine profile must expose RDP'
     Assert ($dockerWine.Dockerfile -eq 'lab/Dockerfile.docker-wine') 'Docker-Wine must use its own image adapter'
     Assert ($dockerWine.BaseImage -match '@sha256:[a-f0-9]{64}$') 'Docker-Wine default must be digest pinned'
+    Assert ((Get-Content -LiteralPath (Join-Path $temp 'scripts/Start-OctaneLab.ps1') -Raw) -match "USER_SUDO=no") 'Docker-Wine desktop must explicitly disable upstream passwordless sudo'
     $oleControl=Get-OctaneWineProfile -WineProfile WineGuiOle32Control
     $olePatched=Get-OctaneWineProfile -WineProfile WineGuiOle32Mr12477
     Assert ($oleControl.Dockerfile -eq $olePatched.Dockerfile) 'OLE control and candidate must use the same Dockerfile'
@@ -86,6 +88,16 @@ try {
     Assert ($oleControl.BaseImage -eq $olePatched.BaseImage) 'OLE comparison must use the same pinned desktop base'
     Assert ($olePatched.ProfileKind -eq 'WineGui') 'OLE comparison must preserve the WineGUI desktop path'
     Assert ($olePatched.BuildTimeoutSeconds -eq 7200) 'Source-built Wine profiles need a bounded extended build timeout'
+    $stagingControl=Get-OctaneWineProfile -WineProfile DockerWineStaging1121Control
+    $stagingPatched=Get-OctaneWineProfile -WineProfile DockerWineStaging1121VisRgn
+    Assert ($stagingControl.Dockerfile -eq 'lab/Dockerfile.wine-staging-11.21') 'Wine-Staging control must use the reproducible source-build recipe'
+    Assert ($stagingControl.Dockerfile -eq $stagingPatched.Dockerfile) 'Wine-Staging comparison must use one Dockerfile'
+    Assert ($stagingControl.BaseImage -eq $stagingPatched.BaseImage) 'Wine-Staging comparison must use one pinned desktop base'
+    Assert ($stagingControl.BuildArguments.WINE_SOURCE_COMMIT -eq $stagingPatched.BuildArguments.WINE_SOURCE_COMMIT) 'Wine-Staging variants must use one Wine source commit'
+    Assert ($stagingControl.BuildArguments.WINE_STAGING_COMMIT -eq $stagingPatched.BuildArguments.WINE_STAGING_COMMIT) 'Wine-Staging variants must use one staging revision'
+    Assert ($stagingControl.BuildArguments.WINE_VARIANT -eq 'control') 'Wine-Staging control must not apply the visible-region patch'
+    Assert ($stagingPatched.BuildArguments.WINE_VARIANT -eq 'solid-edge-visrgn') 'Wine-Staging candidate must apply only the named visible-region delta after staging'
+    Assert ($stagingPatched.BuildArguments.WINE_VISRGN_PATCH_SHA256 -eq 'f0ea7e56c4b86ce6e1f99940c4c18ac80f2bee86442c800bc58c2f36bde92752') 'Candidate patch must use the canonical upstream blob SHA-256'
     $hash=New-OctaneUnixPasswordHash -Password 'not-secret' -WslDistro Ubuntu-24.04
     Assert ($hash -like '$1$*') 'Docker-Wine password must be hashed before container creation'
 
@@ -96,7 +108,7 @@ try {
     $rejected=$false
     try { & (Join-Path $temp 'scripts/Start-OctaneLab.ps1') -Port $port -SkipDeepDoctor | Out-Null } catch {$rejected=$true}
     Assert $rejected 'Must reject mismatched installer hash'
-    Write-Output 'PowerShell harness: 37 assertions passed (mock runtimes; not a GUI compatibility test).'
+    Write-Output 'PowerShell harness: 46 assertions passed (mock runtimes; not a GUI compatibility test).'
 } finally {
     Remove-Item Function:\Invoke-OctaneNativeProcess -ErrorAction SilentlyContinue
     Remove-Item Function:\Wait-OctaneEndpoint -ErrorAction SilentlyContinue

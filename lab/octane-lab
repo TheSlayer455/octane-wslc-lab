@@ -34,14 +34,49 @@ run_logged() {
 }
 record_environment() {
     wine --version > "$evidence/wine-version.txt"
+    command -v wine > "$evidence/wine-command.txt"
+    readlink -f "$(command -v wine)" >> "$evidence/wine-command.txt" || true
     uname -a > "$evidence/kernel.txt"
+    cp /etc/os-release "$evidence/container-os-release.txt"
+    {
+        echo "display=${DISPLAY:-unset}"
+        echo "xdg_runtime_dir=${XDG_RUNTIME_DIR:-unset}"
+        echo "wineprefix=$WINEPREFIX"
+        echo "winearch=$WINEARCH"
+        echo "x_sockets:"
+        find /tmp/.X11-unix -maxdepth 1 -type s -printf '%f\n' 2>/dev/null | sort || true
+    } > "$evidence/display-environment.txt"
+    timeout 20 xdpyinfo > "$evidence/xdpyinfo.txt" 2>&1 || true
+    timeout 20 xwininfo -root > "$evidence/xwininfo-root.txt" 2>&1 || true
+    if command -v glxinfo >/dev/null 2>&1; then timeout 30 glxinfo -B > "$evidence/glxinfo.txt" 2>&1 || true; fi
+    if command -v vulkaninfo >/dev/null 2>&1; then timeout 30 vulkaninfo --summary > "$evidence/vulkaninfo.txt" 2>&1 || true; fi
     cp /opt/octane/installer-manifest.json "$evidence/"
     [[ ! -f /opt/octane/diagnostic-manifest.json ]] || cp /opt/octane/diagnostic-manifest.json "$evidence/"
-    sha256sum /opt/wine-stable/lib/wine/x86_64-windows/ole32.dll > "$evidence/ole32-active.sha256"
+    sha256sum /opt/octane/Octane-setup.exe > "$evidence/installer-actual.sha256"
+    [[ ! -f /opt/octane/WebView2Diagnostic.exe ]] || sha256sum /opt/octane/WebView2Diagnostic.exe > "$evidence/diagnostic-actual.sha256"
+    {
+        df -h / "$state_dir" /dev/shm 2>/dev/null || true
+        echo
+        echo 'cgroup:'
+        cat /proc/self/cgroup 2>/dev/null || true
+        for value in memory.current memory.max memory.events cpu.max pids.current pids.max; do
+            [[ ! -f "/sys/fs/cgroup/$value" ]] || { printf '%s=' "$value"; cat "/sys/fs/cgroup/$value"; }
+        done
+    } > "$evidence/resources.txt"
+    if [[ -f /opt/wine-stable/lib/wine/x86_64-windows/ole32.dll ]]; then
+        sha256sum /opt/wine-stable/lib/wine/x86_64-windows/ole32.dll > "$evidence/ole32-active.sha256"
+    fi
     if [[ -d /opt/octane/wine-overlay ]]; then
         cp /opt/octane/wine-overlay/wine-build.json "$evidence/"
         cp /opt/octane/wine-overlay/ole32.sha256 "$evidence/ole32-source-build.sha256"
         cp /opt/octane/wine-overlay/ole32.packaged.sha256 "$evidence/"
+    fi
+    if [[ -f /opt/octane-wine/share/octane/wine-build.json ]]; then
+        cp /opt/octane-wine/share/octane/wine-build.json "$evidence/wine-source-build.json"
+        cp /opt/octane-wine/share/octane/wine-staging-patches.sha256 "$evidence/"
+        cp /opt/octane-wine/share/octane/wine-staging-patch-list.sha256 "$evidence/"
+        sha256sum /opt/octane-wine/lib/wine/x86_64-unix/win32u.so > "$evidence/win32u-active.sha256"
+        sha256sum /opt/octane-wine/lib/wine/x86_64-windows/ole32.dll > "$evidence/ole32-active.sha256"
     fi
 }
 find_octane() {
@@ -81,7 +116,14 @@ case "${1:-help}" in
         OCTANE_WEBVIEW2_USER_DATA=$(winepath -w "$state_dir/webview2-diagnostic-user-data")
         export WINEDEBUG="${OCTANE_OLE_WINEDEBUG:-+timestamp,+ole,+seh}"
         run_logged webview2-diagnostic wine /opt/octane/WebView2Diagnostic.exe ;;
+    experiment)
+        if [[ ! -x /usr/local/bin/octane-webview2-experiment ]]; then
+            echo 'The WebView2 experiment runner is not present in this image.' >&2
+            exit 1
+        fi
+        record_environment
+        exec /usr/local/bin/octane-webview2-experiment ;;
     help|*)
-        echo 'Usage: octane-lab {environment|notepad|install|diagnostic|launch|launch-ole}'
+        echo 'Usage: octane-lab {environment|notepad|install|diagnostic|experiment|launch|launch-ole}'
         echo "Run as the desktop user. Export JSON beneath Z:${evidence//\//\\}." ;;
 esac

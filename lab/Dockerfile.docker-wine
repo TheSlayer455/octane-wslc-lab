@@ -2,13 +2,17 @@ ARG BASE_IMAGE=scottyhardy/docker-wine@sha256:c61cfc490aaee10b96782b88733a0f3d0e
 FROM ${BASE_IMAGE}
 
 USER root
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ffmpeg imagemagick jq mesa-utils procps vulkan-tools xdotool x11-utils \
+    && rm -rf /var/lib/apt/lists/*
 COPY artifacts/Octane-setup.exe /opt/octane/Octane-setup.exe
 COPY artifacts/installer-manifest.json /opt/octane/installer-manifest.json
 COPY diagnostics/webview2-win32/artifacts/WebView2Diagnostic.exe /opt/octane/WebView2Diagnostic.exe
 COPY diagnostics/webview2-win32/artifacts/diagnostic-manifest.json /opt/octane/diagnostic-manifest.json
 COPY fixtures/ /opt/octane/fixtures/
 COPY lab/octane-lab /usr/local/bin/octane-lab
-RUN chmod 755 /usr/local/bin/octane-lab
+COPY lab/octane-webview2-experiment /usr/local/bin/octane-webview2-experiment
+RUN chmod 755 /usr/local/bin/octane-lab /usr/local/bin/octane-webview2-experiment
 
 ENV OCTANE_STATE_DIR=/home/wineuser/.octane \
     OCTANE_EVIDENCE_DIR=/home/wineuser/.octane/evidence \

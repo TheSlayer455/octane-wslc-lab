@@ -4,6 +4,8 @@ Octane is a provider-neutral test lab for a real Windows Tauri installer running
 
 The single authoritative reference is **[docs/Octane-Complete-Guide.pdf](docs/Octane-Complete-Guide.pdf)**. It explains the architecture, every command and file, WSLC repair, Docker operation, Wine profiles, acceptance protocol, evidence format, security boundaries, troubleshooting, and measured results.
 
+The dated [compatibility matrix](docs/compatibility-matrix.md) separates historical observations from current runs. The [research evidence ledger](docs/research-evidence-ledger.md) records source authorship, exact commits/versions, reported versus local outcomes, and confidence.
+
 ## Supported combinations
 
 | Runtime adapter | Wine environment | Desktop path |
@@ -11,6 +13,8 @@ The single authoritative reference is **[docs/Octane-Complete-Guide.pdf](docs/Oc
 | WSLC | WineGUI | Authenticated Selkies HTTPS desktop |
 | Docker | WineGUI | Authenticated Selkies HTTPS desktop |
 | Docker | Docker-Wine | RDP to an XFCE Linux desktop displaying Wine apps |
+| Docker | Pinned Wine 11.21 + Staging 11.21 control | Same Docker-Wine RDP desktop; source-built matched control |
+| Docker | Pinned Wine 11.21 + Staging 11.21 visible-region candidate | Same control plus one verified `win32u` patch |
 | Docker on native SER8 | Docker-Wine | Ansible-managed XRDP/XFCE run with a black-box FreeRDP probe |
 
 On Windows, the Docker adapter requires an explicit WSL distribution and invokes that distribution's Docker CLI. It does not silently fall back from WSLC to Docker. Podman is intentionally out of scope.
@@ -28,6 +32,8 @@ Run the doctor before building a desktop image:
 ./scripts/Doctor-OctaneLab.ps1 -Engine Docker -WslDistro Ubuntu-24.04 -Port 3002 -Deep
 ```
 
+The Docker doctor records the Windows/WSL versions, selected distribution and kernel, local Docker context/socket/server/root, architecture, storage, memory/free space, buildx availability, a disposable run/copy-out check, and Windows reachability of a loopback-published container endpoint. It rejects an accidentally selected Docker Desktop or remote endpoint on the Windows/WSL path.
+
 Start one explicit engine/profile combination:
 
 ```powershell
@@ -43,6 +49,18 @@ Start one explicit engine/profile combination:
   -WineProfile DockerWine -Port 3390
 ```
 
+The following experimental profiles are controlled source-build comparisons. Their pinned recipes and build provenance were locally built on 2026-11-14; GUI execution results are recorded separately in the compatibility matrix rather than implied here:
+
+```powershell
+# Wine 11.21 + the complete matching Wine-Staging 11.21 patch set
+./scripts/Start-OctaneLab.ps1 -Engine Docker -WslDistro Ubuntu-24.04 `
+  -WineProfile DockerWineStaging1121Control -Port 3392
+
+# Exact control plus only the reviewed cross-process visible-region patch
+./scripts/Start-OctaneLab.ps1 -Engine Docker -WslDistro Ubuntu-24.04 `
+  -WineProfile DockerWineStaging1121VisRgn -Port 3393
+```
+
 The launcher prints the exact container name, loopback endpoint, username, one-time password, and run metadata path. Open the selected desktop and run, one stage at a time:
 
 ```bash
@@ -50,6 +68,15 @@ octane-lab notepad
 octane-lab install
 octane-lab launch
 ```
+
+The enhanced native diagnostic is run from the Windows controller so its raw native-window evidence is copied out even when it fails:
+
+```powershell
+./scripts/Invoke-OctaneExperiment.ps1 -Container octane-0123456789 `
+  -Engine Docker -WslDistro Ubuntu-24.04 -DurationSeconds 30
+```
+
+It uses a fresh WebView2 user-data directory, logs initialization and process events, captures actual child command lines and the loaded Wine display driver, records rAF separately from timer callbacks, performs click/input/scroll/resize/minimize/restore actions, captures X11 screenshots/recording, and compares only the application client area. Automated pixel change remains `NOT_RUN` for final visible acceptance until the screenshots are reviewed; a live DOM cannot turn a blank native window into a pass.
 
 Record visible acceptance outcomes, collect evidence, and remove only the named lab resources:
 
@@ -64,6 +91,8 @@ Record visible acceptance outcomes, collect evidence, and remove only the named 
 ```
 
 Evidence includes normalized run metadata, environment data, complete stage results, JUnit XML, logs, optional screenshots/recording, and SHA-256 checksums. Cleanup synchronizes its final status into already-collected bundles.
+
+Docker-Wine runs explicitly disable its upstream passwordless-sudo option. No profile mounts the Docker socket, broad host paths, or host secrets; no profile defaults to privileged mode, host networking, ptrace, `--no-sandbox`, or a disabled Linux security policy.
 
 ## Native SER8 Ansible path
 
@@ -104,9 +133,10 @@ Requires Windows x64, Rust stable MSVC, Visual Studio C++ Build Tools plus Windo
 
 ```powershell
 ./scripts/Build-Octane.ps1
+./scripts/Build-WebView2Diagnostic.ps1
 ```
 
-The build creates the installer and manifest without installing Octane on the host. Source is private and has no open-source license grant; third-party components retain their own licenses.
+The first command creates the installer and manifest without installing Octane on the host. The second restores the pinned WebView2 SDK, builds the native x64 probe, and emits its own manifest. Both commands are provider-neutral; the GitHub workflows are thin wrappers. Source is private and has no open-source license grant; third-party components retain their own licenses.
 
 ## WSLC timeout repair used on the measured host
 

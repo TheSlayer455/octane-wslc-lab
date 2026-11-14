@@ -55,6 +55,9 @@ ARG WINE_SOURCE_COMMIT=db11d0fe6a169c457e23d007e20404643d067aa8
 ARG WINE_MR_COMMIT=22a16b053991f95e8bbf91e4784e73f833835b72
 
 USER root
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ffmpeg imagemagick jq mesa-utils procps xdotool x11-utils \
+    && rm -rf /var/lib/apt/lists/*
 RUN mkdir -p /opt/octane/wine-overlay
 COPY --from=wine-builder /out/ole32.dll /opt/octane/wine-overlay/ole32.dll
 COPY --from=wine-builder /out/ole32.sha256 /opt/octane/wine-overlay/ole32.sha256
@@ -72,7 +75,8 @@ COPY diagnostics/webview2-win32/artifacts/WebView2Diagnostic.exe /opt/octane/Web
 COPY diagnostics/webview2-win32/artifacts/diagnostic-manifest.json /opt/octane/diagnostic-manifest.json
 COPY fixtures/ /opt/octane/fixtures/
 COPY lab/octane-lab /usr/local/bin/octane-lab
-RUN chmod 755 /usr/local/bin/octane-lab
+COPY lab/octane-webview2-experiment /usr/local/bin/octane-webview2-experiment
+RUN chmod 755 /usr/local/bin/octane-lab /usr/local/bin/octane-webview2-experiment
 
 LABEL com.octanelab.wine-source-commit="${WINE_SOURCE_COMMIT}" \
       com.octanelab.wine-mr="12477" \

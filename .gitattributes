@@ -1,4 +1,8 @@
 * text=auto eol=lf
+*.sh text eol=lf
+*.patch text eol=lf
+lab/octane-lab text eol=lf
+lab/octane-webview2-experiment text eol=lf
 *.ico binary
 *.docx binary
 *.pdf binary

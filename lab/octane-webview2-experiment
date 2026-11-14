@@ -1,0 +1,277 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+state_dir="${OCTANE_STATE_DIR:-/config}"
+evidence_root="${OCTANE_EVIDENCE_DIR:-$state_dir/octane-evidence}"
+run_id="${OCTANE_EXPERIMENT_ID:-$(date -u +%Y%m%dT%H%M%SZ)-$(od -An -N4 -tx1 /dev/urandom | tr -d ' \n')}"
+if [[ ! "$run_id" =~ ^[A-Za-z0-9._-]{8,96}$ ]]; then
+    echo 'OCTANE_EXPERIMENT_ID must contain only letters, digits, dot, underscore, or dash.' >&2
+    exit 2
+fi
+run_dir="$evidence_root/experiments/$run_id"
+user_data_root="$state_dir/experiment-user-data"
+user_data_dir="$user_data_root/$run_id"
+if [[ -e "$run_dir" ]]; then
+    echo "Experiment directory already exists: $run_dir" >&2
+    exit 2
+fi
+if [[ -e "$user_data_dir" ]]; then
+    echo "Experiment user-data directory already exists: $user_data_dir" >&2
+    exit 2
+fi
+mkdir -p "$run_dir/screenshots" "$run_dir/logs" "$run_dir/environment" "$user_data_dir"
+
+started_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+duration="${OCTANE_EXPERIMENT_DURATION_SECONDS:-30}"
+case "$duration" in
+    ''|*[!0-9]*) echo 'OCTANE_EXPERIMENT_DURATION_SECONDS must be an integer.' >&2; exit 2 ;;
+esac
+if (( duration < 10 || duration > 600 )); then
+    echo 'OCTANE_EXPERIMENT_DURATION_SECONDS must be between 10 and 600.' >&2
+    exit 2
+fi
+
+export OCTANE_DIAGNOSTIC_LOG
+export OCTANE_WEBVIEW2_USER_DATA
+export OCTANE_DIAGNOSTIC_RUN_SECONDS="${OCTANE_DIAGNOSTIC_RUN_SECONDS:-$duration}"
+OCTANE_DIAGNOSTIC_LOG=$(winepath -w "$run_dir/logs/diagnostic-events.log")
+OCTANE_WEBVIEW2_USER_DATA=$(winepath -w "$user_data_dir")
+
+app_pid=''
+recorder_pid=''
+window_id=''
+app_rc=255
+
+finish_processes() {
+    if [[ -n "$recorder_pid" ]] && kill -0 "$recorder_pid" 2>/dev/null; then
+        kill -INT "$recorder_pid" 2>/dev/null || true
+        wait "$recorder_pid" 2>/dev/null || true
+    fi
+    if [[ -n "$app_pid" ]] && kill -0 "$app_pid" 2>/dev/null; then
+        kill -TERM "$app_pid" 2>/dev/null || true
+        for _ in {1..20}; do
+            kill -0 "$app_pid" 2>/dev/null || break
+            sleep 0.25
+        done
+        kill -KILL "$app_pid" 2>/dev/null || true
+    fi
+}
+trap finish_processes EXIT INT TERM
+
+{
+    echo "started_at_utc=$started_at"
+    echo "run_id=$run_id"
+    echo "display=${DISPLAY:-unset}"
+    echo "wineprefix=${WINEPREFIX:-unset}"
+    echo "winearch=${WINEARCH:-unset}"
+    echo "requested_browser_args=${OCTANE_WEBVIEW2_BROWSER_ARGS:-none}"
+    echo "requested_browser_folder=${OCTANE_WEBVIEW2_BROWSER_EXECUTABLE_FOLDER:-installed-runtime}"
+    echo "fresh_user_data=$user_data_dir"
+    echo "stage_timeout_seconds=${OCTANE_DIAGNOSTIC_STAGE_TIMEOUT_SECONDS:-45}"
+    echo "run_seconds=$OCTANE_DIAGNOSTIC_RUN_SECONDS"
+    echo "duration_seconds=$duration"
+} > "$run_dir/requested-settings.txt"
+
+for name in \
+    wine-version.txt wine-command.txt kernel.txt container-os-release.txt display-environment.txt \
+    xdpyinfo.txt xwininfo-root.txt glxinfo.txt vulkaninfo.txt resources.txt installer-manifest.json \
+    installer-actual.sha256 diagnostic-manifest.json diagnostic-actual.sha256 wine-source-build.json \
+    wine-staging-patches.sha256 wine-staging-patch-list.sha256 win32u-active.sha256 ole32-active.sha256; do
+    [[ ! -f "$evidence_root/$name" ]] || cp "$evidence_root/$name" "$run_dir/environment/$name"
+done
+
+wine /opt/octane/WebView2Diagnostic.exe > "$run_dir/logs/wine.log" 2>&1 &
+app_pid=$!
+echo "$app_pid" > "$run_dir/launcher-linux-pid.txt"
+
+deadline=$((SECONDS + 60))
+while (( SECONDS < deadline )); do
+    window_id=$(xdotool search --onlyvisible --name 'Octane WebView2 Diagnostic' 2>/dev/null | tail -n 1 || true)
+    [[ -n "$window_id" ]] && break
+    kill -0 "$app_pid" 2>/dev/null || break
+    sleep 0.5
+done
+
+native_window_status=FAIL
+dom_status=FAIL
+if [[ -n "$window_id" ]]; then
+    native_window_status=PASS
+    echo "$window_id" > "$run_dir/native-window-id.txt"
+    xwininfo -id "$window_id" > "$run_dir/logs/xwininfo.txt" 2>&1 || true
+    xprop -id "$window_id" > "$run_dir/logs/xprop.txt" 2>&1 || true
+fi
+
+deadline=$((SECONDS + 60))
+while (( SECONDS < deadline )); do
+    if [[ -f "$run_dir/logs/diagnostic-events.log" ]] && grep -q 'value=dom-ready' "$run_dir/logs/diagnostic-events.log"; then
+        dom_status=PASS
+        break
+    fi
+    kill -0 "$app_pid" 2>/dev/null || break
+    sleep 0.5
+done
+
+ps -ww -eo pid,ppid,etimes,args > "$run_dir/logs/processes.txt"
+grep -i 'msedgewebview2.exe' "$run_dir/logs/processes.txt" > "$run_dir/logs/webview2-process-command-lines.txt" || true
+{
+    for maps in /proc/[0-9]*/maps; do
+        grep -H -m 1 -E 'winex11|winewayland|winemac' "$maps" 2>/dev/null || true
+    done
+} > "$run_dir/logs/wine-display-driver-maps.txt"
+
+if [[ -n "$window_id" && "$dom_status" == PASS ]]; then
+    sleep 3
+    dimensions=$(xdpyinfo 2>/dev/null | sed -n 's/.*dimensions:[[:space:]]*\([0-9]*x[0-9]*\).*/\1/p' | head -n 1)
+    if [[ -n "$dimensions" ]] && command -v ffmpeg >/dev/null 2>&1; then
+        ffmpeg -nostdin -loglevel warning -y -f x11grab -framerate 10 -video_size "$dimensions" \
+            -i "${DISPLAY}+0,0" -c:v libx264 -preset ultrafast -pix_fmt yuv420p "$run_dir/recording.mp4" \
+            > "$run_dir/logs/ffmpeg.log" 2>&1 &
+        recorder_pid=$!
+    fi
+
+    import -window "$window_id" "$run_dir/screenshots/diagnostic-before.png" 2> "$run_dir/logs/import-before.log" || true
+    xdotool windowactivate --sync "$window_id" >> "$run_dir/logs/interaction.log" 2>&1 || true
+    xdotool mousemove --window "$window_id" 180 150 click 1 >> "$run_dir/logs/interaction.log" 2>&1 || true
+    xdotool key --window "$window_id" Tab Return Tab >> "$run_dir/logs/interaction.log" 2>&1 || true
+    xdotool type --window "$window_id" --delay 35 'Octane probe 123' >> "$run_dir/logs/interaction.log" 2>&1 || true
+    xdotool key --window "$window_id" Tab Page_Down Page_Down >> "$run_dir/logs/interaction.log" 2>&1 || true
+    sleep 3
+    import -window "$window_id" "$run_dir/screenshots/diagnostic-after-input.png" 2> "$run_dir/logs/import-after-input.log" || true
+    xdotool windowsize --sync "$window_id" 900 650 >> "$run_dir/logs/interaction.log" 2>&1 || true
+    sleep 2
+    xdotool windowsize --sync "$window_id" 1080 820 >> "$run_dir/logs/interaction.log" 2>&1 || true
+    xdotool windowminimize "$window_id" >> "$run_dir/logs/interaction.log" 2>&1 || true
+    sleep 2
+    xdotool windowmap "$window_id" >> "$run_dir/logs/interaction.log" 2>&1 || true
+    xdotool windowactivate --sync "$window_id" >> "$run_dir/logs/interaction.log" 2>&1 || true
+    sleep 3
+    import -window "$window_id" "$run_dir/screenshots/diagnostic-after-restore.png" 2> "$run_dir/logs/import-after-restore.log" || true
+fi
+
+if [[ -n "$recorder_pid" ]] && kill -0 "$recorder_pid" 2>/dev/null; then
+    kill -INT "$recorder_pid" 2>/dev/null || true
+    wait "$recorder_pid" 2>/dev/null || true
+    recorder_pid=''
+fi
+
+set +e
+wait "$app_pid"
+app_rc=$?
+set -e
+app_pid=''
+printf '%s\n' "$app_rc" > "$run_dir/diagnostic.exitcode"
+
+crash_count=0
+while IFS= read -r -d '' crash_file; do
+    relative="${crash_file#"$user_data_dir"/}"
+    destination="$run_dir/logs/crash-reports/$relative"
+    mkdir -p "$(dirname "$destination")"
+    cp "$crash_file" "$destination"
+    crash_count=$((crash_count + 1))
+    (( crash_count >= 20 )) && break
+done < <(find "$user_data_dir" -type f \( -iname '*.dmp' -o -iname '*.log' -o -iname '*.json' \) -size -32M -print0 2>/dev/null)
+printf '%s\n' "$crash_count" > "$run_dir/logs/copied-crash-file-count.txt"
+if [[ "$user_data_dir" != "$user_data_root/$run_id" || "$user_data_root" != "$state_dir/experiment-user-data" ]]; then
+    echo 'Refusing to clean an unexpected user-data path.' >&2
+    exit 2
+fi
+rm -rf -- "$user_data_dir"
+
+pixel_difference=''
+screen_change_status=NOT_RUN
+before="$run_dir/screenshots/diagnostic-before.png"
+after="$run_dir/screenshots/diagnostic-after-input.png"
+if [[ -s "$before" && -s "$after" ]]; then
+    read -r width height < <(identify -format '%w %h' "$before")
+    crop_y=100
+    if (( height > crop_y )); then
+        convert "$before" -crop "${width}x$((height-crop_y))+0+$crop_y" +repage "$run_dir/screenshots/client-before.png"
+        convert "$after" -crop "${width}x$((height-crop_y))+0+$crop_y" +repage "$run_dir/screenshots/client-after-input.png"
+        set +e
+        pixel_difference=$(compare -metric AE "$run_dir/screenshots/client-before.png" "$run_dir/screenshots/client-after-input.png" null: 2>&1)
+        set -e
+        if [[ "$pixel_difference" =~ ^[0-9]+$ ]]; then
+            if (( pixel_difference > 100 )); then screen_change_status=PASS; else screen_change_status=FAIL; fi
+        fi
+    fi
+fi
+printf '%s\n' "${pixel_difference:-unavailable}" > "$run_dir/client-pixel-difference.txt"
+
+event_log="$run_dir/logs/diagnostic-events.log"
+max_raf=0
+max_intervals=0
+runtime_version='unknown'
+button_events=0
+input_events=0
+scroll_events=0
+if [[ -f "$event_log" ]]; then
+    max_raf=$(sed -n 's/.*\\"raf\\":\([0-9][0-9]*\).*/\1/p' "$event_log" | sort -n | tail -n 1)
+    max_intervals=$(sed -n 's/.*\\"intervals\\":\([0-9][0-9]*\).*/\1/p' "$event_log" | sort -n | tail -n 1)
+    runtime_version=$(sed -n 's/.*event=runtime-version.*value=\([^[:space:]]*\).*/\1/p' "$event_log" | tail -n 1)
+    button_events=$(grep -c 'value=button-click:' "$event_log" || true)
+    input_events=$(grep -c 'value=input-length:' "$event_log" || true)
+    scroll_events=$(grep -c 'value=scroll-bottom:' "$event_log" || true)
+fi
+max_raf="${max_raf:-0}"
+max_intervals="${max_intervals:-0}"
+runtime_version="${runtime_version:-unknown}"
+display_driver=unknown
+if grep -q 'winex11' "$run_dir/logs/wine-display-driver-maps.txt"; then display_driver=winex11; fi
+if grep -q 'winewayland' "$run_dir/logs/wine-display-driver-maps.txt"; then display_driver=winewayland; fi
+if grep -q 'winemac' "$run_dir/logs/wine-display-driver-maps.txt"; then display_driver=winemac; fi
+
+completed_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+jq -n \
+    --arg runId "$run_id" \
+    --arg startedAtUtc "$started_at" \
+    --arg completedAtUtc "$completed_at" \
+    --arg nativeWindow "$native_window_status" \
+    --arg domMessaging "$dom_status" \
+    --arg screenChanged "$screen_change_status" \
+    --arg displayDriver "$display_driver" \
+    --arg runtimeVersion "$runtime_version" \
+    --arg requestedBrowserArguments "${OCTANE_WEBVIEW2_BROWSER_ARGS:-}" \
+    --arg requestedBrowserFolder "${OCTANE_WEBVIEW2_BROWSER_EXECUTABLE_FOLDER:-}" \
+    --argjson diagnosticExitCode "$app_rc" \
+    --argjson maxAnimationFrames "$max_raf" \
+    --argjson maxIntervalCallbacks "$max_intervals" \
+    --argjson buttonEvents "$button_events" \
+    --argjson inputEvents "$input_events" \
+    --argjson scrollEvents "$scroll_events" \
+    --arg pixelDifference "${pixel_difference:-}" \
+    '{
+      schemaVersion: 1,
+      runId: $runId,
+      startedAtUtc: $startedAtUtc,
+      completedAtUtc: $completedAtUtc,
+      workload: "WebView2Diagnostic.exe",
+      runtime: {
+        displayDriver: $displayDriver,
+        webView2Version: $runtimeVersion,
+        requestedBrowserArguments: $requestedBrowserArguments,
+        requestedBrowserFolder: (if $requestedBrowserFolder == "" then null else $requestedBrowserFolder end)
+      },
+      observations: {
+        nativeWindow: $nativeWindow,
+        domMessaging: $domMessaging,
+        maxAnimationFrames: $maxAnimationFrames,
+        maxIntervalCallbacks: $maxIntervalCallbacks,
+        buttonEvents: $buttonEvents,
+        inputEvents: $inputEvents,
+        scrollEvents: $scrollEvents,
+        clientPixelDifference: (if $pixelDifference == "" then null else ($pixelDifference | tonumber) end),
+        clientAreaChanged: $screenChanged,
+        visualReview: "NOT_RUN"
+      },
+      diagnosticExitCode: $diagnosticExitCode,
+      securityExceptions: [],
+      qualification: "Client pixel change is a native-window measurement, not final visual acceptance until screenshots are reviewed."
+    }' > "$run_dir/probe.json"
+
+(cd "$run_dir" && find . -type f ! -name checksums.sha256 -print0 | sort -z | xargs -0 sha256sum > checksums.sha256)
+echo "Experiment evidence: $run_dir"
+cat "$run_dir/probe.json"
+
+if [[ "$native_window_status" != PASS || "$dom_status" != PASS || "$app_rc" -ne 0 ]]; then
+    exit 1
+fi
