@@ -1,0 +1,10 @@
+<!doctype html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Octane</title><link rel="stylesheet" href="style.css"><script type="module" src="app.js"></script></head>
+<body><main><header><div><span class="eyebrow">WINDOWS COMPATIBILITY LAB</span><h1>Octane<span> / </span>File intelligence</h1><p>Inspect files. Find matching contents. Leave the originals intact.</p></div><span class="badge">RUST + TAURI</span></header>
+<section class="toolbar" aria-label="Actions"><button id="choose">Choose files</button><button id="sample" class="secondary">Load sample set</button><button id="export" class="secondary" disabled>Export JSON</button></section>
+<p id="status" role="status" aria-live="polite">Ready. Load the sample set to verify 8 files, 6 groups, and 1 duplicate set.</p>
+<section class="stats" aria-label="Analysis totals"><div><strong id="files">0</strong><span>FILES ANALYZED</span></div><div><strong id="groups">0</strong><span>EXTENSION GROUPS</span></div><div><strong id="duplicates">0</strong><span>DUPLICATE SETS</span></div><div><strong id="bytes">0 B</strong><span>TOTAL SIZE</span></div></section>
+<section><h2>Extension groups</h2><div id="group-list" class="chips">No files analyzed yet.</div></section>
+<section><h2>File inventory</h2><div class="scroll"><table><thead><tr><th>File</th><th>Type</th><th>Size</th><th>SHA-256</th></tr></thead><tbody id="inventory"></tbody></table></div></section>
+<section><h2>Matching contents</h2><div id="duplicate-list">No duplicate sets.</div></section><section id="errors-section" hidden><h2>Files that could not be analyzed</h2><ul id="errors"></ul></section>
+<footer>Read-only analysis · SHA-256 · JSON report v1 · No network service</footer></main></body></html>

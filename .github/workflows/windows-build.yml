@@ -1,0 +1,36 @@
+name: Windows installer
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: pnpm/action-setup@v4
+        with:
+          version: '11.25.0'
+      - name: Rust toolchain
+        run: rustup default stable-msvc
+      - name: Build and test
+        shell: pwsh
+        run: |
+          if (!(Test-Path Cargo.lock)) { cargo generate-lockfile }
+          ./scripts/Build-Octane.ps1
+      - name: Upload Windows installer and manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: Octane-windows-x64
+          path: |
+            artifacts/*
+            Cargo.lock
+          if-no-files-found: error
+          retention-days: 14

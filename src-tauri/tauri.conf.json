@@ -1,0 +1,22 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Octane",
+  "version": "0.1.0",
+  "identifier": "com.octanelab.octane",
+  "build": {"frontendDist": "../ui"},
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [{"title": "Octane · File analysis lab", "width": 1100, "height": 760, "minWidth": 700, "minHeight": 500}],
+    "security": {"csp": "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src ipc: http://ipc.localhost"}
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "icon": ["icons/icon.ico"],
+    "resources": {"../fixtures/": "fixtures/"},
+    "windows": {
+      "webviewInstallMode": {"type": "offlineInstaller", "silent": false},
+      "nsis": {"installMode": "currentUser", "displayLanguageSelector": false}
+    }
+  }
+}

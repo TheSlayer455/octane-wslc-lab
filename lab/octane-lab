@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+set -euo pipefail
+export WINEPREFIX=/config/octane-prefix
+export WINEARCH=win64
+evidence=/config/octane-evidence
+mkdir -p "$evidence"
+export WINEDEBUG="${WINEDEBUG:--all,+timestamp,+seh}"
+run_logged() {
+    local stage="$1"; shift
+    local stamp rc
+    stamp=$(date -u +%Y%m%dT%H%M%SZ)
+    set +e
+    "$@" 2>&1 | tee "$evidence/$stage-$stamp.log"
+    rc=${PIPESTATUS[0]}
+    set -e
+    printf '%s\n' "$rc" > "$evidence/$stage-$stamp.exitcode"
+    return "$rc"
+}
+case "${1:-help}" in
+    notepad)
+        wine --version > "$evidence/wine-version.txt"
+        uname -a > "$evidence/kernel.txt"
+        cp /opt/octane/installer-manifest.json "$evidence/"
+        run_logged notepad wine notepad ;;
+    install)
+        run_logged install wine /opt/octane/Octane-setup.exe ;;
+    launch)
+        mapfile -d '' apps < <(find "$WINEPREFIX/drive_c/users" -type f -iname 'octane.exe' -print0)
+        if [[ ${#apps[@]} -ne 1 ]]; then
+            echo 'Expected one installed octane.exe. Complete the current-user installer first.' >&2; exit 1
+        fi
+        run_logged launch wine "${apps[0]}" ;;
+    help|*)
+        echo 'Usage: octane-lab {notepad|install|launch}'
+        echo 'Run as the desktop user. Export JSON to Z:\config\octane-evidence\report.json.' ;;
+esac

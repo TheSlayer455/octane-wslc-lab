@@ -1,0 +1,13 @@
+[package]
+name = "octane"
+version = "0.1.0"
+edition = "2021"
+description = "Octane Windows container compatibility test application"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+octane-core = { path = "../crates/octane-core" }
+rfd = "0.15"
