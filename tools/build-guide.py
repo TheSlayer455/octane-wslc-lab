@@ -119,7 +119,7 @@ def image_grid(items):
 page(1, "Octane<br/>Windows installer compatibility lab")
 p(
     "<b>Complete implementation, operation, and measured-validation reference</b><br/>"
-    "Guide revision 5 | November 14, 2026 | Windows x64 + Docker/WSLC/Ansible + Wine 11.21"
+    "Guide revision 6 | November 14, 2026 | Windows x64 + Docker/WSLC/Ansible + Wine 11.21"
 )
 p(
     "Octane is a repository-independent, container-runtime-independent lab for a real "
@@ -146,9 +146,10 @@ h("How to read this guide")
 p(
     "Pages 3-9 explain architecture, engine choice, diagnosis, artifact intake, and startup. "
     "Pages 10-17 specify the workload, code, evidence, security, and acceptance protocol. "
-    "Pages 18-25 diagnose failures and show the measured WineGUI, Docker-Wine, controlled "
-    "ole32, native SER8, and Wine 11.21 candidate results. Pages 26-27 record verification, repository inventory, "
-    "sources, and remaining work. Commands run in "
+    "Pages 18-25 preserve the failure diagnosis and historical WineGUI, Docker-Wine, controlled "
+    "ole32, native SER8, and early Wine 11.21 results. Pages 26-28 record dialog localization, "
+    "normal repainting, the locked runner, and the final ten-run qualification. Pages 29-30 "
+    "record verification, repository inventory, sources, and continuing work. Commands run in "
     "<b>PowerShell 7 from the repository root</b> unless a desktop terminal is named."
 )
 
@@ -167,7 +168,9 @@ topics = [
     "Measured environment and comparison", "Controlled Wine ole32 experiment",
     "WineGUI visual evidence", "Docker-Wine RDP visual evidence",
     "Native SER8 Ansible result", "Wine 11.21 control and candidate result",
-    "Verification and repository inventory", "References and roadmap",
+    "Native-dialog and normal-repaint diagnosis", "Locked unattended qualification",
+    "Final 10/10 schema-v3 qualification", "Verification and repository inventory",
+    "References and roadmap",
 ]
 table(["Page", "Topic"], [[str(i), topic] for i, topic in enumerate(topics, 1)], [38, 454], compact=True)
 p(
@@ -836,14 +839,14 @@ p(
     "remained solid white with pixel delta zero. A live DOM or process is not visible acceptance."
 )
 p(
-    "Pinned Wine 11.21 plus matching Staging changed the Tauri-host result: Octane sometimes "
-    "presented after three resize/minimize/restore cycles. The control passed one full clean run "
-    "and stayed black in the next. The visible-region candidate rendered Octane and its real "
-    "workload in three fresh runs, but completed every dialog/export gate only once. The minimal "
-    "probe remained white even with that patch. Rendering, repaint reliability, and native-dialog "
-    "behavior are therefore separate failure layers."
+    "Early pinned Wine 11.21 runs appeared to require three resize/minimize/restore cycles: the "
+    "control passed once and stayed black once, while the visible-region candidate rendered the "
+    "workload 3/3 but completed dialog/export only 1/3. Later state-based observation showed the "
+    "same candidate normally presented after about 19 seconds without the helper, and the final "
+    "contract passed 10/10. The minimal probe still remained white. Host-specific presentation and "
+    "dialog automation must therefore remain independently measured."
 )
-h("Research conclusions and next experiment")
+h("Research conclusions and resolved hypotheses")
 p(
     "Wine bug 60225 remains a close historical crash lead, not an established cause of the current "
     "result. The Wine 11.0 MR !12477 pair and current 11.21 runs did not reproduce the old "
@@ -852,10 +855,11 @@ p(
     "is a measured application-specific candidate, not a general WebView2 repair."
 )
 p(
-    "The smallest next experiment is a native IFileOpenDialog/GetOpenFileName probe in the same "
-    "candidate prefix, recording HRESULT and window lifecycle. Then rerun one fresh candidate with "
-    "the committed input synchronizer. Do not add no-sandbox, privileged mode, broad mounts, opaque "
-    "DLLs, or old runtimes without one explicit hypothesis and a separately named profile."
+    "The standalone app-matching IFileOpenDialog/IFileSaveDialog probe passed 7/7 in clean and "
+    "post-install prefixes with exact Unicode paths. The failed 9/10 run was localized to an "
+    "instantaneous foreground sample, then corrected with a passive bounded wait. The exact candidate "
+    "qualified without no-sandbox, privileged mode, broad mounts, opaque DLLs, old runtimes, or an "
+    "external repaint helper."
 )
 
 
@@ -869,6 +873,8 @@ table(["Run/profile", "Desktop + install", "Visible application / workload", "Di
     ["d2cc660dbe visrgn candidate", "PASS", "PASS after 3 cycles; workload PASS", "PASS; candidate full run 1"],
     ["c5c34187fa visrgn candidate", "PASS", "GUI/workload PASS after 3 cycles", "FAIL later sequence; full run 2 failed"],
     ["aef06bc9fa visrgn candidate", "PASS", "GUI/workload PASS after 3 cycles", "FAIL picker/no-overwrite; full run 3 failed"],
+    ["948d78d02c normal observer", "PASS", "PASS at 17.615 s; no repaint helper", "Diagnostic only; later gates NOT_RUN"],
+    ["qbatch-e2aaafff4b38", "PASS 10/10", "PASS 10/10; 19.000-19.084 s", "PASS 10/10; final schema-v3 lock"],
 ], [112, 104, 152, 124], compact=True)
 h("Exact measured identity")
 table(["Item", "Value"], [
@@ -884,13 +890,13 @@ table(["Item", "Value"], [
     ["WebView2", f'Evergreen {status.get("webview2Version", "")}'],
     ["Visible-region patch", status.get("visibleRegionPatchSha256", "")],
     ["Application report", status.get("reportSha256", "")],
-    ["Harness commits", "cf6baba (fresh 1-2); a84bab1 (fresh 3); 17683ea final synchronizer"],
+    ["Final harness / lock", f'{status.get("qualificationHarnessCommit", "")[:12]} / {status.get("qualificationLockSha256", "")[:16]}...'],
 ], [126, 366], compact=True)
 p(
     "The candidate's native probe remained white (rAF 0, timer callbacks 114, pixel delta 0) "
-    "while the Tauri host later rendered after a window-state nudge. Candidate GUI/workload was "
-    "3/3, but full native-dialog/export acceptance was 1/3. The result is conditional and not "
-    "repeatably demonstrated. Each named container/image was removed after evidence collection."
+    "while the installed Tauri host later presented normally. The historical candidate series was "
+    "GUI/workload 3/3 but complete acceptance 1/3; it is not rewritten. The final locked schema-v3 "
+    "series passed the full contract 10/10 without a repaint helper, hidden retry, or manual override."
 )
 
 
@@ -973,7 +979,7 @@ image_grid([
     ),
     (
         "docs/evidence/docker-wine-rdp-webview.jpg",
-        status.get("finalScreenshotCaption", "Docker-Wine WebView result."),
+        "Historical Docker-Wine baseline: Octane host alive but the WebView client stayed black; application FAIL.",
     ),
 ])
 p(
@@ -1019,7 +1025,7 @@ p(
 )
 
 
-page(25, "Wine 11.21 control and candidate result")
+page(25, "Historical Wine 11.21 discovery runs")
 p(
     "The current experiment kept the retained installer and Evergreen WebView2 157.0.4341.60 "
     "fixed while changing only the pinned Wine environment. The source control is Wine "
@@ -1053,26 +1059,141 @@ image_grid([
     ),
 ])
 p(
-    "Every visible control/candidate result required the same intrusive three-cycle window-state "
-    "helper. The candidate is GUI/workload 3/3 but full acceptance 1/3; the control is full "
-    "acceptance 1/2. Verdict: NOT YET DEMONSTRATED repeatably. The evidence supports conditional "
-    "laboratory feasibility, not a default environment or a claim about another proprietary app."
+    "At this historical checkpoint every visible result required the same intrusive three-cycle "
+    "window-state helper. The candidate was GUI/workload 3/3 but complete acceptance 1/3; the "
+    "control was 1/2. Pages 26-28 preserve how the helper and dialog failures were localized and "
+    "how the later locked result superseded this checkpoint without rewriting it."
 )
 
 
-page(26, "Verification and repository inventory")
+page(26, "Native-dialog and normal-repaint diagnosis")
+p(
+    "The retained installer was inspected at source commit 7088eed9adb8403b9575afe1cc9e9c2984b29049. "
+    "It locks rfd 0.15.4 and invokes synchronous pick_files and save_file calls from Tauri "
+    "spawn_blocking threads. Reviewed rfd commit bac4bd3364f2befaabafa9f58ac77fd8925b2abf uses "
+    "IFileOpenDialog/IFileSaveDialog, STA COM with COINIT_DISABLE_OLE1DDE, and no owner HWND when "
+    "the application supplies no parent. The native probe reproduces that shape independently of Tauri and WebView2."
+)
+code("""./scripts/Build-FileDialogProbe.ps1 -WslDistro Ubuntu-24.04
+./scripts/Invoke-FileDialogDiagnosticRun.ps1 -WslDistro Ubuntu-24.04 `
+  -Phase CleanPrefix -Suite AppMatch -Port 3394
+./scripts/Invoke-FileDialogDiagnosticRun.ps1 -WslDistro Ubuntu-24.04 `
+  -Phase PostInstall -Suite AppMatch -Port 3394""")
+table(["Diagnostic", "Result", "What it establishes"], [
+    ["Clean prefix 46953cece8", "PASS 7/7", "Exact Unicode/space select and multi-select; cancel/reopen; save/new/decline"],
+    ["Post-install 888f4aca2d", "PASS 7/7", "Same result after retained NSIS and Evergreen WebView2 installation"],
+    ["Application path", "PASS 10/10 later", "Octane itself completed open/save/cancel/reopen in final locked runs"],
+], [130, 92, 270], compact=True)
+image_grid([
+    ("docs/evidence/dialog-probe-modern-open.png", "Standalone modern open dialog, synchronized by visible foreground state."),
+    ("docs/evidence/dialog-probe-overwrite-confirmation.png", "Modern save overwrite confirmation; decline preserved the existing file hash."),
+])
+p(
+    "The 9/10 batch failure was therefore classified as an automation synchronization defect: "
+    "the recording showed the dialog while one instantaneous foreground sample missed it. A bounded passive "
+    "foreground wait fixed the oracle without activating, retrying, or replacing a failed dialog."
+)
+h("Repaint finding")
+p(
+    "Observer 948d78d02c presented normally after 17.615 seconds with one ordinary activation and no "
+    "resize, minimize, restore, click, reconnect, or retry before readiness. All final runs repeated normal "
+    "presentation at 19.000-19.084 seconds. The historical three-cycle helper was confounded with startup "
+    "latency and was not a causal prerequisite in this exact profile."
+)
+
+
+page(27, "Locked unattended qualification")
+p(
+    "Qualification is provider-neutral. The controller declares one batch ID, lock hash, ten planned run IDs, "
+    "timeouts, and the contract before run one. Each measured run creates a new container, Wine prefix, and "
+    "WebView2/application user-data state; installs the retained NSIS artifact; launches the installed executable "
+    "once; collects evidence; and removes only its exact labeled resources."
+)
+code("""./scripts/New-OctaneQualificationLock.ps1 -WslDistro Ubuntu-24.04
+./scripts/Invoke-OctaneQualificationBatch.ps1 `
+  -LockPath profiles/qualification/docker-wine-staging-11.21-visrgn.lock.json `
+  -WslDistro Ubuntu-24.04 -Port 3394""")
+table(["Locked item", "Exact measured value"], [
+    ["Installer / source", "adde062d79c2857c...d829080a / 7088eed9adb8403b9575afe1cc9e9c2984b29049"],
+    ["Harness / lock", "7181a47ee47ae1d63b3bcd4fa6a480d45b560ee3 / 0137c535f4eb0d15...74f6e6377c1"],
+    ["Image", "sha256:0443029e26be1d0590fd37491d69ab8fc1e186ef7e80d4d75cb191628188259c"],
+    ["Wine", "11.21 + matching Staging 11.21 + visible-region patch f0ea7e56..."],
+    ["WebView/display", "Evergreen 157.0.4341.60; winex11; XFCE/Xorgxrdp; 1280x800; llvmpipe"],
+    ["Host/runtime", "Windows 10.0.26200.8875; WSL 3.0.1.0; Ubuntu 24.04.4; Docker 29.6.2 inside WSL"],
+], [128, 364], compact=True)
+h("Qualifying automation policy")
+table(["Permitted before readiness", "Forbidden in every measured run"], [
+    ["Launch installed Octane once; one normal activation", "Repaint helper; resize/minimize/restore; click; reconnect; restart-until-visible"],
+    ["Bounded state-based waits", "Hidden launch/dialog retries; manual input; manual PASS; replacement run"],
+], [210, 282], compact=True)
+h("Failures were preserved")
+table(["Batch", "Outcome", "Finding"], [
+    ["qbatch-1546c3560728", "5/10, not qualified", "Port reuse sampled before release; runs 6-10 NOT_RUN"],
+    ["qbatch-88b053c067cd", "9/10, not qualified", "Single foreground sample raced a visibly presented picker"],
+    ["qbatch-d0d73d52a2b5", "10/10 schema v2", "Superseded when audit found X11 key synthesis dropped literal Omega"],
+    ["qbatch-e2aaafff4b38", "10/10 schema v3", "Clipboard round-trip plus exact Unicode and missing-path report assertions"],
+], [132, 112, 248], compact=True)
+p(
+    "The final policy rejects lock drift, missing evidence, hidden retry, manual override, and any count below "
+    "10/10. Review-OctaneApplicationExperiment remains historical visual-review tooling and cannot promote qualification."
+)
+
+
+page(28, "Final 10/10 schema-v3 qualification")
+p(
+    "Batch qbatch-e2aaafff4b38 executed ten sequential fresh runs under lock "
+    "0137c535f4eb0d15c12628801020b71f1952a18c65c524b7ac26874f6e6377c1. Every row below passed "
+    "ten independent gates, report validation, evidence collection, and exact cleanup."
+)
+table(["Run", "Initial visible", "Scenario", "Evidence", "Cleanup", "Duration"], [
+    ["01", "19.022 s", "10/10 PASS", "PASS", "PASS", "148.098 s"],
+    ["02", "19.030 s", "10/10 PASS", "PASS", "PASS", "146.869 s"],
+    ["03", "19.059 s", "10/10 PASS", "PASS", "PASS", "145.402 s"],
+    ["04", "19.023 s", "10/10 PASS", "PASS", "PASS", "146.656 s"],
+    ["05", "19.000 s", "10/10 PASS", "PASS", "PASS", "145.684 s"],
+    ["06", "19.004 s", "10/10 PASS", "PASS", "PASS", "145.375 s"],
+    ["07", "19.084 s", "10/10 PASS", "PASS", "PASS", "146.319 s"],
+    ["08", "19.060 s", "10/10 PASS", "PASS", "PASS", "145.807 s"],
+    ["09", "19.069 s", "10/10 PASS", "PASS", "PASS", "146.117 s"],
+    ["10", "19.044 s", "10/10 PASS", "PASS", "PASS", "145.725 s"],
+], [40, 78, 92, 70, 70, 82], compact=True)
+image_grid([
+    ("docs/evidence/qualification-workload.png", "Run 10: real Rust workload reports 8 files, 6 groups, 1 duplicate set, 176 bytes, and 0 errors."),
+    ("docs/evidence/qualification-post-restore.png", "Run 10: client remained correctly presented after dialogs, scrolling, resize, minimize, and restore."),
+])
+p(
+    "Every run also proved the exact Unicode/space one-file result, a deliberate missing-input error, open and save "
+    "cancellation, repeated open use, new export, existing-output protection, unchanged inputs, and independently "
+    "validated JSON. forcedRepaintUsed=false, hiddenRetries=0, and manualOverrides=0 in all ten rows."
+)
+p(
+    "Batch-summary SHA-256: ee890ddcf0b4f420cff10a2d5be33ef8c7d6695b1bcb34f10b872df9fd9fff2b. "
+    "The 1,853-entry checksum manifest verifies; its SHA-256 is "
+    "e148ad2bb58998b62a54c2a0b131e49eaaaf86e11328b2580b8e576b751415e0.",
+    "CompactNote",
+)
+p(
+    "<b>Technical feasibility: demonstrated.</b><br/><b>Full Octane acceptance: qualified against the declared "
+    "10/10 unattended fresh-prefix contract for the exact recorded installer and configuration.</b> The custom "
+    "visible-region patch remains a maintenance condition. This is not a stock-Wine, arbitrary-Tauri, or proprietary-app claim."
+)
+
+
+page(29, "Verification and repository inventory")
 table(["Verification", "Observed result"], [
     ["Private repository", "TheSlayer455/octane-wslc-lab; private main and private v0.1.1 prerelease."],
     ["Windows artifact", status.get("windowsBuild", "")],
-    ["Node checks", "15 PASS: app/probe contracts, formatting, summary, literal paths, cancellation, failures, export state."],
+    ["Node checks", "19 PASS: application, diagnostic, dialog-probe, and qualification contracts."],
     ["Rust core", "4 historical PASS in measured installer build: fixtures/hash, path errors, export/no-overwrite, limits."],
-    ["PowerShell", "48 mocked assertions PASS; adapter/lifecycle/schema/cleanup behavior checked."],
-    ["Bash / Ansible", "Current application/probe helpers pass bash -n; existing SER8 playbooks retain prior syntax evidence."],
+    ["PowerShell", "48 mocked assertions PASS; 12 qualification-policy assertions PASS; scripts parse under PowerShell 7."],
+    ["Bash / Ansible", "Current helpers pass bash -n; existing SER8 playbooks retain prior syntax evidence."],
     ["Docker doctor", "PASS with real alpine run, known-file copy-out, and managed cleanup."],
     ["Minimal diagnostic", "Hash 82cd1c...; environment/controller/navigation/DOM/input/timers PASS; pixels FAIL in three profiles."],
     ["Controlled ole32", "Control/MR !12477 comparison completed; rendering unchanged; no crash in either member."],
-    ["Live GUI", "Wine 11.21 control 1/2 full; candidate GUI/workload 3/3 but complete scenario 1/3."],
-    ["Cleanup", "No Octane-managed Docker container remained after measured runs; unrelated resources untouched."],
+    ["Dialog diagnostic", "Clean and post-install app-matching suites each PASS 7/7 with exact Unicode paths."],
+    ["Live GUI", "Final schema-v3 lock PASS 10/10; each run ten gates, no repaint helper/retry/manual override."],
+    ["Checksums", "All 1,853 final batch entries verify; batch and manifest hashes retained."],
+    ["Cleanup", "Every exact run container/volume removed; final image retained; unrelated resources untouched."],
 ], [112, 380], compact=True)
 h("Repository map")
 table(["Path", "Purpose"], [
@@ -1080,10 +1201,13 @@ table(["Path", "Purpose"], [
     ["src-tauri/", "Windows Tauri host, config, resources, icon, NSIS/WebView settings."],
     ["ui/ and fixtures/", "Static frontend and deterministic eight-file workload."],
     ["diagnostics/webview2-win32/", "Minimal native Win32 WebView2 diagnostic and event logging."],
+    ["diagnostics/win32-file-dialog/", "Modern and legacy native open/save dialog localization probe."],
     ["scripts/Runtime*.ps1", "Engine adapter and Wine environment profiles."],
     ["scripts/RunState.ps1", "Atomic state, normalized results, JUnit, checksum synchronization."],
     ["scripts/Doctor/Start/Record/Collect/Stop", "Public operator lifecycle."],
-    ["scripts/Invoke/Review/Validate", "Native probe, installed-app scenario, visual review, and independent report contract."],
+    ["scripts/Invoke/Review/Validate", "Diagnostics, installed-app scenario, visual review boundary, and report validation."],
+    ["scripts/*Qualification*.ps1", "Immutable lock creation and strict ten-run unattended batch aggregation."],
+    ["profiles/qualification/", "Final machine-readable schema-v3 environment and contract lock."],
     ["lab/", "Pinned profile Dockerfiles, helpers, and strict native-SER8 Ansible lifecycle."],
     ["tests/", "Node behavior tests and mocked adapter/lifecycle harness."],
     [".github/workflows/", "Private Windows installer build and artifact upload."],
@@ -1096,7 +1220,7 @@ p(
 )
 
 
-page(27, "References and roadmap")
+page(30, "References and roadmap")
 p(
     "Primary sources define supported interfaces and upstream behavior; they do not prove this "
     "particular Wine/WebView combination. Measured claims come from the retained run metadata, "
@@ -1116,6 +1240,7 @@ for label, url in [
     ("Microsoft: WebView2 Win32 getting started", "https://learn.microsoft.com/en-us/microsoft-edge/webview2/get-started/win32"),
     ("Microsoft: WebView2 process-related events", "https://learn.microsoft.com/en-us/microsoft-edge/webview2/concepts/process-related-events"),
     ("MicrosoftEdge: WebView2Samples", "https://github.com/MicrosoftEdge/WebView2Samples"),
+    ("rfd 0.15.4 retained Windows dialog implementation", "https://github.com/PolyMeilex/rfd/tree/bac4bd3364f2befaabafa9f58ac77fd8925b2abf"),
     ("Wine bug 60225: cross-process IDropTarget_Release report", "https://bugs.winehq.org/show_bug.cgi?id=60225"),
     ("Wine MR !12477: revoke foreign drop targets in their own process", "https://gitlab.winehq.org/wine/wine/-/merge_requests/12477"),
     ("G6rm0k: wine-ole32-fix proof of concept", "https://github.com/G6rm0k/wine-ole32-fix"),
@@ -1149,7 +1274,7 @@ def decorate(canvas, doc):
     canvas.line(54, 44, 558, 44)
     canvas.setFont("Helvetica", 8)
     canvas.setFillColor(colors.HexColor("#657989"))
-    canvas.drawString(54, 30, "OCTANE / PRIVATE PROJECT REFERENCE / GUIDE REVISION 5")
+    canvas.drawString(54, 30, "OCTANE / PRIVATE PROJECT REFERENCE / GUIDE REVISION 6")
     canvas.drawRightString(558, 30, str(doc.page))
 
 

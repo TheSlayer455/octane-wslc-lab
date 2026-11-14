@@ -1,0 +1,247 @@
+{
+  "schemaVersion": 1,
+  "frozenAtUtc": "2026-11-14T17:29:52.7858141Z",
+  "technicalFeasibility": "conditionally demonstrated",
+  "fullAcceptanceAtFreeze": "intermittent, not yet qualified",
+  "artifact": {
+    "installerPath": "artifacts/Octane-setup.exe",
+    "installerSha256": "adde062d79c2857cb2f5e676c5d6870986070252ac3cf7ca7a6b78c8d829080a",
+    "manifestSha256": "d4216814fd7ce3237d4ff82dea7d3ac4fd211cb137d032701c5fe35654583e4c",
+    "sourceCommit": "7088eed9adb8403b9575afe1cc9e9c2984b29049",
+    "installedExecutableSha256": "cd7c688df064c1b340e0a0a2d12b1a072e52144fa22c04bfa28693148a767b84"
+  },
+  "harness": {
+    "commitAtFreeze": "7181a47ee47ae1d63b3bcd4fa6a480d45b560ee3",
+    "files": [
+      {
+        "path": "lab/Dockerfile.wine-staging-11.21",
+        "sha256": "875f9b66485d0433b627049618a40ed4cfb7e085b3ee552ad27877a1d2cbd00c"
+      },
+      {
+        "path": "lab/octane-lab",
+        "sha256": "e97baa9e21e8dd5289feef6fa556f1409ed7a18d9529fa4dacc167ee65405edc"
+      },
+      {
+        "path": "lab/octane-qualification-experiment",
+        "sha256": "a3d92cd71170cf9bdc96d9f2c416fa59773f20f41546adc7a1aa291c037f3c72"
+      },
+      {
+        "path": "lab/patches/0002-win32u-recheck-visrgn-for-cross-process-children.patch",
+        "sha256": "f0ea7e56c4b86ce6e1f99940c4c18ac80f2bee86442c800bc58c2f36bde92752"
+      },
+      {
+        "path": "scripts/Invoke-OctaneQualificationBatch.ps1",
+        "sha256": "9a8e5cdf4c264fa51e2fcbd7df62a3c2c6211bc28ca5387dbf9f130c4d5f8f99"
+      },
+      {
+        "path": "scripts/Invoke-OctaneQualificationExperiment.ps1",
+        "sha256": "db3cef48599451398b0729d8350130f42c809ed5780c8e5d672f4687e082f83b"
+      },
+      {
+        "path": "scripts/New-OctaneQualificationLock.ps1",
+        "sha256": "04b7356b45f2f01dfcbc8ff26dcaf7bac1818a37ae4026f649f8b4ce6c620189"
+      },
+      {
+        "path": "scripts/Qualification.ps1",
+        "sha256": "591a8e7caf01a49dd7c7fe93e64750cfb3f66ca0df21a1bdedb5907025088315"
+      },
+      {
+        "path": "scripts/RdpSession.ps1",
+        "sha256": "8be3622ba68c397ad23493c67049fb367ecc6d33f5c1c23798c992ba41b44712"
+      },
+      {
+        "path": "scripts/Runtime.ps1",
+        "sha256": "a30322a829fb7f59289f5630bcedbf21f833a9b4c1b9e3bce3fb3299fe809159"
+      },
+      {
+        "path": "scripts/RuntimeProfiles.ps1",
+        "sha256": "77e128996ee4bb687722fa8f7308a5d0ce700e727345131345dfd5bfc26811c1"
+      },
+      {
+        "path": "scripts/Validate-OctaneReport.ps1",
+        "sha256": "1add3445e639a0e5dfe68ca8ff61168f907cd295c3798abf87e01b3a8a8d404f"
+      }
+    ]
+  },
+  "image": {
+    "reference": "octane-lab:qualification-7181a47ee47a",
+    "id": "sha256:0443029e26be1d0590fd37491d69ab8fc1e186ef7e80d4d75cb191628188259c",
+    "baseReference": "scottyhardy/docker-wine@sha256:c61cfc490aaee10b96782b88733a0f3d0e7b425d93b4e96617d9ab9a2b6bcfd2",
+    "resolvedBaseImage": "scottyhardy/docker-wine@sha256:c61cfc490aaee10b96782b88733a0f3d0e7b425d93b4e96617d9ab9a2b6bcfd2",
+    "architecture": "linux/amd64",
+    "dockerfile": "lab/Dockerfile.wine-staging-11.21",
+    "buildArguments": {
+      "WINE_VARIANT": "solid-edge-visrgn",
+      "WINE_SOURCE_COMMIT": "2528aff26208257fdbf980666a4f0e66d47563ce",
+      "WINE_STAGING_COMMIT": "04414fee61f7d283072d40905816b928875b2d4b",
+      "WINE_VISRGN_PATCH_SHA256": "f0ea7e56c4b86ce6e1f99940c4c18ac80f2bee86442c800bc58c2f36bde92752"
+    },
+    "buildDurationMs": 9352
+  },
+  "profile": {
+    "name": "DockerWineStaging1121VisRgn",
+    "wine": {
+      "wineBuild": {
+        "schemaVersion": 1,
+        "variant": "solid-edge-visrgn",
+        "wineVersion": "11.21",
+        "wineSourceCommit": "2528aff26208257fdbf980666a4f0e66d47563ce",
+        "wineStagingCommit": "04414fee61f7d283072d40905816b928875b2d4b",
+        "wineStagingVersion": "Wine Staging 11.21",
+        "orderedStagingPatchListSha256": "41b7630eb1c6e3ec7ae4cb597ed0f0c7fcff65bdf74652c5240fad37cf892969",
+        "visibleRegionPatchApplied": true,
+        "visibleRegionPatchSource": "https://github.com/JustNotesa/solid-edge-wine-fixes",
+        "visibleRegionPatchSourceCommit": "d3fd3268536ed43c7e5c616bc1c98eec07a9d154",
+        "visibleRegionPatchSha256": "f0ea7e56c4b86ce6e1f99940c4c18ac80f2bee86442c800bc58c2f36bde92752",
+        "architectures": [
+          "i386",
+          "x86_64"
+        ]
+      },
+      "wineVersion": "wine-11.21 (Staging)",
+      "architecture": "x86_64",
+      "wineBuildSha256": "831593d3e854ab299b864598464f69fda37f263648afb39d64d5cf21e7986312",
+      "stagingListSha256": "41b7630eb1c6e3ec7ae4cb597ed0f0c7fcff65bdf74652c5240fad37cf892969",
+      "win32uSha256": "9feb0a6947767fb681a75864f4fd8db5c9e35809092b6437fc2ec59f22d66148",
+      "ole32Sha256": "2338555fa1b70db911ef22850aa24215a3e48aec789205adcf3adddd84160f21",
+      "tools": {
+        "xclipVersion": "0.13-3"
+      }
+    },
+    "prefixArchitecture": "win64",
+    "windowsVersion": "default",
+    "dllOverrides": "mscoree,mshtml=",
+    "webView2": {
+      "distributionMode": "Evergreen offline installer",
+      "expectedLoadedVersion": "157.0.4341.60",
+      "expectedPathFragment": "Microsoft\\EdgeWebView\\Application\\157.0.4341.60\\msedgewebview2.exe"
+    },
+    "display": {
+      "driver": "winex11",
+      "desktop": "XFCE/Xorgxrdp",
+      "resolution": "1280x800",
+      "rendererContains": "llvmpipe",
+      "dpi": 96,
+      "hostGpuPassthrough": false
+    },
+    "resources": {
+      "shmSize": "1gb",
+      "cpuLimit": null,
+      "memoryLimit": null
+    },
+    "browserArguments": {
+      "expectedMainProcess": [
+        "--disable-gpu"
+      ],
+      "observedFromProcessCommandLine": true
+    }
+  },
+  "host": {
+    "windowsVersion": "10.0.26200.8875",
+    "wslVersionText": "WSL version: 3.0.1.0\r\nKernel version: 6.18.40.1-1\r\nWSLg version: 1.0.79\r\nMSRDC version: 1.2.7214\r\nDirect3D version: 1.611.1-81528511\r\nDXCore version: 10.0.26100.1-240331-1435.ge-release\r\nWindows version: 10.0.26200.8875",
+    "wslDistro": "Ubuntu-24.04",
+    "distroPrettyName": "Ubuntu 24.04.4 LTS",
+    "kernel": "6.18.40.1-microsoft-standard-WSL2",
+    "architecture": "x86_64",
+    "docker": {
+      "context": "default",
+      "serverVersion": "29.6.2",
+      "operatingSystem": "Ubuntu 24.04.4 LTS",
+      "rootless": false,
+      "daemonLocation": "inside selected WSL distribution"
+    },
+    "doctorContext": "docker:wsl:Ubuntu-24.04:default"
+  },
+  "fixtures": {
+    "expected": {
+      "files": 8,
+      "extensionGroups": 6,
+      "duplicateSets": 1,
+      "errors": 0,
+      "totalBytes": 176
+    },
+    "files": [
+      {
+        "path": "fixtures/config.json",
+        "sha256": "7f85f9e5a912d91985995b677b1e2021b1d002649869b704f36f0b8e24ad917c",
+        "bytes": 28
+      },
+      {
+        "path": "fixtures/data.csv",
+        "sha256": "b98731ba15c769924bf53163485f71f855a3da2b3d50f4f94ff5dffc04c83fae",
+        "bytes": 21
+      },
+      {
+        "path": "fixtures/hello-copy.txt",
+        "sha256": "5891b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03",
+        "bytes": 6
+      },
+      {
+        "path": "fixtures/hello.txt",
+        "sha256": "5891b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03",
+        "bytes": 6
+      },
+      {
+        "path": "fixtures/LICENSE",
+        "sha256": "83982633257a709ee201df769e69da535c6685aef5330b38bbd586ab648eb142",
+        "bytes": 28
+      },
+      {
+        "path": "fixtures/notes.txt",
+        "sha256": "a2f06fd976cc21f438c9bb87917af54558c5da9a512a54bdd091bcd8eadf4f56",
+        "bytes": 21
+      },
+      {
+        "path": "fixtures/page.html",
+        "sha256": "230c4972d4d927dbb77d53870ee9239a12c422811c7a973eeb186e6e88760265",
+        "bytes": 50
+      },
+      {
+        "path": "fixtures/readme.md",
+        "sha256": "0669e0df3bafef7a04bbeddf3d388cdf9170b8135d7b82a8c1be1c602402fc70",
+        "bytes": 16
+      }
+    ]
+  },
+  "security": {
+    "desktopBinding": "127.0.0.1 only",
+    "authenticated": true,
+    "privileged": false,
+    "hostNetwork": false,
+    "dockerSocketMount": false,
+    "hostGpuMapping": false,
+    "noSandboxArgument": false,
+    "rdpCertificateAccommodation": "FreeRDP /cert:ignore for container self-signed certificate on loopback only"
+  },
+  "automation": {
+    "unattended": true,
+    "forcedRepaintAllowed": false,
+    "hiddenRetriesAllowed": 0,
+    "manualOverridesAllowed": 0,
+    "textEntry": "X11 clipboard round-trip verification followed by Ctrl+V",
+    "initialPresentationTimeoutSeconds": 45,
+    "dialogForegroundTimeoutSeconds": 5,
+    "scenarioTimeoutSeconds": 900,
+    "interRunPortAvailabilityTimeoutSeconds": 120
+  },
+  "contract": {
+    "schemaVersion": 3,
+    "plannedRuns": 10,
+    "freshContainer": true,
+    "freshWinePrefix": true,
+    "freshWebView2UserData": true,
+    "sequential": true,
+    "requiredGates": [
+      "installedIdentity",
+      "initialVisible",
+      "pathEdgeCases",
+      "nativeOpenDialog",
+      "workload",
+      "nativeSaveDialog",
+      "export",
+      "existingOutputAndInputs",
+      "continuingPresentation",
+      "runtimeIdentity"
+    ]
+  }
+}

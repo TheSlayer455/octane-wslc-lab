@@ -14,7 +14,7 @@ Confidence means confidence that the source says what is summarized, not confide
 - **Version / platform:** Wine 11.0; reporter's Tauri/WebView2 application. Display backend was not established in the retained comment.
 - **Reported outcome:** `WINEDEBUG=+ole` showed WebView2 registering and the host revoking the same HWND from different processes. An ownership check prevented that reporter's crash; the reporter also noted a possible reference leak.
 - **Reproduction:** Capture `+ole`, process IDs, HWND, pointer, and exception stack through register/revoke/close.
-- **Local outcome:** The historical Octane baseline had a matching `IDropTarget_Release` signature, but the later matched Wine 11.0 control/MR pair did not reproduce that crash. The 2026-11-14 Wine-Staging 11.21 control/candidate runs also showed no `IDropTarget_Release` crash; a focused `+ole` trace recorded `RegisterDragDrop` without the reported revoke/crash sequence before close. Equivalence is therefore **not established**, and the current blocker is presentation/dialog repeatability rather than the historical exception.
+- **Local outcome:** The historical Octane baseline had a matching `IDropTarget_Release` signature, but the later matched Wine 11.0 control/MR pair did not reproduce that crash. The 2026-11-14 Wine-Staging 11.21 control/candidate runs also showed no `IDropTarget_Release` crash; a focused `+ole` trace recorded `RegisterDragDrop` without the reported revoke/crash sequence before close. Equivalence is therefore **not established**. The final locked candidate later completed 10/10 Octane runs without this exception, but that does not identify the historical crash's cause.
 - **Confidence:** High for the reporter's trace; low for generalization to all Tauri applications or to Octane's current blank-window failure.
 
 ### R02 — `G6rm0k/wine-ole32-fix`
@@ -49,7 +49,7 @@ Confidence means confidence that the source says what is summarized, not confide
 - **Version / platform:** Reporter used WebView2 153 and fixed 149 on macOS/CrossOver; follow-up described Linux/Wine X11. This is not a universal Linux result.
 - **Reported outcome:** The thread corrects “zero frames” to one frame; `--use-angle=swiftshader` alone was stale/insufficient; disabling DirectComposition did not establish a working path. A CDP/DOM result can diverge from native-window pixels.
 - **Reproduction:** Record requested and effective child arguments, ANGLE backend, rAF and timer progress, actual client-area pixels, and display driver.
-- **Local outcome:** Locally reproduced on Linux `winex11`. Baseline Wine 11.0 reached rAF 13 and 23 interval callbacks; the Wine-Staging 11.21 control reached rAF 0 and 112 interval callbacks; the visible-region candidate reached rAF 0 and 114 interval callbacks. All three had a zero client-area pixel delta and a visually solid-white WebView client. The installed Octane UI nevertheless sometimes rendered after three resize/minimize/restore cycles, so the minimal host and Tauri host are not interchangeable evidence.
+- **Local outcome:** Locally reproduced on Linux `winex11`. Baseline Wine 11.0 reached rAF 13 and 23 interval callbacks; the Wine-Staging 11.21 control reached rAF 0 and 112 interval callbacks; the visible-region candidate reached rAF 0 and 114 interval callbacks. All three had a zero client-area pixel delta and a visually solid-white WebView client. The installed Octane host later presented normally without a repaint helper in a dedicated observer and ten locked runs, while the minimal host remained white. The hosts are therefore not interchangeable evidence, and the final Octane result is not a general WebView2 fix.
 - **Confidence:** High for thread content; medium for its diagnostic analogy; low for direct applicability across macOS, Wayland, and Linux X11.
 
 ### R05 — Wine bugs 35456 and 60263
@@ -82,7 +82,7 @@ Confidence means confidence that the source says what is summarized, not confide
 - **Version / platform:** Wine 10.18, Linux/X11; application/runtime versions differ from Octane's retained artifact.
 - **Reported outcome:** Per-executable Windows-version selection was reported to alter the rendering path.
 - **Reproduction:** In a fresh prefix, change only the AppDefaults Windows version for `msedgewebview2.exe`, preserve all artifacts, and capture the effective setting and child command lines.
-- **Local outcome:** Not yet run. It is the smallest remaining Linux/X11-specific experiment if the pinned Wine pair still fails.
+- **Local outcome:** Not run. The exact pinned candidate qualified Octane without changing the per-executable Windows version, so this workaround is no longer required for the declared contract. It remains an unverified historical lead rather than a promoted setting.
 - **Confidence:** Medium as a bounded hypothesis; low as a general fix.
 
 ## Community implementations
@@ -95,7 +95,7 @@ Confidence means confidence that the source says what is summarized, not confide
 - **Version / platform:** Ubuntu 24.04, Wine-Staging 11.21, Xvfb/Openbox, llvmpipe, no GPU; fixed WebView2 156.0.4314.58.
 - **Reported outcome:** Start page and new-part creation were checked; modeling was not. The recipe combines runtime selection, registry/policy arguments including `--no-sandbox`, and application-specific D2D/SVG and repaint changes.
 - **Reproduction:** The Octane candidate copies only canonical blob `6702247b808414f396c40da6b0d11434dccf3de1` (SHA-256 `f0ea7e56c4b86ce6e1f99940c4c18ac80f2bee86442c800bc58c2f36bde92752`) onto the exact Wine/Staging pair. It does not import the D2D patch, Solid Edge registry keys, or sandbox bypass.
-- **Local outcome:** Patch review, matched source/control compilation, and Docker/Wine execution completed. The candidate did not make the minimal native WebView2 probe render. The installed Octane UI and real 8-file workload became visible in 3/3 fresh candidate runs only after three resize/minimize/restore cycles, but the complete dialog/export contract passed only 1/3. The patch is therefore a conditional application-specific lead, not a general WebView2 fix or a repeatable Octane acceptance result.
+- **Local outcome:** Patch review, matched source/control compilation, and Docker/Wine execution completed. The candidate did not make the minimal native WebView2 probe render. The first three candidate runs required the then-current three-cycle resize/minimize/restore helper and completed the dialog/export contract only 1/3. Later state-based startup and foreground synchronization showed normal initial presentation and completed the final schema-v3 Octane contract 10/10 with the same patch and no repaint helper. The patch remains a maintenance condition and is not a general WebView2 fix.
 - **Confidence:** High for repository content and patch provenance; medium-low for relevance to Octane startup rendering.
 
 ### R09 — `wuwa-tappo-wine`
@@ -163,16 +163,49 @@ Confidence means confidence that the source says what is summarized, not confide
 - **Version / platform:** Ubuntu 24.04 builder; unified i386/x86_64 source build; target Docker-Wine Ubuntu 24.04/X11 environment.
 - **Reported outcome:** Staging's `upstream-commit` exactly matches the Wine release commit. The recipe records ordered staging patch hashes and the optional candidate patch hash.
 - **Reproduction:** Build `lab/Dockerfile.wine-staging-11.21` with one named `WINE_VARIANT`; required commits and patch checksums are hard failures.
-- **Local outcome:** Source fetch, complete Staging application, shared control compilation, installation, and GUI execution completed on 2026-11-14. One fresh control run completed every application gate after a repaint nudge; the next remained black after the same bounded procedure. The visible-region candidate rendered Octane/workload in three fresh runs but completed every dialog/export gate in only one. Both profiles are non-repeatable, and neither qualifies as a maintained default.
+- **Local outcome:** Source fetch, complete Staging application, shared control compilation, installation, and GUI execution completed on 2026-11-14. One fresh control run completed every application gate after a repaint nudge; the next remained black. The initial candidate series rendered Octane/workload in three fresh runs but completed every dialog/export gate in only one. After the harness defects were isolated, the same pinned candidate completed the stricter schema-v3 contract 10/10 without a repaint helper. The unpatched control remains unstable; the patched candidate is qualified only under the recorded lock.
 - **Confidence:** High for provenance/build and the measured local runs; no claim beyond the tested profiles.
 
-### R15 — Local Wine 11.21 application comparison
+### R15 — Historical Wine 11.21 application comparison
 
-- **Claim:** The unchanged installed Octane artifact can present its real Tauri/WebView2 client and invoke the Rust backend under a pinned Docker/Wine-Staging 11.21 environment, but the measured behavior is not yet repeatable enough for acceptance.
+- **Claim:** The initial Wine 11.21 comparison established conditional feasibility but did not yet establish repeatable acceptance.
 - **Classification:** Locally reproduced experiment, not an upstream compatibility guarantee.
 - **Source / author / date:** Octane run journals and evidence bundles for `17e5fdec70`, `615d1bca1e`, `d2cc660dbe`, `c5c34187fa`, and `aef06bc9fa`; Octane lab; 2026-11-14.
 - **Version / platform:** Windows 11 build 26200.8875; WSL 3.0.1.0; Ubuntu-24.04 WSL2; kernel 6.18.40.1; Docker 29.6.2; Docker-Wine RDP/Xorgxrdp; `winex11`; Wine `2528aff...`; Staging `04414f...`; Evergreen WebView2 157.0.4341.60.
 - **Reported outcome:** Not applicable; this entry records local measurements.
 - **Reproduction:** Use the retained installer hash, a fresh container/prefix, one explicit profile, localhost RDP, `octane-lab install-silent`, then `Invoke-OctaneApplicationExperiment.ps1`; visually review native screenshots before running the reviewer and collector.
-- **Local outcome:** The unpatched Staging control passed one full clean scenario and failed the next at visible presentation. The visible-region candidate required three window-state repaint cycles in every fresh run; real UI/workload passed 3/3, but native-dialog plus no-overwrite acceptance passed 1/3. A reused-prefix debug run proved the improved synchronizer could repeat the overwrite-decline path, while Choose Files returned `Selection canceled` without a visible picker. That debug run is not clean acceptance.
+- **Local outcome:** The unpatched Staging control passed one full clean scenario and failed the next at visible presentation. In this historical series the visible-region candidate required three window-state repaint cycles in every fresh run; real UI/workload passed 3/3, but native-dialog plus no-overwrite acceptance passed 1/3. A reused-prefix debug run proved the improved synchronizer could repeat the overwrite-decline path, while Choose Files returned `Selection canceled` without a visible picker. That debug run is not clean acceptance. R16-R18 record the later localization and final qualification without rewriting these outcomes.
 - **Confidence:** High for the recorded runs and artifact/profile identities; low for extrapolation beyond these versions or for production reliability.
+
+### R16 — Retained Octane dialog path and isolated common-dialog probe
+
+- **Claim:** The retained installer uses `rfd 0.15.4` synchronous modern Windows common-item dialogs from Tauri `spawn_blocking` threads without supplying a parent window; the same API shape is stable under the pinned Wine candidate both before and after Octane installation.
+- **Classification:** Retained application source and lockfile, reviewed upstream source, and locally reproduced diagnostics.
+- **Source / author / date:** Octane commit `7088eed9adb8403b9575afe1cc9e9c2984b29049`; `rfd` commit [`bac4bd3364f2befaabafa9f58ac77fd8925b2abf`](https://github.com/PolyMeilex/rfd/tree/bac4bd3364f2befaabafa9f58ac77fd8925b2abf), PolyMeilex, 2025-07-12; local review and runs 2026-11-14.
+- **Version / platform:** `rfd 0.15.4`; `IFileOpenDialog` / `IFileSaveDialog`; STA with `COINIT_DISABLE_OLE1DDE`; null owner; worker thread; pinned Docker/Wine-Staging 11.21 visible-region candidate on `winex11`.
+- **Reported outcome:** Upstream source creates `FileOpenDialog`/`FileSaveDialog`, sets `FOS_ALLOWMULTISELECT` for `pick_files`, initializes apartment-threaded COM with OLE1 DDE disabled, and calls `Show` with a null HWND when no parent is configured. Retained Octane source wraps `pick_files` and `save_file` in `tauri::async_runtime::spawn_blocking`.
+- **Reproduction:** Build `diagnostics/win32-file-dialog`, then run `Invoke-FileDialogDiagnosticRun.ps1` with `-Phase CleanPrefix` and `-Phase PostInstall`, `-Suite AppMatch`. The probe records API return, exact selected paths, focus state, cancellation, and overwrite-decline integrity.
+- **Local outcome:** Clean-prefix run `46953cece8` and post-install run `888f4aca2d` each passed 7/7. Both returned the exact `Space Ω` fixture paths, distinguished `0x800704C7` cancellation from failure, repeated open selection, returned two exact paths from one multi-select, and preserved the existing destination after overwrite decline. Their `dialog-suite.json` SHA-256 values are `36319fe3fadb19d7e49739dd819afbb9fbefda765f226bcbe7dfd8a7c90b146b` and `a07e7bfb14602da49f33ce52bab7a7ed410572509c31eac1e911ea668e6e6a4e`. A standalone probe pass is not an Octane dialog pass.
+- **Confidence:** High for the exact API shape and measured probe cases; no claim for legacy APIs or arbitrary applications.
+
+### R17 — Normal initial Octane presentation without the repaint helper
+
+- **Claim:** The historical three-cycle resize/minimize/restore sequence was not required for initial presentation once startup was observed with bounded state-based waits.
+- **Classification:** Locally reproduced diagnostic plus locked acceptance measurements.
+- **Source / author / date:** Octane repaint observer `948d78d02c` and final batch `qbatch-e2aaafff4b38`, Octane lab, 2026-11-14.
+- **Version / platform:** Retained installer and exact pinned candidate on XFCE/Xorgxrdp, `winex11`, 1280x800, Mesa llvmpipe, WebView2 157.0.4341.60.
+- **Reported outcome:** Not applicable; this entry records local measurements.
+- **Reproduction:** Launch the installed executable once, permit one ordinary foreground activation, forbid resize/minimize/restore/click/reconnect/retry before readiness, and sample the actual client area until the bounded deadline.
+- **Local outcome:** The dedicated observer reached visible presentation at 17.615 seconds with 1,650 client colors and `forcedRepaintUsed=false`. All ten final runs presented at 19.000-19.084 seconds without the helper, hidden retry, or manual override, and later passed ordinary post-readiness resize/scroll/minimize/restore. This disproves the earlier assumption that the three-cycle sequence was a causal prerequisite in this exact profile; it does not identify which WebView2/startup event consumed the latency.
+- **Confidence:** High for the measured configuration; low for extrapolation to the still-white minimal WebView2 probe or other hosts.
+
+### R18 — Final schema-v3 unattended qualification
+
+- **Claim:** The retained installed Octane artifact satisfies the declared full acceptance contract in ten sequential fresh containers and prefixes under one immutable lock.
+- **Classification:** Locally reproduced qualification.
+- **Source / author / date:** Lock `profiles/qualification/docker-wine-staging-11.21-visrgn.lock.json`, batch `qbatch-e2aaafff4b38`, harness commit `7181a47ee47ae1d63b3bcd4fa6a480d45b560ee3`, Octane lab, 2026-11-14.
+- **Version / platform:** Windows 11 build 26200.8875; WSL 3.0.1.0; Ubuntu 24.04.4; kernel 6.18.40.1; Docker 29.6.2 inside WSL; image `sha256:0443029e26be1d0590fd37491d69ab8fc1e186ef7e80d4d75cb191628188259c`; Wine/Staging 11.21 plus visible-region patch; Evergreen WebView2 157.0.4341.60.
+- **Reported outcome:** Not applicable; this entry records local measurements.
+- **Reproduction:** Verify lock SHA-256 `0137c535f4eb0d15c12628801020b71f1952a18c65c524b7ac26874f6e6377c1`, then run `Invoke-OctaneQualificationBatch.ps1` with ten planned runs. Each run must create a fresh container/prefix/user-data state, install the retained SHA-256 `adde062d...` artifact, launch once, execute every gate, collect evidence, and remove its exact resource.
+- **Local outcome:** 10/10 runs passed all ten gates: lock/runtime identity, fresh installation, normal presentation, continuing repaint/input, exact Unicode and missing-path contracts, real 8-file Rust workload, native open/save cancellation and repeated use, independently validated export/no-overwrite/input integrity, ordinary post-dialog resize/restore, and evidence/cleanup. Every run recorded `forcedRepaintUsed=false`, no hidden retry, and no manual override. Batch-summary SHA-256 is `ee890ddcf0b4f420cff10a2d5be33ef8c7d6695b1bcb34f10b872df9fd9fff2b`; the 1,853-entry checksum manifest verifies and has SHA-256 `e148ad2bb58998b62a54c2a0b131e49eaaaf86e11328b2580b8e576b751415e0`.
+- **Confidence:** High for the exact installer, lock, schema, and recorded host. This does not qualify stock Wine, arbitrary Tauri applications, or an untested proprietary installer.

@@ -93,6 +93,28 @@ Run the installed Octane black-box scenario separately. The experiment uses the 
   -Status PASS -Detail 'Native client and interaction evidence reviewed.'
 ```
 
+The reliability phase adds a standalone Win32 common-dialog probe and a strict unattended qualification path. Manual review cannot promote a qualification result:
+
+```powershell
+# Build and run the IFileOpenDialog/IFileSaveDialog/GetOpenFileName/GetSaveFileName probe.
+./scripts/Build-FileDialogProbe.ps1 -WslDistro Ubuntu-24.04
+./scripts/Invoke-FileDialogDiagnosticRun.ps1 -WslDistro Ubuntu-24.04 `
+  -Phase CleanPrefix -Suite AppMatch -Port 3394
+./scripts/Invoke-FileDialogDiagnosticRun.ps1 -WslDistro Ubuntu-24.04 `
+  -Phase PostInstall -Suite AppMatch -Port 3394
+
+# Freeze the current clean Git commit, installer, image, host, runtime, display,
+# security policy, fixtures, harness files, timeouts, and ten-run contract.
+./scripts/New-OctaneQualificationLock.ps1 -WslDistro Ubuntu-24.04
+
+# Execute ten sequential fresh containers/prefixes with no operator input.
+./scripts/Invoke-OctaneQualificationBatch.ps1 `
+  -LockPath profiles/qualification/docker-wine-staging-11.21-visrgn.lock.json `
+  -WslDistro Ubuntu-24.04 -Port 3394
+```
+
+The final schema-v3 scenario launches the installed executable once, permits only one normal activation before readiness, and forbids the historical repaint helper. It validates exact Unicode clipboard round-tripping, a deliberate missing input, cancel/reopen behavior, the real eight-file Rust workload, save cancellation, new export, existing-output protection, ordinary post-readiness resize/restore, actual Wine/WebView2/display identity, complete evidence, and exact cleanup.
+
 Record visible acceptance outcomes, collect evidence, and remove only the named lab resources:
 
 ```powershell
@@ -127,19 +149,25 @@ The RDP password is generated per run. The upstream Docker-Wine server receives 
 
 ## Measured result
 
-The earlier WSLC timeout is fixed and preserved as historical evidence. The current primary path is Docker Engine 29.6.2 inside `Ubuntu-24.04` WSL2; its deep run/copy/cleanup doctor passed. No VPN, Podman, Proton, Steam, CrossOver, Docker Desktop, host GPU mapping, `--no-sandbox`, privileged mode, or Docker-socket mount was used in this iteration.
+The earlier WSLC timeout and all initial blank/black, repaint-assisted, 1/3, 5/10, and 9/10 outcomes remain historical evidence. The final primary path is Docker Engine 29.6.2 inside `Ubuntu-24.04` WSL2. No VPN, Podman, Proton, Steam, CrossOver, Docker Desktop, host GPU mapping, `--no-sandbox`, privileged mode, host networking, broad host mount, or Docker-socket mount was used.
 
-For the unchanged retained installer (`SHA-256 adde062d79c2857cb2f5e676c5d6870986070252ac3cf7ca7a6b78c8d829080a`):
+The unchanged retained installer has SHA-256 `adde062d79c2857cb2f5e676c5d6870986070252ac3cf7ca7a6b78c8d829080a` and source commit `7088eed9adb8403b9575afe1cc9e9c2984b29049`. The final qualification lock records:
 
-- The baseline Docker-Wine/Wine 11 run passed desktop, Notepad input, NSIS, and Evergreen WebView2 157.0.4341.60 installation. The enhanced native probe had live DOM/input/timer activity but a zero client-pixel delta and a white client; Octane remained black.
-- The pinned source control uses Wine commit `2528aff26208257fdbf980666a4f0e66d47563ce` plus the complete matching Wine-Staging commit `04414fee61f7d283072d40905816b928875b2d4b`. One fresh control completed the real GUI/workload/dialog/export scenario after a focus/input and three-cycle resize/minimize/restore repaint nudge; the next fresh control remained black after the same bounded procedure. The control is non-repeatable.
-- The candidate adds only the reviewed `win32u` cross-process visible-region patch, SHA-256 `f0ea7e56c4b86ce6e1f99940c4c18ac80f2bee86442c800bc58c2f36bde92752`, from `JustNotesa/solid-edge-wine-fixes` commit `d3fd3268536ed43c7e5c616bc1c98eec07a9d154`.
-- In three fresh candidate containers, the installed Tauri/WebView2 client visibly rendered only after three resize/minimize/restore cycles. All three then completed the real 8-file Rust workload with 6 extension groups, 1 duplicate set, 176 bytes, and 0 errors.
-- Only candidate run 1 completed every executed native-dialog and export/no-overwrite gate. Runs 2 and 3 produced correct first exports but failed the later dialog/no-overwrite sequence. A reused-prefix debug run validated the hardened overwrite synchronizer, but Choose Files returned `Selection canceled` without a visible picker; it is explicitly not clean acceptance.
-- The minimal Win32 probe still rendered a solid-white WebView client with the candidate (rAF 0, timers 114, client-pixel delta 0). The patch is not a general WebView2 fix, and the mandatory window-state nudge is not normal repaint behavior.
-- No current Wine 11.21 run reproduced the historical `IDropTarget_Release` crash. That does not rewrite the earlier observation or prove Wine bug 60225 was the same defect.
+- Harness commit `7181a47ee47ae1d63b3bcd4fa6a480d45b560ee3`.
+- Lock SHA-256 `0137c535f4eb0d15c12628801020b71f1952a18c65c524b7ac26874f6e6377c1`.
+- Image `sha256:0443029e26be1d0590fd37491d69ab8fc1e186ef7e80d4d75cb191628188259c`.
+- Wine `2528aff...`, matching Wine-Staging `04414f...`, and the pinned `win32u` visible-region patch `f0ea7e...`.
+- `winex11`, XFCE/Xorgxrdp, `1280x800`, Mesa llvmpipe, no host GPU, and Evergreen WebView2 `157.0.4341.60`.
 
-**Verdict: NOT YET DEMONSTRATED repeatably.** There is a conditional laboratory rendering/workload result, but the required three complete fresh passes and pinned-rebuild confirmation were not achieved. A disposable native-Windows control was unavailable, and the owner's everyday Windows installation was intentionally untouched.
+Final batch `qbatch-e2aaafff4b38` passed 10/10 unattended fresh containers and Wine prefixes. Every run had ten PASS gates, `forcedRepaintUsed=false`, zero hidden retries, zero manual overrides, a validated 8-file/6-group/1-duplicate/176-byte/0-error report, exact Unicode/space and deliberate missing-input reports, complete evidence, and cleanup PASS. Initial visible presentation took 19.000-19.084 seconds without resize/minimize/restore readiness manipulation. All 1,853 entries in the batch checksum manifest verify.
+
+Two earlier failed qualification batches were preserved and fixed rather than replaced: 5/10 exposed a transient inter-run loopback-port readiness bug; 9/10 exposed a single-sample dialog-foreground synchronization race while the recording showed the picker visibly present. A narrower schema-v2 batch later reached 10/10, but audit found that its keystroke oracle dropped `Ω`; schema v3 replaced it with verified clipboard input and exact report assertions before the final batch.
+
+The standalone native dialog probe passed 7/7 in clean and post-install prefixes with exact Unicode paths. The separate minimal Win32 WebView2 probe still has a white client and is not rewritten as a pass. No current Wine 11.21 run reproduced the historical `IDropTarget_Release` crash.
+
+**Technical feasibility: demonstrated.**
+
+**Full Octane acceptance: qualified against the declared 10/10 unattended fresh-prefix contract for the exact recorded installer and configuration.** The custom visible-region patch is a maintenance condition. This does not qualify stock Wine, arbitrary Tauri applications, or a proprietary installer that was not tested.
 
 ## Build locally
 
