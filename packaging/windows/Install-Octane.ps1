@@ -14,8 +14,8 @@ if($PSVersionTable.PSVersion.Major -lt 7){throw 'Octane installation requires Po
 
 $package=[IO.Path]::GetFullPath($PackageRoot)
 if(-not $OctaneHome){$OctaneHome=Join-Path $env:LOCALAPPDATA 'Octane'}
-$home=[IO.Path]::GetFullPath($OctaneHome)
-if(-not $DistributionInstallRoot){$DistributionInstallRoot=Join-Path $home 'wsl'}
+$octaneRoot=[IO.Path]::GetFullPath($OctaneHome)
+if(-not $DistributionInstallRoot){$DistributionInstallRoot=Join-Path $octaneRoot 'wsl'}
 $distributionRoot=[IO.Path]::GetFullPath($DistributionInstallRoot)
 $manifestPath=Join-Path $package 'manifest.json'
 if(-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)){throw "Package manifest not found: $manifestPath"}
@@ -68,7 +68,7 @@ $plan=[ordered]@{
     packageVersion=[string]$manifest.version
     distribution=$DistributionName
     distributionInstallRoot=$distributionRoot
-    octaneHome=$home
+    octaneHome=$octaneRoot
     appliance=$appliance
     imageArchive=$imageArchive
     imageReference=[string]$manifest.image.reference
@@ -81,13 +81,13 @@ if($PlanOnly){
     return
 }
 
-if(Test-Path -LiteralPath $home){throw "Octane home already exists; refusing to overwrite it: $home"}
+if(Test-Path -LiteralPath $octaneRoot){throw "Octane home already exists; refusing to overwrite it: $octaneRoot"}
 if(Test-Path -LiteralPath $distributionRoot){throw "WSL install directory already exists; refusing to overwrite it: $distributionRoot"}
 if((Get-WslDistributions) -contains $DistributionName){throw "WSL distribution already exists; refusing to replace or unregister it: $DistributionName"}
 
 & wsl.exe --version *> $null
 if($LASTEXITCODE -ne 0){throw 'WSL is unavailable or blocked by policy.'}
-if(-not $PSCmdlet.ShouldProcess($DistributionName,"Import Octane appliance into $distributionRoot and install launcher into $home")){return}
+if(-not $PSCmdlet.ShouldProcess($DistributionName,"Import Octane appliance into $distributionRoot and install launcher into $octaneRoot")){return}
 
 $imported=$false
 try{
@@ -110,12 +110,12 @@ try{
     $loadedId=(Invoke-WslChecked -Arguments @('-d',$DistributionName,'-u','root','--exec','docker','image','inspect','--format','{{.Id}}',[string]$manifest.image.reference) -Description 'Loaded image identity verification' | Select-Object -First 1).Trim()
     if($loadedId -ne [string]$manifest.image.imageId){throw "Loaded image identity mismatch. Expected $($manifest.image.imageId), got $loadedId."}
 
-    New-Item -ItemType Directory -Path $home -Force | Out-Null
-    Copy-Item -LiteralPath $runtimeSource -Destination (Join-Path $home 'runtime') -Recurse
+    New-Item -ItemType Directory -Path $octaneRoot -Force | Out-Null
+    Copy-Item -LiteralPath $runtimeSource -Destination (Join-Path $octaneRoot 'runtime') -Recurse
     foreach($name in @('Octane.ps1','Octane.cmd','Uninstall-Octane.ps1')){
-        Copy-Item -LiteralPath (Join-Path $package $name) -Destination (Join-Path $home $name)
+        Copy-Item -LiteralPath (Join-Path $package $name) -Destination (Join-Path $octaneRoot $name)
     }
-    Copy-Item -LiteralPath $manifestPath -Destination (Join-Path $home 'package-manifest.json')
+    Copy-Item -LiteralPath $manifestPath -Destination (Join-Path $octaneRoot 'package-manifest.json')
     $inputRoot=Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'Octane\Input'
     $outputRoot=Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'Octane\Output'
     New-Item -ItemType Directory -Path $inputRoot,$outputRoot -Force | Out-Null
@@ -125,20 +125,20 @@ try{
         packageVersion=[string]$manifest.version
         distribution=$DistributionName
         distributionInstallRoot=$distributionRoot
-        runtimeRoot=(Join-Path $home 'runtime')
+        runtimeRoot=(Join-Path $octaneRoot 'runtime')
         imageReference=[string]$manifest.image.reference
         imageId=[string]$manifest.image.imageId
-        defaultProfile=(Join-Path $home ([string]$manifest.runtime.defaultProfile))
+        defaultProfile=(Join-Path $octaneRoot ([string]$manifest.runtime.defaultProfile))
         defaultInputDirectory=$inputRoot
         defaultOutputDirectory=$outputRoot
         defaultPort=[int]$manifest.launcher.defaultPort
     }
-    $config | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath (Join-Path $home 'config.json') -Encoding utf8
+    $config | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath (Join-Path $octaneRoot 'config.json') -Encoding utf8
     if(-not $SkipPathUpdate){
         $current=[Environment]::GetEnvironmentVariable('Path','User')
         $parts=@($current -split ';' | Where-Object {$_})
-        if($parts -notcontains $home){
-            [Environment]::SetEnvironmentVariable('Path',(($parts+$home) -join ';'),'User')
+        if($parts -notcontains $octaneRoot){
+            [Environment]::SetEnvironmentVariable('Path',(($parts+$octaneRoot) -join ';'),'User')
         }
     }
 }catch{
@@ -146,8 +146,8 @@ try{
     throw
 }
 
-Write-Output "Octane installed: $home"
+Write-Output "Octane installed: $octaneRoot"
 Write-Output "WSL appliance: $DistributionName at $distributionRoot"
 Write-Output "Loaded image: $($manifest.image.reference) ($($manifest.image.imageId))"
-Write-Output "Launcher: $(Join-Path $home 'Octane.cmd')"
+Write-Output "Launcher: $(Join-Path $octaneRoot 'Octane.cmd')"
 if(-not $SkipPathUpdate){Write-Output 'Open a new terminal before invoking octane from PATH.'}

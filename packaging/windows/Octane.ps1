@@ -20,9 +20,9 @@ param(
 
 $ErrorActionPreference='Stop'
 if(-not $IsWindows){throw 'The installed Octane launcher must run on Windows in PowerShell 7.'}
-$home=if($env:OCTANE_HOME){[IO.Path]::GetFullPath($env:OCTANE_HOME)}else{$PSScriptRoot}
-$configPath=Join-Path $home 'config.json'
-if(-not (Test-Path -LiteralPath $configPath -PathType Leaf)){throw "Octane is not installed at $home. Run Install-Octane.ps1 first."}
+$octaneRoot=if($env:OCTANE_HOME){[IO.Path]::GetFullPath($env:OCTANE_HOME)}else{$PSScriptRoot}
+$configPath=Join-Path $octaneRoot 'config.json'
+if(-not (Test-Path -LiteralPath $configPath -PathType Leaf)){throw "Octane is not installed at $octaneRoot. Run Install-Octane.ps1 first."}
 $config=Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
 $runtime=[IO.Path]::GetFullPath([string]$config.runtimeRoot)
 if(-not (Test-Path -LiteralPath $runtime -PathType Container)){throw "Installed runtime is missing: $runtime"}

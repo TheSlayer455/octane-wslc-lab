@@ -11,21 +11,21 @@ $ErrorActionPreference='Stop'
 $package=[IO.Path]::GetFullPath($PackageRoot)
 $id=[Guid]::NewGuid().ToString('N').Substring(0,10)
 $distribution="Octane-Test-$id"
-$home=Join-Path $env:LOCALAPPDATA "Octane-Test-$id"
+$octaneRoot=Join-Path $env:LOCALAPPDATA "Octane-Test-$id"
 if(-not $EvidenceDirectory){$EvidenceDirectory=Join-Path (Get-Location) "evidence/appliance-test-$id"}
 $evidence=[IO.Path]::GetFullPath($EvidenceDirectory)
 New-Item -ItemType Directory -Path $evidence -Force | Out-Null
 $container=$null
 $result=[ordered]@{schemaVersion=1;testId=$id;distribution=$distribution;startedAtUtc=[DateTime]::UtcNow.ToString('o');stages=[ordered]@{};container=$null;cleanup='NOT_RUN'}
 try{
-    & (Join-Path $package 'Install-Octane.ps1') -PackageRoot $package -OctaneHome $home -DistributionName $distribution -SkipPathUpdate -Confirm:$false
+    & (Join-Path $package 'Install-Octane.ps1') -PackageRoot $package -OctaneHome $octaneRoot -DistributionName $distribution -SkipPathUpdate -Confirm:$false
     $result.stages.install='PASS'
-    & (Join-Path $home 'Octane.ps1') doctor -Deep -Port $Port | Set-Content -LiteralPath (Join-Path $evidence 'doctor.log') -Encoding utf8
+    & (Join-Path $octaneRoot 'Octane.ps1') doctor -Deep -Port $Port | Set-Content -LiteralPath (Join-Path $evidence 'doctor.log') -Encoding utf8
     $result.stages.doctor='PASS'
     if($Installer){
-        $runtime=Join-Path $home 'runtime'
+        $runtime=Join-Path $octaneRoot 'runtime'
         $output=Join-Path $evidence 'operator-output'
-        $lines=@(& (Join-Path $home 'Octane.ps1') open $Installer -InputDirectory (Join-Path $runtime 'fixtures') -OutputDirectory $output -Port $Port -BuildLabel "appliance-test-$id" -NoBrowser)
+        $lines=@(& (Join-Path $octaneRoot 'Octane.ps1') open $Installer -InputDirectory (Join-Path $runtime 'fixtures') -OutputDirectory $output -Port $Port -BuildLabel "appliance-test-$id" -NoBrowser)
         $lines | Set-Content -LiteralPath (Join-Path $evidence 'open.log') -Encoding utf8
         $containerLine=$lines | Where-Object {$_ -match '^Container: octane-[a-f0-9]{10}$'} | Select-Object -First 1
         if(-not $containerLine){throw 'Appliance preview did not return an exact container identity.'}
@@ -33,9 +33,9 @@ try{
         $result.container=$container
         & (Join-Path $runtime 'scripts/Test-OctaneBrowserComponents.ps1') -Container $container -WslDistro $distribution -OutputDirectory (Join-Path $evidence 'browser-components') | Set-Content -LiteralPath (Join-Path $evidence 'components.log') -Encoding utf8
         $result.stages.previewComponents='PASS'
-        & (Join-Path $home 'Octane.ps1') collect -Container $container | Set-Content -LiteralPath (Join-Path $evidence 'collect.log') -Encoding utf8
+        & (Join-Path $octaneRoot 'Octane.ps1') collect -Container $container | Set-Content -LiteralPath (Join-Path $evidence 'collect.log') -Encoding utf8
         $result.stages.collection='PASS'
-        & (Join-Path $home 'Octane.ps1') stop -Container $container | Set-Content -LiteralPath (Join-Path $evidence 'stop.log') -Encoding utf8
+        & (Join-Path $octaneRoot 'Octane.ps1') stop -Container $container | Set-Content -LiteralPath (Join-Path $evidence 'stop.log') -Encoding utf8
         $container=$null
         $result.stages.previewCleanup='PASS'
     }else{
@@ -46,12 +46,12 @@ try{
     throw
 }finally{
     if($container){
-        try{& (Join-Path $home 'Octane.ps1') collect -Container $container *> $null}catch{}
-        try{& (Join-Path $home 'Octane.ps1') stop -Container $container *> $null}catch{}
+        try{& (Join-Path $octaneRoot 'Octane.ps1') collect -Container $container *> $null}catch{}
+        try{& (Join-Path $octaneRoot 'Octane.ps1') stop -Container $container *> $null}catch{}
     }
-    if($RemoveAfterTest -and (Test-Path -LiteralPath (Join-Path $home 'config.json'))){
+    if($RemoveAfterTest -and (Test-Path -LiteralPath (Join-Path $octaneRoot 'config.json'))){
         try{
-            & (Join-Path $home 'Uninstall-Octane.ps1') -OctaneHome $home -ConfirmDistributionRemoval -Confirm:$false
+            & (Join-Path $octaneRoot 'Uninstall-Octane.ps1') -OctaneHome $octaneRoot -ConfirmDistributionRemoval -Confirm:$false
             $result.cleanup='PASS'
         }catch{
             $result.cleanup="FAIL: $($_.Exception.Message)"
