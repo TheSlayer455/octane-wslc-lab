@@ -87,23 +87,51 @@ find_octane() {
     fi
     printf '%s' "${apps[0]}"
 }
+
+ensure_display() {
+    local authority="${XAUTHORITY:-$HOME/.Xauthority}"
+    local socket candidate
+
+    if [[ -n "${DISPLAY:-}" ]] && DISPLAY="$DISPLAY" XAUTHORITY="$authority" xdpyinfo >/dev/null 2>&1; then
+        export XAUTHORITY="$authority"
+        return
+    fi
+
+    for socket in /tmp/.X11-unix/X*; do
+        [[ -S "$socket" ]] || continue
+        candidate=":${socket##*/X}"
+        if DISPLAY="$candidate" XAUTHORITY="$authority" xdpyinfo >/dev/null 2>&1; then
+            export DISPLAY="$candidate"
+            export XAUTHORITY="$authority"
+            return
+        fi
+    done
+
+    echo 'No usable X11 display was found. Connect the desktop viewer before running a GUI command.' >&2
+    return 1
+}
 case "${1:-help}" in
     environment)
         record_environment
         echo "Environment recorded beneath $evidence" ;;
     notepad)
+        ensure_display
         record_environment
         run_logged notepad wine notepad ;;
     install)
+        ensure_display
         run_logged install wine /opt/octane/Octane-setup.exe ;;
     launch)
+        ensure_display
         app=$(find_octane)
         run_logged launch wine "$app" ;;
     launch-ole)
+        ensure_display
         app=$(find_octane)
         export WINEDEBUG="${OCTANE_OLE_WINEDEBUG:-+timestamp,+ole,+seh}"
         run_logged launch-ole wine "$app" ;;
     diagnostic)
+        ensure_display
         if [[ ! -f /opt/octane/WebView2Diagnostic.exe ]]; then
             echo 'WebView2Diagnostic.exe is not present in this image.' >&2
             exit 1
@@ -117,6 +145,7 @@ case "${1:-help}" in
         export WINEDEBUG="${OCTANE_OLE_WINEDEBUG:-+timestamp,+ole,+seh}"
         run_logged webview2-diagnostic wine /opt/octane/WebView2Diagnostic.exe ;;
     experiment)
+        ensure_display
         if [[ ! -x /usr/local/bin/octane-webview2-experiment ]]; then
             echo 'The WebView2 experiment runner is not present in this image.' >&2
             exit 1

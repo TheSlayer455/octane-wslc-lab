@@ -182,7 +182,8 @@ screen_change_status=NOT_RUN
 before="$run_dir/screenshots/diagnostic-before.png"
 after="$run_dir/screenshots/diagnostic-after-input.png"
 if [[ -s "$before" && -s "$after" ]]; then
-    read -r width height < <(identify -format '%w %h' "$before")
+    # Include a trailing newline so Bash `read` succeeds under `set -e`.
+    read -r width height < <(identify -format '%w %h\n' "$before")
     crop_y=100
     if (( height > crop_y )); then
         convert "$before" -crop "${width}x$((height-crop_y))+0+$crop_y" +repage "$run_dir/screenshots/client-before.png"

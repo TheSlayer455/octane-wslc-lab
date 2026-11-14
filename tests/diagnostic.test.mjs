@@ -4,6 +4,7 @@ import {readFileSync} from 'node:fs';
 
 const source=readFileSync(new URL('../diagnostics/webview2-win32/main.cpp',import.meta.url),'utf8');
 const runner=readFileSync(new URL('../lab/octane-webview2-experiment',import.meta.url),'utf8');
+const labCommand=readFileSync(new URL('../lab/octane-lab',import.meta.url),'utf8');
 const controller=readFileSync(new URL('../scripts/Invoke-OctaneExperiment.ps1',import.meta.url),'utf8');
 
 test('native diagnostic separates DOM activity from animation frames',()=>{
@@ -35,4 +36,14 @@ test('container probe captures native-window evidence without weakening sandbox 
   assert.match(controller,/profile\.json/);
   assert.match(controller,/Write-OctaneResultArtifacts/);
   assert.match(controller,/Update-OctaneEvidenceChecksums/);
+});
+
+test('Docker-Wine GUI commands verify the discovered xrdp display',()=>{
+  assert.match(labCommand,/ensure_display\(\)/);
+  assert.match(labCommand,/DISPLAY="\$candidate" XAUTHORITY="\$authority" xdpyinfo/);
+  assert.match(labCommand,/No usable X11 display was found/);
+});
+
+test('pixel comparison survives Bash errexit when identify emits dimensions',()=>{
+  assert.match(runner,/identify -format '%w %h\\n'/);
 });
