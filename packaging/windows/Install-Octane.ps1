@@ -15,8 +15,17 @@ if($PSVersionTable.PSVersion.Major -lt 7){throw 'Octane installation requires Po
 $package=[IO.Path]::GetFullPath($PackageRoot)
 if(-not $OctaneHome){$OctaneHome=Join-Path $env:LOCALAPPDATA 'Octane'}
 $octaneRoot=[IO.Path]::GetFullPath($OctaneHome)
-if(-not $DistributionInstallRoot){$DistributionInstallRoot=Join-Path $octaneRoot 'wsl'}
+if(-not $DistributionInstallRoot){
+    $octaneParent=Split-Path $octaneRoot -Parent
+    $octaneLeaf=Split-Path $octaneRoot -Leaf
+    $DistributionInstallRoot=Join-Path $octaneParent "$octaneLeaf-wsl"
+}
 $distributionRoot=[IO.Path]::GetFullPath($DistributionInstallRoot)
+if($distributionRoot.Equals($octaneRoot,[StringComparison]::OrdinalIgnoreCase) -or
+   $distributionRoot.StartsWith($octaneRoot+[IO.Path]::DirectorySeparatorChar,[StringComparison]::OrdinalIgnoreCase) -or
+   $octaneRoot.StartsWith($distributionRoot+[IO.Path]::DirectorySeparatorChar,[StringComparison]::OrdinalIgnoreCase)){
+    throw 'The WSL distribution install root and Windows launcher home must be separate sibling trees.'
+}
 $manifestPath=Join-Path $package 'manifest.json'
 if(-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)){throw "Package manifest not found: $manifestPath"}
 $manifest=Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
