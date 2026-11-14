@@ -17,11 +17,11 @@ New-Item -ItemType Directory -Path (Split-Path $output -Parent) -Force | Out-Nul
 $runtimeInput=ConvertTo-OctaneRuntimePath -Engine Docker -WslDistro $WslDistro -Path $input
 $runtimeOutput=ConvertTo-OctaneRuntimePath -Engine Docker -WslDistro $WslDistro -Path $output
 $result=Invoke-OctaneNativeProcess -FileName 'wsl.exe' -Arguments @(
-    '-d',$WslDistro,'--exec','zstd',"-$CompressionLevel",'-T0','--no-progress','--force','--output',$runtimeOutput,$runtimeInput
+    '-d',$WslDistro,'--exec','zstd',"-$CompressionLevel",'-T0','-q','--force','-o',$runtimeOutput,$runtimeInput
 ) -TimeoutSeconds 3600
 if($result.TimedOut -or $result.ExitCode -ne 0){throw "zstd compression failed. $($result.StdErr)"}
 $test=Invoke-OctaneNativeProcess -FileName 'wsl.exe' -Arguments @(
-    '-d',$WslDistro,'--exec','zstd','--test','--no-progress',$runtimeOutput
+    '-d',$WslDistro,'--exec','zstd','--test','-q',$runtimeOutput
 ) -TimeoutSeconds 1800
 if($test.TimedOut -or $test.ExitCode -ne 0){throw "Compressed archive verification failed. $($test.StdErr)"}
 $source=Get-Item -LiteralPath $input
