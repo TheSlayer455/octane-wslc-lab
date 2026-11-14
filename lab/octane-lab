@@ -1,15 +1,24 @@
 #!/usr/bin/env bash
 set -euo pipefail
-export WINEPREFIX=/config/octane-prefix
-export WINEARCH=win64
-# LinuxServer WineGUI's interactive desktop is Xwayland display :0.  The image
-# metadata currently advertises :1 to non-interactive exec sessions, so select
-# the live socket when the helper is launched with `wslc exec`.
-if [[ -S /tmp/.X11-unix/X0 ]]; then
+state_dir="${OCTANE_STATE_DIR:-/config}"
+export WINEPREFIX="${WINEPREFIX:-$state_dir/octane-prefix}"
+export WINEARCH="${WINEARCH:-win64}"
+# Select a live X socket rather than trusting inherited image metadata. WineGUI
+# currently exposes :0 to exec sessions; Docker-Wine RDP sessions may use a
+# different display and retain their already-correct DISPLAY value.
+if [[ -n "${DISPLAY:-}" && -S "/tmp/.X11-unix/X${DISPLAY#:}" ]]; then
+    :
+elif [[ -S /tmp/.X11-unix/X0 ]]; then
     export DISPLAY=:0
+else
+    for socket in /tmp/.X11-unix/X*; do
+        [[ -S "$socket" ]] || continue
+        export DISPLAY=":${socket##*X}"
+        break
+    done
 fi
-export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/config/.XDG}"
-evidence=/config/octane-evidence
+export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-$state_dir/.XDG}"
+evidence="${OCTANE_EVIDENCE_DIR:-$state_dir/octane-evidence}"
 mkdir -p "$evidence"
 export WINEDEBUG="${WINEDEBUG:--all,+timestamp,+seh}"
 run_logged() {
@@ -39,5 +48,5 @@ case "${1:-help}" in
         run_logged launch wine "${apps[0]}" ;;
     help|*)
         echo 'Usage: octane-lab {notepad|install|launch}'
-        echo 'Run as the desktop user. Export JSON to Z:\config\octane-evidence\report.json.' ;;
+        echo "Run as the desktop user. Export JSON beneath Z:${evidence//\//\\}." ;;
 esac

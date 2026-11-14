@@ -1,0 +1,17 @@
+ARG BASE_IMAGE=scottyhardy/docker-wine@sha256:c61cfc490aaee10b96782b88733a0f3d0e7b425d93b4e96617d9ab9a2b6bcfd2
+FROM ${BASE_IMAGE}
+
+USER root
+COPY artifacts/Octane-setup.exe /opt/octane/Octane-setup.exe
+COPY artifacts/installer-manifest.json /opt/octane/installer-manifest.json
+COPY fixtures/ /opt/octane/fixtures/
+COPY lab/octane-lab /usr/local/bin/octane-lab
+RUN chmod 755 /usr/local/bin/octane-lab
+
+ENV OCTANE_STATE_DIR=/home/wineuser/.octane \
+    OCTANE_EVIDENCE_DIR=/home/wineuser/.octane/evidence \
+    WINEPREFIX=/home/wineuser/.octane/prefix \
+    WINEARCH=win64
+
+# Preserve the upstream entry point so its documented RDP mode remains active.
+ENTRYPOINT ["/usr/bin/entrypoint"]
