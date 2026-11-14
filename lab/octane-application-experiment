@@ -37,6 +37,20 @@ wait_window_not_viewable() {
     return 1
 }
 
+focus_main_for_input() {
+    xdotool windowmap "$window_id" >> "$interaction_log" 2>&1 || true
+    xdotool windowactivate --sync "$window_id" >> "$interaction_log" 2>&1 || true
+    xdotool windowfocus --sync "$window_id" >> "$interaction_log" 2>&1 || true
+    sleep 0.5
+}
+
+restore_main_for_input() {
+    xdotool windowminimize "$window_id" >> "$interaction_log" 2>&1 || true
+    sleep 1
+    focus_main_for_input
+    sleep 2
+}
+
 mapfile -d '' apps < <(find "$WINEPREFIX/drive_c/users" -type f -iname 'octane.exe' -print0)
 if [[ ${#apps[@]} -ne 1 ]]; then
     echo 'Expected exactly one installed octane.exe.' >&2
@@ -220,15 +234,19 @@ if [[ -n "$window_id" ]]; then
         cp "$report_path" "$run_dir/report.json"
         report_sha_before=$(sha256sum "$report_path" | cut -d' ' -f1)
 
-        xdotool windowactivate --sync "$window_id" >> "$run_dir/logs/interaction.log" 2>&1 || true
-        xdotool mousemove --window "$window_id" 225 190 click 1 >> "$run_dir/logs/interaction.log" 2>&1 || true
-        xdotool key --window "$window_id" Tab Return >> "$run_dir/logs/interaction.log" 2>&1 || true
-        deadline=$((SECONDS + 15))
         save_dialog=''
-        while (( SECONDS < deadline )); do
-            save_dialog=$(xdotool search --onlyvisible --name '^Save$' 2>/dev/null | head -n 1 || true)
+        for trigger_attempt in 1 2; do
+            focus_main_for_input
+            log_step "second export trigger attempt=$trigger_attempt"
+            xdotool mousemove --window "$window_id" 365 190 click 1 >> "$interaction_log" 2>&1 || true
+            deadline=$((SECONDS + 8))
+            while (( SECONDS < deadline )); do
+                save_dialog=$(xdotool search --onlyvisible --name '^Save$' 2>/dev/null | head -n 1 || true)
+                [[ -n "$save_dialog" ]] && break
+                sleep 0.25
+            done
             [[ -n "$save_dialog" ]] && break
-            sleep 0.25
+            restore_main_for_input
         done
         if [[ -n "$save_dialog" ]]; then
             log_step "second save dialog id=$save_dialog"
@@ -271,14 +289,19 @@ if [[ -n "$window_id" ]]; then
 
     # Exercise a native open dialog and cancellation without changing the
     # validated report or the visible workload results.
-    xdotool windowactivate --sync "$window_id" >> "$run_dir/logs/interaction.log" 2>&1 || true
-    xdotool mousemove --window "$window_id" 95 190 click 1 >> "$run_dir/logs/interaction.log" 2>&1 || true
-    deadline=$((SECONDS + 15))
     open_dialog=''
-    while (( SECONDS < deadline )); do
-        open_dialog=$(xdotool search --onlyvisible --name 'Choose files to analyze' 2>/dev/null | tail -n 1 || true)
+    for trigger_attempt in 1 2; do
+        focus_main_for_input
+        log_step "native open trigger attempt=$trigger_attempt"
+        xdotool mousemove --window "$window_id" 95 190 click 1 >> "$interaction_log" 2>&1 || true
+        deadline=$((SECONDS + 8))
+        while (( SECONDS < deadline )); do
+            open_dialog=$(xdotool search --onlyvisible --name 'Choose files to analyze' 2>/dev/null | tail -n 1 || true)
+            [[ -n "$open_dialog" ]] && break
+            sleep 0.25
+        done
         [[ -n "$open_dialog" ]] && break
-        sleep 0.25
+        restore_main_for_input
     done
     if [[ -n "$open_dialog" ]]; then
         log_step "native open dialog id=$open_dialog"

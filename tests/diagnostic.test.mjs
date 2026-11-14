@@ -78,6 +78,8 @@ test('installed application experiment requires visible repaint and real exporte
   assert.match(appRunner,/native-overwrite-confirmation/);
   assert.match(appRunner,/wait_window_not_viewable/);
   assert.match(appRunner,/first save dialog closed/);
+  assert.match(appRunner,/focus_main_for_input/);
+  assert.match(appRunner,/second export trigger attempt/);
   assert.match(appRunner,/\.files \| length\) == 8/);
   assert.match(appRunner,/wineserver -k/);
   assert.doesNotMatch(appRunner,/--no-sandbox|--privileged/);
