@@ -7,7 +7,7 @@ ARG WEBSOCKIFY_COMMIT=e81894751365afc19fe64fc9d0e5c6fc52655c36
 USER root
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-        git iproute2 python3-jwcrypto python3-numpy python3-redis python3-requests x11vnc \
+        curl git iproute2 python3-jwcrypto python3-numpy python3-redis python3-requests x11vnc \
     && rm -rf /var/lib/apt/lists/*
 
 RUN git init /opt/novnc \
