@@ -1,8 +1,11 @@
 {
   "guideRevision": 3,
   "summary": "The WSLC timeout is fixed, and Octane now has explicit WSLC and Docker runtime adapters plus WineGUI and Docker-Wine environment profiles. Docker 29.6.2 in Ubuntu 24.04.4 passed the deep run/copy/cleanup doctor. Across WSLC/WineGUI, Docker/WineGUI, and Docker/Docker-Wine, Wine 11 Notepad and the NSIS installer passed and Evergreen WebView2 157.0.4341.60 installed. Octane's actual WebView content did not render: GPU subprocesses restarted and every WebView2 child exited, leaving a blank or black frame. Workload, native-dialog, and export gates are BLOCKED.",
-  "windowsBuild": "PASS: Windows Server 2022 run 43540018084; 4 Rust core tests, 6 JavaScript checks, and the then-current mocked PowerShell harness passed; optimized EXE and NSIS installer with offline WebView2 built and uploaded.",
-  "runUrl": "https://github.com/TheSlayer455/octane-wslc-lab/actions/runs/43540018084",
+  "windowsBuild": "PASS: Windows Server 2022 run 43549532904 on implementation commit 2a3540a; 4 Rust core tests, 6 JavaScript checks, 30 mocked PowerShell assertions, NSIS/offline-WebView2 build, and artifact upload all passed. Wine evidence uses the retained v0.1.1 installer from run 43540018084.",
+  "runUrl": "https://github.com/TheSlayer455/octane-wslc-lab/actions/runs/43549532904",
+  "implementationCommit": "2a3540a21107ce695352f48c890d2e8e38d4ce94",
+  "implementationArtifactId": 14096115451,
+  "measuredInstallerRunUrl": "https://github.com/TheSlayer455/octane-wslc-lab/actions/runs/43540018084",
   "baselineRunUrl": "https://github.com/TheSlayer455/octane-wslc-lab/actions/runs/43533598979",
   "dragDropRunUrl": "https://github.com/TheSlayer455/octane-wslc-lab/actions/runs/43538069191",
   "sourceCommit": "7088eed9adb8403b9575afe1cc9e9c2984b29049",

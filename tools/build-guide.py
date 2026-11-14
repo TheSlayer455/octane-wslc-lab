@@ -354,19 +354,19 @@ Get-Content ./artifacts/installer-manifest.json
 ./scripts/Build-Octane.ps1""")
 h("Private GitHub delivery")
 p(
-    "The v0.1.1 private prerelease retains the measured EXE, manifest, and earlier guide. The "
-    "Windows installer workflow runs locked Rust/core and Node checks, the PowerShell harness, "
-    "and Tauri's NSIS build, then uploads Octane-windows-x64. Workflow artifacts expire; release "
-    "assets remain until explicitly removed. The artifact producer and runtime jobs are "
-    "separate concerns."
+    "The v0.1.1 private prerelease retains the measured EXE, manifest, and this guide. Current "
+    "run 43549532904 verified implementation commit 2a3540a with locked Rust/core and Node "
+    "checks, the 30-assertion PowerShell harness, Tauri's NSIS build, and artifact upload. "
+    "Workflow artifacts expire; release assets remain until explicitly removed. Artifact "
+    "production and runtime acceptance remain separate concerns."
 )
 link(
     "Private v0.1.1 release",
     "https://github.com/TheSlayer455/octane-wslc-lab/releases/tag/v0.1.1",
 )
 link(
-    "Windows installer workflow",
-    "https://github.com/TheSlayer455/octane-wslc-lab/actions/workflows/windows-build.yml",
+    "Current implementation CI (PASS)",
+    "https://github.com/TheSlayer455/octane-wslc-lab/actions/runs/43549532904",
 )
 h("Measured artifact identity")
 code("""Installer source commit:
@@ -872,7 +872,7 @@ p(
 
 page(23, "Verification and repository inventory")
 table(["Verification", "Observed result"], [
-    ["Private repository", "TheSlayer455/octane-wslc-lab; private main branch and private release."],
+    ["Private repository", "TheSlayer455/octane-wslc-lab; private main; implementation commit 2a3540a; private release."],
     ["Windows artifact", status.get("windowsBuild", "")],
     ["Node checks", "6 PASS: formatting, summary, literal paths, cancellation, native failure recovery, export state."],
     ["Rust core", "4 PASS in measured installer build: fixtures/hash, path errors, export/no-overwrite, resource limits."],
