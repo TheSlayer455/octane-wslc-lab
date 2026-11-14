@@ -81,7 +81,7 @@ jq -n \
     --arg resolution "$(xdpyinfo | awk '/dimensions:/{print $2; exit}')" \
     --arg transport 'noVNC 1.7.0 / Websockify 0.13.0 / x11vnc' \
     '{schemaVersion:1,runId:$runId,display:$display,resolution:$resolution,transport:$transport,applicationReadiness:"unverified"}' \
-    > /opt/novnc/octane-session.json
+    > "$state_dir/browser-session.json"
 
 {
     echo "started_at_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)"

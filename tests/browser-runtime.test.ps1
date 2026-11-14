@@ -81,6 +81,7 @@ try{
     Check ($session -match '-passwdfile "\$password_file"') 'VNC authentication must use the per-run password file.'
     Check ($session -match '--auth-plugin ExpectOrigin') 'WebSocket origin validation must be configured.'
     Check ($session -match '-rfbportv6 0 -listen 127\.0\.0\.1 -listen6 ::1') 'Raw VNC listeners must be constrained to container loopback on IPv4 and IPv6.'
+    Check ($session -match '\$state_dir/browser-session\.json') 'Viewer session identity must be written inside per-run user-owned state.'
     Check ($session -notmatch 'xrdp|xfreerdp|freerdp') 'Browser session must not invoke an RDP component.'
     $preview=Get-Content -LiteralPath (Join-Path $root 'scripts/Start-OctanePreview.ps1') -Raw
     Check ($preview -notmatch 'Write-Output\s+"Password:') 'Preview startup must not echo the viewer credential into controller output.'
