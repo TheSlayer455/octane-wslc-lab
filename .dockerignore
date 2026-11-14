@@ -1,6 +1,9 @@
 *
 !lab/
 !lab/**
+!packaging/
+!packaging/appliance/
+!packaging/appliance/**
 !artifacts/
 !artifacts/Octane-setup.exe
 !artifacts/installer-manifest.json
