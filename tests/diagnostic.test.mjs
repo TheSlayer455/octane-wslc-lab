@@ -6,6 +6,7 @@ const source=readFileSync(new URL('../diagnostics/webview2-win32/main.cpp',impor
 const runner=readFileSync(new URL('../lab/octane-webview2-experiment',import.meta.url),'utf8');
 const labCommand=readFileSync(new URL('../lab/octane-lab',import.meta.url),'utf8');
 const controller=readFileSync(new URL('../scripts/Invoke-OctaneExperiment.ps1',import.meta.url),'utf8');
+const reviewer=readFileSync(new URL('../scripts/Review-OctaneExperiment.ps1',import.meta.url),'utf8');
 
 test('native diagnostic separates DOM activity from animation frames',()=>{
   assert.match(source,/requestAnimationFrame\(animate\)/);
@@ -48,4 +49,11 @@ test('Docker-Wine GUI commands verify the discovered xrdp display',()=>{
 
 test('pixel comparison survives Bash errexit when identify emits dimensions',()=>{
   assert.match(runner,/identify -format '%w %h\\n'/);
+});
+
+test('visible review updates the original evidence bundle without rerunning it',()=>{
+  assert.match(reviewer,/clientAreaChanged -ne 'PASS'/);
+  assert.match(reviewer,/Experiment identity does not match/);
+  assert.match(reviewer,/Write-OctaneResultArtifacts/);
+  assert.match(reviewer,/Update-OctaneEvidenceChecksums/);
 });
