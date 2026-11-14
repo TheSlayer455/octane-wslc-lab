@@ -1613,9 +1613,10 @@ table(["Stage", "Result"], [
     ["Cleanup", "PASS: exact container, credential, distro, storage, and port removed"],
 ], [150, 342], compact=True)
 p(
-    "Live test 3a42ee1ca3 used container octane-88c9d8c718 and executable harness commit "
-    "b88db7bafdf129f9727921d27a434a3174998df7. Evidence checksum manifest SHA-256 is "
-    "a16e375d6e080414039a5574cf14abf48a4d4a4b5e888e02725237f818565061."
+    "Final extracted-package test fd53638dc0 used container octane-587fa94305 and executable harness commit "
+    "b88db7bafdf129f9727921d27a434a3174998df7. The package manifest/hash plan and operational generic "
+    "overlay passed from a path containing spaces and Unicode. Evidence checksum manifest SHA-256 is "
+    "4f5bbcf6bd323ab2b10cfefdb1d2cf64c3d8d07b9192b1da0aec47515281faf3."
 )
 
 

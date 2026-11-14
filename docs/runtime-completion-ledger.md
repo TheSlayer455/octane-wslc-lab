@@ -28,10 +28,10 @@ Reconciled 2026-11-14. This is the single A–I release-gate ledger for the brow
 - Rootfs source commit: `d8654e38f1db10f11c5a96c69502b784b2aebb3a`.
 - Rootfs TAR: 503,298,560 bytes; SHA-256 `56f7445646c6442df301e39d5f4e325dae63b2e85d04a2e7f8d3c70b4cf3c5ae`.
 - Compressed image: 2,077,870,568 bytes; SHA-256 `a5876cac7604c47c6e06bcb890f3bc4dedd81aabfb3906a53d9b73929caf8a0e`.
-- Live test `3a42ee1ca3` / `octane-88c9d8c718`: install, deep doctor, preview components, collection, preview cleanup, and distro cleanup all PASS.
+- Final extracted-package test `fd53638dc0` / `octane-587fa94305`: manifest/hash plan, generic operational overlay, install, deep doctor, preview components, collection, preview cleanup, and distro cleanup all PASS from a package path containing spaces and `ü`.
 - Component checks: exact managed/image identity, loopback-only publication, read-only credential bind, no RDP process/listener, loopback-only raw VNC, X11/VNC display, authentication, Wine display identity, viewer HTTP, and bad-origin rejection all PASS.
 - Browser VNC negotiation, framebuffer, input, and application readiness: NOT_RUN/BLOCKED.
-- Evidence checksum manifest SHA-256: `a16e375d6e080414039a5574cf14abf48a4d4a4b5e888e02725237f818565061`.
+- Evidence checksum manifest SHA-256: `4f5bbcf6bd323ab2b10cfefdb1d2cf64c3d8d07b9192b1da0aec47515281faf3`.
 - Cleanup: unique test distro/container/storage/port removed; original `Ubuntu-24.04`, port-3005 handoff, historical images/evidence, and unrelated containers retained.
 
 ## Release decision

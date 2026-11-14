@@ -113,8 +113,8 @@ Self-contained appliance candidate:
 - Compressed browser-image archive: 2,077,870,568 bytes; SHA-256 `a5876cac7604c47c6e06bcb890f3bc4dedd81aabfb3906a53d9b73929caf8a0e`.
 - Uncompressed Docker-save archive: 2,083,884,032 bytes; SHA-256 `6c1f4f9fd364ed970fc1ba1796a71952e2f917ae7603ea3cf10903d6209dbfb5`.
 - Loaded image ID: `sha256:243cbc44326d000f26e26dbd0e769b3e300cc1ded51e7543a891d2aebecc15ba`.
-- Live component run: appliance test `3a42ee1ca3`, container `octane-88c9d8c718`; every package-test lifecycle stage PASS and exact cleanup PASS.
-- Evidence checksum manifest: SHA-256 `a16e375d6e080414039a5574cf14abf48a4d4a4b5e888e02725237f818565061`.
+- Final extracted-package run: appliance test `fd53638dc0`, container `octane-587fa94305`; every package-test lifecycle stage PASS and exact cleanup PASS from `Extracted Appliance ü\Octane-v1`.
+- Evidence checksum manifest: SHA-256 `4f5bbcf6bd323ab2b10cfefdb1d2cf64c3d8d07b9192b1da0aec47515281faf3`.
 
 This appliance result is component/lifecycle evidence. noVNC negotiation, browser framebuffer delivery, browser-originated input, and browser-specific application acceptance remained NOT_RUN.
 
@@ -220,7 +220,7 @@ Uninstall is never automatic recovery. After collecting every wanted run, invoke
 
 It validates the exact distro name, appliance marker, and cleanup roots before terminating/unregistering. It does not remove input/output/evidence outside the installed launcher and distro-storage trees.
 
-The live package test used an explicit WSL-visible project state root because this Codex execution sandbox projects `%LOCALAPPDATA%` into a view that `wsl.exe` cannot see. The production `%LOCALAPPDATA%\Octane` plan and package hashes passed, but a normal unsandboxed operator install at that default path was not separately executed here. This is an execution-environment limitation, not a reason to weaken ACLs or host policy.
+The final package was copied to a path containing spaces and `ü`; its manifest/hash plan passed there, and its bundled runtime generated an operationally valid generic `example-app-octane` overlay before the live lifecycle. The live package test used an explicit WSL-visible project state root because this Codex execution sandbox projects `%LOCALAPPDATA%` into a view that `wsl.exe` cannot see. The production `%LOCALAPPDATA%\Octane` plan and package hashes passed, but a normal unsandboxed operator install at that default path was not separately executed here. This is an execution-environment limitation, not a reason to weaken ACLs or host policy.
 
 ## 7. Source-tree prerequisite and image setup
 
