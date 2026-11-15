@@ -6,6 +6,8 @@ param(
     [Parameter(Mandatory=$true)][string]$ApplicationProfile,
     [Parameter(Mandatory=$true)][string]$DoctorRecord,
     [Parameter(Mandatory=$true)][string]$OutputPath,
+    [string]$LiveRunRecord,
+    [string]$ComponentEvidence,
     [string]$WslDistro='Ubuntu-24.04',
     [string]$InstallerSourceCommit='7088eed9adb8403b9575afe1cc9e9c2984b29049'
 )
@@ -40,6 +42,23 @@ $fixtures=Get-OctaneDirectoryManifest -Path (Join-Path $root 'fixtures')
 $fixtureComparable=@($fixtures.files | ForEach-Object {[ordered]@{relativePath=[string]$_.relativePath;length=[int64]$_.length;sha256=[string]$_.sha256}}) | ConvertTo-Json -Depth 10 -Compress
 $fixtureHash=[Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($fixtureComparable))).ToLowerInvariant()
 $historicalLock=Join-Path $root 'profiles/qualification/docker-wine-staging-11.21-visrgn.lock.json'
+$runEvidence=[ordered]@{}
+if($LiveRunRecord){
+    $liveRunPath=[IO.Path]::GetFullPath($LiveRunRecord)
+    if(-not (Test-Path -LiteralPath $liveRunPath -PathType Leaf)){throw "Live run record not found: $liveRunPath"}
+    $liveRun=Get-Content -LiteralPath $liveRunPath -Raw | ConvertFrom-Json
+    $runEvidence.liveRunId=[string]$liveRun.runId
+    $runEvidence.liveRunRecordSha256=(Get-FileHash -LiteralPath $liveRunPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    $runEvidence.liveRunState=[string]$liveRun.state
+}
+if($ComponentEvidence){
+    $componentPath=[IO.Path]::GetFullPath($ComponentEvidence)
+    if(-not (Test-Path -LiteralPath $componentPath -PathType Leaf)){throw "Component evidence not found: $componentPath"}
+    $component=Get-Content -LiteralPath $componentPath -Raw | ConvertFrom-Json
+    if($component.componentStatus -ne 'PASS'){throw 'Candidate lock requires passing browser component evidence when supplied.'}
+    $runEvidence.componentEvidenceSha256=(Get-FileHash -LiteralPath $componentPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    $runEvidence.componentStatus='PASS'
+}
 $value=[ordered]@{
     schemaVersion=1;kind='browser-candidate-lock';status='candidate-end-to-end-blocked';createdAtUtc=[DateTime]::UtcNow.ToString('o')
     identities=[ordered]@{
@@ -62,17 +81,22 @@ $value=[ordered]@{
         transport='noVNC over Websockify to x11vnc';viewerPath='/octane.html';noVncCommit=[string]$labels.'com.octanelab.browser-novnc-commit'
         websockifyCommit=[string]$labels.'com.octanelab.browser-websockify-commit';serverResolution='1280x800';remoteResize=$false;clipboard=$false
         httpTls=$false;httpPolicy='plaintext localhost only; noVNC does not require a remote secure context in this profile';authentication='per-run 8-character RFB password file'
+        upload=[ordered]@{service='Octane authenticated raw-file intake';containerPort=3002;maxBytes=536870912;overwrites=$false;downloads=$false;directoryBrowsing=$false;credential='same per-run credential, browser memory only';originPolicy='exact viewer origins'}
         browserIdentity=$null;browserAutomation='BLOCKED — no approved controllable browser was available'
     }
     host=[ordered]@{doctorRecordSha256=(Get-FileHash -LiteralPath $doctorPath -Algorithm SHA256).Hash.ToLowerInvariant();facts=$doctor.host;runtimeVersion=$doctor.runtimeVersion;context=$doctor.context}
     security=[ordered]@{
-        publishedAddress='127.0.0.1 only';publishedPorts=@('viewer only');rawVncPublished=$false;rdpRequired=$false
+        publishedAddress='127.0.0.1 only';publishedPorts=@('viewer','authenticated scoped upload');rawVncPublished=$false;rdpRequired=$false
         privileged=$false;hostNetwork=$false;dockerSocketMounted=$false;hostGpuMapped=$false;noSandboxAdded=$false;ptraceAdded=$false
         credentialStorage='per-run ignored file, read-only mounted; retrieved to clipboard by explicit operator action'
+        fileMounts=@('WSL-native disposable home read-write','selected input read-only','uploaded input read-only in application view','upload service staging read-write','installer artifact read-only')
     }
     qualification=[ordered]@{
         status='BLOCKED';reason='Approved browser control was unavailable; VNC negotiation, framebuffer delivery, browser-originated input, and 10/10 acceptance were not executed.'
         plannedRuns=10;executedRuns=0;manualSmoke='NOT_RUN';historicalRdpBatchIsNotBrowserEvidence=$true
+        lifecycle='one active build by default; immutable intake before collection and exact replacement; comparison mode is explicit'
+        storage='fresh WSL-native per-run home/prefix/WebView2/output with marker-verified cleanup; reusable image retained'
+        componentEvidence=$runEvidence
     }
 }
 $output=[IO.Path]::GetFullPath($OutputPath)

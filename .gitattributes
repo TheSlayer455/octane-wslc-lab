@@ -8,3 +8,5 @@ lab/octane-webview2-experiment text eol=lf
 *.pdf binary
 profiles/qualification/*.lock.json binary
 profiles/qualification/*.lock.json.sha256 binary
+profiles/candidates/*.lock.json binary
+profiles/candidates/*.lock.json.sha256 binary

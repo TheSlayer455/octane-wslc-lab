@@ -1,0 +1,134 @@
+{
+  "schemaVersion": 1,
+  "kind": "browser-candidate-lock",
+  "status": "candidate-end-to-end-blocked",
+  "createdAtUtc": "2026-11-15T19:22:52.1016244Z",
+  "identities": {
+    "harnessCommit": "136944da9e8b0ee4f3c6727613d062abbd958857",
+    "imageReference": "octane-lab:browser-appliance-v1-136944d",
+    "imageId": "sha256:a43c4441d45ddd57e899c1d77e9461c22414c654213e17a27031be3347191f1a",
+    "imageRepoDigests": [
+      "octane-lab@sha256:a43c4441d45ddd57e899c1d77e9461c22414c654213e17a27031be3347191f1a"
+    ],
+    "baseImageReference": "octane-lab:qualification-7181a47ee47a",
+    "baseImageId": "sha256:0443029e26be1d0590fd37491d69ab8fc1e186ef7e80d4d75cb191628188259c",
+    "installerSourceCommit": "7088eed9adb8403b9575afe1cc9e9c2984b29049",
+    "installerSha256": "adde062d79c2857cb2f5e676c5d6870986070252ac3cf7ca7a6b78c8d829080a",
+    "installerLength": 219839154,
+    "applicationProfileId": "octane-reference",
+    "applicationProfileSha256": "45b0f8c0e6c08c3782bc780fe67501c967320c3a17e5692aa253d71af5a08be0",
+    "fixtureManifestSha256": "b7b29f067d12ab68fe9898758f0000656a06f1c76367330291725b9e84819bf2",
+    "fixtureFileCount": 8,
+    "historicalQualificationLockSha256": "0137c535f4eb0d15c12628801020b71f1952a18c65c524b7ac26874f6e6377c1"
+  },
+  "runtime": {
+    "architecture": "amd64",
+    "wineVersion": "11.21",
+    "wineVariant": "solid-edge-visrgn",
+    "wineSourceCommit": "2528aff26208257fdbf980666a4f0e66d47563ce",
+    "wineStagingCommit": "04414fee61f7d283072d40905816b928875b2d4b",
+    "winePatchSha256": "f0ea7e56c4b86ce6e1f99940c4c18ac80f2bee86442c800bc58c2f36bde92752",
+    "winePrefixArchitecture": "win64",
+    "windowsVersion": "default",
+    "webView2Distribution": "evergreen",
+    "expectedWebView2Version": "157.0.4341.60",
+    "display": ":1",
+    "x11Driver": "winex11",
+    "desktop": "Xvfb/XFCE",
+    "resolution": "1280x800x24",
+    "renderer": "Mesa llvmpipe (reference expectation; recheck per run)",
+    "packageVersions": {
+      "curl": "8.5.0-2ubuntu10.16",
+      "git": "1:2.43.0-1ubuntu7.4",
+      "iproute2": "6.1.0-1ubuntu6.4",
+      "python3-jwcrypto": "1.5.4-1",
+      "python3-numpy": "1:1.26.4+ds-6ubuntu1",
+      "python3-redis": "4.3.4-3",
+      "python3-requests": "2.31.0+dfsg-1ubuntu1.2",
+      "x11vnc": "0.9.16-10"
+    }
+  },
+  "browser": {
+    "transport": "noVNC over Websockify to x11vnc",
+    "viewerPath": "/octane.html",
+    "noVncCommit": "63107bd06d9e1f6136ff21aeda8cd62cbf0d433e",
+    "websockifyCommit": "e81894751365afc19fe64fc9d0e5c6fc52655c36",
+    "serverResolution": "1280x800",
+    "remoteResize": false,
+    "clipboard": false,
+    "httpTls": false,
+    "httpPolicy": "plaintext localhost only; noVNC does not require a remote secure context in this profile",
+    "authentication": "per-run 8-character RFB password file",
+    "upload": {
+      "service": "Octane authenticated raw-file intake",
+      "containerPort": 3002,
+      "maxBytes": 536870912,
+      "overwrites": false,
+      "downloads": false,
+      "directoryBrowsing": false,
+      "credential": "same per-run credential, browser memory only",
+      "originPolicy": "exact viewer origins"
+    },
+    "browserIdentity": null,
+    "browserAutomation": "BLOCKED — no approved controllable browser was available"
+  },
+  "host": {
+    "doctorRecordSha256": "5a95a2233d6fa81d729be2af2828667a7fad785f7a29e1f3d24849ab02009cf2",
+    "facts": {
+      "windowsVersion": "Microsoft Windows NT 10.0.26200.0",
+      "wslVersion": "WSL version: 3.0.1.0\r\nKernel version: 6.18.40.1-1\r\nWSLg version: 1.0.79\r\nMSRDC version: 1.2.7214\r\nDirect3D version: 1.611.1-81528511\r\nDXCore version: 10.0.26100.1-240331-1435.ge-release\r\nWindows version: 10.0.26200.8875",
+      "wslDistribution": "Ubuntu-24.04",
+      "linuxRelease": "Ubuntu 24.04.4 LTS",
+      "linuxKernel": "6.18.40.1-microsoft-standard-WSL2",
+      "architecture": "x86_64",
+      "memoryGiB": 15.08,
+      "dockerContext": "default",
+      "dockerEndpoint": "unix:///var/run/docker.sock",
+      "dockerServerName": "JAKESPC",
+      "dockerRootDirectory": "/var/lib/docker",
+      "dockerRootFreeGiB": 686.72
+    },
+    "runtimeVersion": "29.6.2",
+    "context": "docker:wsl:Ubuntu-24.04:default"
+  },
+  "security": {
+    "publishedAddress": "127.0.0.1 only",
+    "publishedPorts": [
+      "viewer",
+      "authenticated scoped upload"
+    ],
+    "rawVncPublished": false,
+    "rdpRequired": false,
+    "privileged": false,
+    "hostNetwork": false,
+    "dockerSocketMounted": false,
+    "hostGpuMapped": false,
+    "noSandboxAdded": false,
+    "ptraceAdded": false,
+    "credentialStorage": "per-run ignored file, read-only mounted; retrieved to clipboard by explicit operator action",
+    "fileMounts": [
+      "WSL-native disposable home read-write",
+      "selected input read-only",
+      "uploaded input read-only in application view",
+      "upload service staging read-write",
+      "installer artifact read-only"
+    ]
+  },
+  "qualification": {
+    "status": "BLOCKED",
+    "reason": "Approved browser control was unavailable; VNC negotiation, framebuffer delivery, browser-originated input, and 10/10 acceptance were not executed.",
+    "plannedRuns": 10,
+    "executedRuns": 0,
+    "manualSmoke": "NOT_RUN",
+    "historicalRdpBatchIsNotBrowserEvidence": true,
+    "lifecycle": "one active build by default; immutable intake before collection and exact replacement; comparison mode is explicit",
+    "storage": "fresh WSL-native per-run home/prefix/WebView2/output with marker-verified cleanup; reusable image retained",
+    "componentEvidence": {
+      "liveRunId": "3ca7d5cbb6",
+      "liveRunRecordSha256": "9d75062ddb4a0a46928687fc24795e971e0d4140fc0dd9e8cadfc9a700a1a4b3",
+      "liveRunState": "REMOVED",
+      "componentEvidenceSha256": "588b359ce2c0cf1cf01724cb1ec64096d658f5cc04b9873e202091faacb4276c",
+      "componentStatus": "PASS"
+    }
+  }
+}

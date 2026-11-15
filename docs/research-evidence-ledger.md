@@ -253,3 +253,36 @@ Confidence means confidence that the source says what is summarized, not confide
 - **Reproduction:** Build `lab/Dockerfile.wsl-appliance` from the pinned Ubuntu digest; export its rootfs without `/var/lib/docker` state; separately zstd-compress and test the verified Docker-save archive; assemble the package; run `Install-Octane.ps1 -PlanOnly`; then execute `Test-OctaneAppliancePackage.ps1` with a unique distro, retained installer, WSL-visible state root, and exact cleanup enabled.
 - **Local outcome:** Rootfs TAR 503,298,560 bytes / SHA-256 `56f7445646c6442df301e39d5f4e325dae63b2e85d04a2e7f8d3c70b4cf3c5ae`; compressed image 2,077,870,568 bytes / SHA-256 `a5876cac7604c47c6e06bcb890f3bc4dedd81aabfb3906a53d9b73929caf8a0e`; uncompressed Docker-save SHA-256 `6c1f4f9fd364ed970fc1ba1796a71952e2f917ae7603ea3cf10903d6209dbfb5`. The final package was copied to `Extracted Appliance ü`, passed its hash plan, and generated an operational generic overlay. Live package run `fd53638dc0` passed import, internal Docker, image ID, deep doctor, fresh unchanged-installer startup, native executable/WebView2 and browser component checks, collection, exact container stop, distro unregister, and storage cleanup. Browser VNC negotiation/framebuffer/input/application readiness were NOT_RUN, so browser acceptance remains BLOCKED.
 - **Confidence:** High for the exact package bytes and measured component lifecycle; none for browser acceptance, another Windows application, an unsandboxed second machine, or organizational permission to import WSL distributions.
+
+### R23 — Validate-before-replace clean-build lifecycle
+
+- **Claim:** A new pipeline installer can be admitted immutably before the active application session is collected and removed, while retaining the reusable WSL/Docker/Wine foundation and creating a new prefix/application/WebView2 state.
+- **Classification:** Locally reproduced lifecycle measurement.
+- **Source / author / date:** Octane executable commit `136944da9e8b0ee4f3c6727613d062abbd958857`; replacement runs `750fc957af` and `603b83b9bf`; Octane lab, 2026-11-15.
+- **Version / platform:** Windows 11 / Ubuntu-24.04 WSL2 / Docker 29.6.2; pinned Wine-Staging 11.21 visible-region browser candidate; same retained installer used for both sessions.
+- **Reported outcome:** Not applicable; this entry records local results.
+- **Reproduction:** Invoke `octane open` or `Start-OctanePreview.ps1 -LifecycleMode ReplaceActive` twice with the same immutable installer. Verify the second intake before prior collection, exact old marker/container/session removal, active-journal transfer, fresh home/prefix/WebView2 state, port reuse, and final cleanup.
+- **Local outcome:** Both runs installed the retained executable in independent WSL-native session trees. The second run started only after the first evidence bundle was collected and exact resources were absent; the active journal moved to the second run and was absent after cleanup. Checksum-manifest SHA-256 values are `f2c2d20ec3d7377135b9bdf138685af7249cd3bd27631e0a794f7a35f84261a4` and `dad586d13ab5a7bf6053ddee31fc4882a8ef536296fbaa88198c3502282d90e5`. This proves replacement mechanics, not two-distinct-build application behavior.
+- **Confidence:** High for the measured same-installer lifecycle; none for a second unavailable installer or browser application acceptance.
+
+### R24 — Scoped authenticated browser-upload service and Wine path
+
+- **Claim:** A per-run localhost upload service can accept explicit files without broad host mounts and expose them read-only to the installed Wine application under a stable path, while keeping browser-origin application ingestion as a separate gate.
+- **Classification:** Locally reproduced protocol/component result; browser-origin interaction remains NOT_RUN.
+- **Source / author / date:** `lab/browser/octane-upload-server`, `lab/browser/octane.html`, and run `3ca7d5cbb6`, executable commit `136944d`, Octane lab, 2026-11-15.
+- **Version / platform:** Same browser candidate image `sha256:a43c4441d45ddd57e899c1d77e9461c22414c654213e17a27031be3347191f1a`; service port 3002 mapped to an independent Windows loopback port.
+- **Reported outcome:** Not applicable; this entry records local results.
+- **Reproduction:** Start a fresh preview, authenticate with the per-run in-memory credential and exact viewer origin, upload one controlled file, compare the returned/manifest SHA-256, inspect `C:\octane-input\uploaded` through Wine, then collect and remove the exact session. Run `tests/upload-server.test.sh` for bad-origin, bad-auth, name, overwrite, size, and atomic-write cases.
+- **Local outcome:** Twelve protocol assertions passed. Live file `pipeline input ü.csv` (21 bytes) produced SHA-256 `b98731ba15c769924bf53163485f71f855a3da2b3d50f4f94ff5dffc04c83fae`, matched the service manifest, and was visible through Wine. The installed app had no broad `Z:` mapping. Component and collection checksum-manifest SHA-256 values are `52747f5868cafeab3e2e24426974f6f60db20a829779750deb5141cf2b89eb86` and `58369ee228bcca30203371cda3333ca431929f2e3f479b15a8b3827c930e6e81`. No approved browser clicked the upload control or drove Octane ingestion, so those gates remain NOT_RUN.
+- **Confidence:** High for the direct service, filesystem, and Wine-path observations; none for browser-originated interaction or target ingestion until measured.
+
+### R25 — Refreshed source-independent WSL appliance lifecycle
+
+- **Claim:** The refreshed appliance and separate image archive can reproduce the executable candidate's non-browser component lifecycle without relying on the development checkout at runtime.
+- **Classification:** Locally reproduced package/component measurement.
+- **Source / author / date:** Package version `1.0.0-browser-candidate.136944d`, test `2164864404`, Octane lab, 2026-11-15.
+- **Version / platform:** Windows 11; package path `Octane Moonshot Extracted ü\Octane-v1`; unique imported Ubuntu 24.04 WSL2 distro; Docker 29.6.2; image `sha256:a43c4441d45ddd57e899c1d77e9461c22414c654213e17a27031be3347191f1a`.
+- **Reported outcome:** Not applicable; this entry records local results.
+- **Reproduction:** Verify the package/runtime checksum manifests, run `Test-OctaneAppliancePackage.ps1` with a unique port/distro and the retained external installer, require `-RemoveAfterTest`, then verify the distro, container, launcher/storage roots, and ports are absent.
+- **Local outcome:** Package contained 84 files / 2,583,977,275 bytes. Import, internal Docker startup, exact image load, deep doctor, fresh preview, browser/upload/no-RDP component checks, collection, exact stop, distro unregister, and storage cleanup passed. Result SHA-256 is `8ad04f36734b35b2a22e7578791fd4cc81889fc7e35f457a9682a870b005073f`; component checksum-manifest SHA-256 is `7f023762d400fed8b43e4bf9e3348718a8597782a81f62ccefd460016f73e288`. The retained port-3005 handoff remained present. Browser negotiation/framebuffer/input and target acceptance through the viewer were NOT_RUN.
+- **Confidence:** High for the exact local package/component lifecycle; none for browser acceptance, another target, a second laptop, organizational import approval, or native-Windows equivalence.

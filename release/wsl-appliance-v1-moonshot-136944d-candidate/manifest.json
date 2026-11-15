@@ -1,0 +1,101 @@
+{
+  "schemaVersion": 1,
+  "kind": "octane-wsl-appliance-browser-release-candidate",
+  "version": "1.0.0-browser-candidate-136944d",
+  "createdAtUtc": "2026-11-15T19:55:53Z",
+  "status": "candidate-browser-acceptance-blocked",
+  "publication": {
+    "sourceRepository": "PUBLIC",
+    "binaryRelease": "NOT_PUBLISHED",
+    "reason": "Browser framebuffer/input acceptance and the browser-specific 10-run qualification were not executed. Third-party binary redistribution has not been separately approved."
+  },
+  "source": {
+    "branch": "main",
+    "executableHarnessCommit": "136944da9e8b0ee4f3c6727613d062abbd958857",
+    "metadataCommit": "containing commit",
+    "conversationReference": "chatgpt-conversation://6af79ffb-6048-83ea-b689-8269484af53d"
+  },
+  "candidateLock": {
+    "path": "profiles/candidates/docker-wine-staging-11.21-visrgn-browser-appliance-136944d.candidate.lock.json",
+    "sha256": "5227a24f4279a599679ff6adb00138776b93fd5205e8627ef11780b26acb4fff"
+  },
+  "appliance": {
+    "rootfsLocalPath": "work/moonshot-appliance-136944d/appliance/octane-ubuntu.tar",
+    "rootfsLength": 503298560,
+    "rootfsSha256": "1c8cb6e36a880dcf491aaa12dc1d52c0819824902a2b272b36d3837c451e3368",
+    "rootfsManifestSha256": "ea4eda5a9f7c3842c222cd37dfccd457377dce073f59be023b9a6ae67c1147a3",
+    "ubuntuBaseDigest": "sha256:2198e4c65076e9cb0b3d695219df667c0e3b0072da64ca3c2648aca17dcecaf5",
+    "dockerVersion": "29.6.2",
+    "populatedDockerDataIncluded": false
+  },
+  "browserImage": {
+    "reference": "octane-lab:browser-appliance-v1-136944d",
+    "imageId": "sha256:a43c4441d45ddd57e899c1d77e9461c22414c654213e17a27031be3347191f1a",
+    "baseImageId": "sha256:0443029e26be1d0590fd37491d69ab8fc1e186ef7e80d4d75cb191628188259c",
+    "compressedArchiveLocalPath": "work/moonshot-appliance-136944d/images/octane-wine-image.tar.zst",
+    "compressedArchiveLength": 2078023379,
+    "compressedArchiveSha256": "bf47e58e50ef56396ee3e1d43fdecda5de0426ede6c37342609c01c154240b05",
+    "compressedArchiveManifestSha256": "1e793c867c6865cb3fa12175c4e50fdf235358b8df647444d704cb7fc2f17a79",
+    "uncompressedArchiveLength": 2083894784,
+    "uncompressedArchiveSha256": "5ef18bde39da0d3d56b48b416300034ef0f0a92355468e012ec21a8960039ebe"
+  },
+  "package": {
+    "localPath": "C:/Users/jaker/Documents/Codex/Octane Moonshot Final ü/Octane-v1",
+    "files": 84,
+    "totalBytes": 2583984106,
+    "manifestSha256": "fd86557ca1a074d5d0beb04735d51ae9882379b8c6a61a7eb0ea9f300baa242e",
+    "checksumsSha256": "4cfc114b1ba7298d9d97aee1765342378308ae6762e1bb3f6c140f65e90408af",
+    "runtimeChecksumsSha256": "8378396c4acd92da7a06bfb6b3913c004ef918303255a49763e4f190fa9fca24",
+    "runtimeKitManifestSha256": "dd2f1f6e41d2905f0c3084d1bb931a6df581f80d097348e787b19897fb4a2819",
+    "guidePages": 44,
+    "guideSha256": "4a8b1394e1c40c40f9a9fab64f671f7e0bd7bf53f4e96f093d20139f905f1b27",
+    "planOnlyVerification": "PASS for package files, archive identities, and every runtime checksum; no host state changed",
+    "executableParityWithLivePackageTest": "PASS; 64 executable/runtime files compared with zero differences",
+    "integrityModel": "SHA-256 checksums only; no signature or authenticity claim"
+  },
+  "validation": {
+    "historicalRdpQualification": "QUALIFIED exact 10/10 for its immutable historical lock",
+    "packageLifecycleTestId": "2164864404",
+    "packageLifecycleContainer": "octane-3fd2c8f429",
+    "packageLifecycle": "PASS for unique WSL import, internal Docker/image load, deep doctor, fresh retained-installer preview, browser/upload/no-RDP component checks, collection, exact stop, distribution unregister, and storage cleanup",
+    "componentEvidenceChecksumsSha256": "7f023762d400fed8b43e4bf9e3348718a8597782a81f62ccefd460016f73e288",
+    "manualBrowserSmoke": "NOT_RUN",
+    "automatedBrowserAcceptance": "BLOCKED",
+    "browserQualification": "BLOCKED; 0/10 browser runs executed",
+    "secondMachineColdImport": "NOT_TESTED",
+    "powerShellBrowserRuntimeAssertions": 48,
+    "powerShellApplianceAssertions": 30,
+    "powerShellUploadAssertions": 12,
+    "powerShellHarnessAssertions": 48,
+    "powerShellQualificationAssertions": 12,
+    "nodeTests": 19
+  },
+  "transportAndLifecycle": {
+    "artifactTransportFixtureBytes": 440401920,
+    "artifactTransportChecksumsSha256": "b108b9f9ae87e2ce48ade36059856f62e021905a4efa61e17ce1c635dc75ba9e",
+    "sameFilenameDifferentBytes": "PASS",
+    "partialTransferRejection": "PASS",
+    "immutableReuse": "PASS",
+    "cleanReplacementMechanics": "PASS with the same retained installer; two distinct real build artifacts were not available",
+    "browserUpload": "PASS at protocol and container-component level; application ingestion through browser remains unverified"
+  },
+  "security": {
+    "newSecurityExceptions": [],
+    "viewerPublication": "127.0.0.1 only with per-run RFB credential",
+    "uploadPublication": "127.0.0.1 only with exact-origin and bearer-token checks",
+    "rawVncPublished": false,
+    "rdpDependency": false,
+    "credentialsIncluded": false,
+    "installerIncluded": false,
+    "rawEvidenceIncluded": false,
+    "privilegedContainer": false,
+    "hostNetwork": false,
+    "dockerSocketMount": false,
+    "hostGpuMapping": false
+  },
+  "cleanup": {
+    "testResources": "PASS; package-test container, credential, distribution, storage tree, and ports removed",
+    "retainedBrowserHandoff": "octane-c71f9b509b on localhost port 3005, deliberately retained and identified",
+    "protectedArtifacts": "Historical evidence, v0.1.1, the WSLC VHD, Ubuntu-24.04, recovery archives, images, and unrelated containers retained"
+  }
+}

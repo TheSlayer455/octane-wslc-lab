@@ -5,7 +5,7 @@ Octane runs an unchanged Windows x64 installer inside a fresh Docker/Wine enviro
 Current status is deliberately split:
 
 - Historical Docker/Wine Octane qualification: **PASS 10/10** for the immutable RDP-era lock and retained installer.
-- Browser candidate components: **PASS** for build, clean install, exact executable/WebView2 identity, X11/VNC/Websockify health, loopback publication, authentication configuration, no-RDP enforcement, evidence, and exact cleanup.
+- Browser candidate components: **PASS** for build, clean install, exact executable/WebView2 identity, X11/VNC/Websockify health, loopback viewer/upload publication, authentication/origin enforcement, WSL-native session storage, no-RDP enforcement, evidence, and exact cleanup.
 - Self-contained WSL appliance candidate: **PASS** for hash verification, `wsl --import`, pinned Docker 29.6.2 startup, separate image load, deep doctor, unchanged-installer preview/component checks, collection, and exact distro/container cleanup. This still is not browser framebuffer/input acceptance.
 - Manual browser smoke: **NOT_RUN** unless an operator supplies attributable evidence.
 - Automated browser acceptance and browser 10/10 qualification: **BLOCKED** because this execution environment has no approved controllable browser.
@@ -48,13 +48,25 @@ octane open 'C:\Builds\setup.exe' `
   -OutputDirectory 'C:\TestData\Results'
 ```
 
-`octane open` hashes and stages the unchanged EXE, creates a fresh container/prefix/install, waits for the viewer and native application identity, copies the run credential to the Windows clipboard, and opens the exact localhost URL in the default browser. It never launches the installer on Windows. If browser opening is blocked, use `-NoBrowser` and the printed URL plus `octane credential -Container <exact-name>`.
+`octane open` first hashes and stages the unchanged EXE. Only after that succeeds, it collects and removes the prior active run's exact disposable resources, creates a fresh WSL-native home/container/prefix/install, waits for the viewer and native application identity, copies the new run credential to the Windows clipboard, and opens the exact localhost URL in the default browser. It never launches the installer on Windows. If browser opening is blocked, use `-NoBrowser` and the printed URL plus `octane credential -Container <exact-name>`.
 
-Collect before stopping:
+The viewer includes an authenticated, per-run upload control. It accepts explicit files only, caps each file at 512 MiB, writes atomically, rejects overwrite/path traversal, and exposes no download or directory-management API. Selected Windows inputs and uploaded inputs appear below `C:\octane-input`; output remains separate at `C:\octane-output`.
+
+`octane stop` collects an uncollected target preview before exact cleanup. Explicit collection is still available:
 
 ```powershell
 octane collect -Container octane-0123456789
 octane stop -Container octane-0123456789
+```
+
+For an intentionally parallel comparison, choose a separate unused viewer/upload port pair:
+
+```powershell
+octane compare 'C:\Builds\setup-previous.exe' `
+  -Profile 'C:\Octane Targets\example-app-octane\app.json' `
+  -InputDirectory 'C:\TestData\Inputs' `
+  -OutputDirectory 'C:\TestData\Results' `
+  -Port 3010 -UploadPort 3011
 ```
 
 Uninstall is deliberately separate and destructive. It verifies the appliance marker and exact distribution identity before unregistering:
@@ -89,8 +101,9 @@ Run from Windows PowerShell 7 at the repository root. The commands below are loc
   -Installer 'C:\Builds\setup.exe' `
   -InputDirectory 'C:\TestData\Inputs' `
   -OutputDirectory 'C:\TestData\Results' `
-  -WslDistro Ubuntu-24.04 -Port 3005 `
-  -Image octane-lab:browser-candidate-v1
+  -WslDistro Ubuntu-24.04 -Port 3005 -UploadPort 3006 `
+  -Image octane-lab:browser-appliance-v1-136944d `
+  -LifecycleMode ReplaceActive
 ```
 
 Startup prints the exact `http://127.0.0.1:PORT/octane.html` URL and container name. It does not print the credential. Copy that one run's password to the Windows clipboard explicitly:
@@ -115,21 +128,24 @@ Collect before stopping:
   -WslDistro Ubuntu-24.04
 ```
 
-Each run receives a new container, Wine prefix, installation, application data, WebView2 user-data directory, and writable output directory. The stable image and content-addressed installer cache may be reused; an installed application prefix is never reused as a clean run.
+Each run receives a new marker-journaled directory under `/var/lib/octane/sessions/<container>`, WSL-native home, container, Wine prefix, installation, application data, WebView2 user-data directory, upload staging, and writable output directory. The stable image and content-addressed installer cache may be reused; an installed application prefix is never reused as a clean run. Collected Windows outputs/evidence survive exact session cleanup.
 
-## Exact browser candidate
+## Exact browser/appliance lifecycle candidate
 
-- Runtime harness commit: `b227260e579bc4806cbd92659ea9956b06fbb253`.
-- Local image ID: `sha256:243cbc44326d000f26e26dbd0e769b3e300cc1ded51e7543a891d2aebecc15ba`.
-- Browser candidate lock: `profiles/candidates/docker-wine-staging-11.21-visrgn-browser.candidate.lock.json`.
+- Runtime harness commit: `136944da9e8b0ee4f3c6727613d062abbd958857`.
+- Local image ID: `sha256:a43c4441d45ddd57e899c1d77e9461c22414c654213e17a27031be3347191f1a`.
+- Browser candidate lock: `profiles/candidates/docker-wine-staging-11.21-visrgn-browser-appliance-136944d.candidate.lock.json`.
+- Lock SHA-256: `5227a24f4279a599679ff6adb00138776b93fd5205e8627ef11780b26acb4fff`.
 - Lock status: `candidate-end-to-end-blocked`; this is not a qualification lock.
 - Browser: noVNC commit `63107bd06d9e1f6136ff21aeda8cd62cbf0d433e` and Websockify commit `e81894751365afc19fe64fc9d0e5c6fc52655c36`.
-- Display: Xvfb/XFCE `:1`, 1280x800, x11vnc loopback-only inside the container, Websockify as the only published service.
+- Display: Xvfb/XFCE `:1`, 1280x800, x11vnc loopback-only inside the container; only Websockify and the scoped upload service are published, both on Windows loopback.
 - Wine: pinned Wine/Staging 11.21 plus the retained visible-region patch; WebView2 Evergreen `157.0.4341.60` for the reference profile.
 
-The measured appliance candidate used executable harness commit `b88db7bafdf129f9727921d27a434a3174998df7`. Its WSL rootfs is 503,298,560 bytes, SHA-256 `56f7445646c6442df301e39d5f4e325dae63b2e85d04a2e7f8d3c70b4cf3c5ae`. The compressed image archive is 2,077,870,568 bytes, SHA-256 `a5876cac7604c47c6e06bcb890f3bc4dedd81aabfb3906a53d9b73929caf8a0e`; its verified uncompressed Docker-save SHA-256 is `6c1f4f9fd364ed970fc1ba1796a71952e2f917ae7603ea3cf10903d6209dbfb5`. These are private local artifacts, not public download claims.
+The refreshed local appliance candidate uses executable harness commit `136944d`. Its WSL rootfs is 503,298,560 bytes, SHA-256 `1c8cb6e36a880dcf491aaa12dc1d52c0819824902a2b272b36d3837c451e3368`. The compressed image archive is 2,078,023,379 bytes, SHA-256 `bf47e58e50ef56396ee3e1d43fdecda5de0426ede6c37342609c01c154240b05`; its 2,083,894,784-byte Docker-save source is SHA-256 `5ef18bde39da0d3d56b48b416300034ef0f0a92355468e012ec21a8960039ebe`. These are local candidate artifacts, not public download or browser-qualification claims.
 
-The browser endpoint is plaintext HTTP on loopback only, authenticated with an eight-character per-run RFB password (the protocol limit). Raw VNC is not published. Clipboard and remote desktop resizing are disabled. Do not expose this profile to a LAN or use it as a multi-user gateway.
+Refreshed package test `2164864404` ran from `Octane Moonshot Extracted ü\Octane-v1` and passed unique WSL import, internal Docker/image load, deep doctor, fresh retained-installer preview, browser/upload/no-RDP component checks, collection, exact stop, distro unregister, and storage cleanup. Its package contained 84 files / 2,583,977,275 bytes. This is package/component evidence only; browser framebuffer/input and the browser 10/10 batch remain blocked.
+
+The browser endpoint is plaintext HTTP on loopback only, authenticated with an eight-character per-run RFB password (the protocol limit). The same credential is reused in browser memory as a bearer value for the separate loopback upload port; it is not put in a URL or evidence. Raw VNC is not published. Clipboard and remote desktop resizing are disabled. Do not expose this profile to a LAN or use it as a multi-user gateway.
 
 ## Historical qualification boundary
 

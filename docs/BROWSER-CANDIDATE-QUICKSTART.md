@@ -33,7 +33,9 @@ octane open 'C:\Builds\setup.exe' `
   -BuildLabel 'pipeline-12345'
 ```
 
-Normal `open` copies the per-run viewer credential to the Windows clipboard and opens the exact `http://127.0.0.1:<port>/octane.html` URL with the Windows default-browser association. Use `-NoBrowser` when policy blocks automatic opening; the application stays inside Wine either way.
+Normal `open` validates and immutably stages the new installer before touching the existing run. It then collects and removes the exact previous active session, creates fresh WSL-native application state, copies the new per-run credential to the Windows clipboard, and opens the exact `http://127.0.0.1:<port>/octane.html` URL with the Windows default-browser association. Use `-NoBrowser` when policy blocks automatic opening; the application stays inside Wine either way.
+
+The viewer also exposes an authenticated file-upload control. Uploaded files are written atomically to this run only and appear read-only to the target at `C:\octane-input\uploaded`. Files supplied with `-InputDirectory` appear at `C:\octane-input\selected`; application exports use `C:\octane-output`. The upload service does not expose download, delete, or directory-browsing endpoints.
 
 ```powershell
 octane status
@@ -41,7 +43,17 @@ octane collect -Container octane-0123456789
 octane stop -Container octane-0123456789
 ```
 
-The self-contained appliance component test passed import, Docker 29.6.2, image identity, fresh install, native window/WebView2 identity, authenticated loopback noVNC components, collection, and exact cleanup. Browser negotiation/framebuffer/input remained NOT_RUN, so the package is still a candidate rather than a qualified browser release.
+`stop` collects an uncollected preview before deleting its exact marker-owned resources. For an intentionally parallel comparison, keep the active run and allocate a separate viewer/upload port pair:
+
+```powershell
+octane compare 'C:\Builds\setup-previous.exe' `
+  -Profile 'C:\Octane Targets\example-app-octane\app.json' `
+  -InputDirectory 'C:\TestData\Inputs' `
+  -OutputDirectory 'C:\TestData\Results' `
+  -Port 3010 -UploadPort 3011
+```
+
+Refreshed package test `2164864404` passed from a path containing spaces and Unicode: unique WSL import, Docker 29.6.2, exact image identity, fresh unchanged-installer run, native window/WebView2 identity, authenticated loopback noVNC/upload components, collection, exact stop, distro unregister, and storage cleanup. Browser negotiation/framebuffer/input remained NOT_RUN, so the package is still a candidate rather than a qualified browser release.
 
 ## Source-tree one-time checks
 
@@ -60,14 +72,14 @@ The browser image is acquired in one of two explicit ways:
 # Build on top of the retained exact qualification image.
 ./scripts/Build-OctaneBrowserImage.ps1 `
   -WslDistro Ubuntu-24.04 `
-  -Image octane-lab:browser-candidate-v1 `
-  -HarnessCommit b227260e579bc4806cbd92659ea9956b06fbb253
+  -Image octane-lab:browser-appliance-v1-136944d `
+  -HarnessCommit 136944da9e8b0ee4f3c6727613d062abbd958857
 
 # Or verify and load the retained private recovery archive.
 ./scripts/Import-OctaneBrowserImage.ps1 `
-  -ArchivePath 'C:\Approved\octane-browser-candidate-b227260.tar' `
-  -ExpectedSha256 6c1f4f9fd364ed970fc1ba1796a71952e2f917ae7603ea3cf10903d6209dbfb5 `
-  -ExpectedImageId sha256:243cbc44326d000f26e26dbd0e769b3e300cc1ded51e7543a891d2aebecc15ba `
+  -ArchivePath 'C:\Approved\octane-wine-image-136944d.tar' `
+  -ExpectedSha256 5ef18bde39da0d3d56b48b416300034ef0f0a92355468e012ec21a8960039ebe `
+  -ExpectedImageId sha256:a43c4441d45ddd57e899c1d77e9461c22414c654213e17a27031be3347191f1a `
   -WslDistro Ubuntu-24.04
 ```
 
@@ -98,9 +110,10 @@ Wait until the downloaded EXE is complete. Then run:
   -InputDirectory 'C:\TestData\Inputs' `
   -OutputDirectory 'C:\TestData\Results' `
   -WslDistro Ubuntu-24.04 `
-  -Port 3005 `
-  -Image octane-lab:browser-candidate-v1 `
-  -BuildLabel 'pipeline-12345'
+  -Port 3005 -UploadPort 3006 `
+  -Image octane-lab:browser-appliance-v1-136944d `
+  -BuildLabel 'pipeline-12345' `
+  -LifecycleMode ReplaceActive
 ```
 
 The command streams and hashes the EXE, atomically admits it to an immutable cache identity, verifies the copied bytes again inside the container, creates a fresh prefix/install/user-data tree, launches the exact discovered executable, and prints the exact viewer URL. It never executes the installer on Windows.
@@ -120,7 +133,7 @@ Use only the browser viewer for application interaction:
 1. Confirm the actual application client area, not only the viewer, desktop, or empty frame.
 2. Confirm normal initial rendering without resize/minimize/restore, reconnect, click-to-wake, relaunch, or a repaint helper.
 3. Use mouse, keyboard, focus, and scrolling through the viewer.
-4. Open the real native file picker and select controlled files from `C:\octane-input`.
+4. Open the real native file picker and select controlled files from `C:\octane-input\selected`; separately upload a controlled file with the Octane upload control and select it from `C:\octane-input\uploaded`.
 5. Cancel and reopen the picker; confirm the app remains responsive.
 6. Export through the native save dialog to `C:\octane-output`.
 7. Validate the collected output independently and confirm selected host input hashes did not change.
