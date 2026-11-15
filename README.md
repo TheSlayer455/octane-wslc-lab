@@ -5,11 +5,12 @@ Octane runs an unchanged Windows x64 installer inside a fresh Docker/Wine enviro
 Current status is deliberately split:
 
 - Historical Docker/Wine Octane qualification: **PASS 10/10** for the immutable RDP-era lock and retained installer.
-- Browser candidate components: **PASS** for build, clean install, exact executable/WebView2 identity, X11/VNC/Websockify health, loopback viewer/upload publication, authentication/origin enforcement, WSL-native session storage, no-RDP enforcement, evidence, and exact cleanup.
+- Browser transport: **PASS** for authenticated noVNC negotiation and delivery of the intended 1280x800 XFCE framebuffer in the ChatGPT in-app browser, with no RDP process or protocol.
+- Installed application on the browser profiles: **FAIL**. The retained installer completed, but the WebView2 browser process exited or became defunct and the Octane client was absent or white. Xvfb/x11vnc, standalone Xorg/x11vnc, and integrated TigerVNC Xvnc did not produce a stable client.
 - Self-contained WSL appliance candidate: **PASS** for hash verification, `wsl --import`, pinned Docker 29.6.2 startup, separate image load, deep doctor, unchanged-installer preview/component checks, collection, and exact distro/container cleanup. This still is not browser framebuffer/input acceptance.
-- Manual browser smoke: **NOT_RUN** unless an operator supplies attributable evidence.
-- Automated browser acceptance and browser 10/10 qualification: **BLOCKED** because this execution environment has no approved controllable browser.
-- Browser runtime kit release: **not qualified** while the mandatory browser gates remain blocked.
+- Manual browser smoke: **FAIL** for run `0e2276a168`: VNC negotiation/framebuffer passed, but the original Octane host had exited with WebView2 `HRESULT 0x800700AA` before application interaction.
+- Automated browser acceptance and browser 10/10 qualification: **BLOCKED / 0 OF 10**. Approved unattended browser control remains unavailable, and stable application readiness is now also a failed prerequisite.
+- Browser runtime kit release: **not qualified**. The historical RDP qualification remains separate and valid for its exact lock.
 
 The canonical AI/operator reference is [docs/OCTANE-AI-HANDOFF.md](docs/OCTANE-AI-HANDOFF.md). The short operator path is [docs/BROWSER-CANDIDATE-QUICKSTART.md](docs/BROWSER-CANDIDATE-QUICKSTART.md). Historical results remain in [docs/compatibility-matrix.md](docs/compatibility-matrix.md) and the comprehensive [PDF guide](docs/Octane-Complete-Guide.pdf).
 

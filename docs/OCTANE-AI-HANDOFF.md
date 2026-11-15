@@ -13,17 +13,17 @@ Keep these verdicts independent:
 | Verdict | Current result | Scope |
 | --- | --- | --- |
 | Historical Octane/RDP qualification | **QUALIFIED 10/10** | Exact retained installer, historical lock, XFCE/Xorgxrdp path, host, schema-v3 scenario, and custom Wine candidate only. |
-| Browser candidate implementation | **IMPLEMENTED; COMPONENT CHECKS PASS** | Image, clean install, native window, loaded WebView2 identity, X11/VNC/Websockify, loopback viewer/upload auth/origin policy, WSL-native state, evidence, cleanup. |
+| Browser candidate implementation | **IMPLEMENTED; TRANSPORT PASS; APPLICATION FAIL** | Authenticated noVNC negotiation and the intended XFCE framebuffer reached the in-app browser. The installed Octane/WebView2 client did not remain usable. |
 | Clean-build replacement | **IMPLEMENTED; LIVE LIFECYCLE PASS** | Immutable staging precedes prior-run collection/removal; two sequential fresh runs passed with one active journal. Both used the same retained installer, so two distinct builds remain untested. |
 | Scoped browser upload | **IMPLEMENTED; PROTOCOL/FILE-BRIDGE PASS** | Authenticated atomic Unicode/space upload, manifest/hash, read-only Wine view, no overwrite/download/path traversal. Browser-originated selection remains unverified. |
 | WSL appliance package | **IMPLEMENTED; COMPONENT LIFECYCLE PASS** | Hash plan, import, internal Docker, image load, deep doctor, unchanged-installer preview, component evidence, collection, exact stop/unregister. |
-| Manual browser smoke | **NOT_RUN** | No operator evidence was supplied during the candidate checkpoint. |
-| Automated browser acceptance | **BLOCKED** | The active computer-use environment could not control an approved browser with required safeguards. |
-| Browser 10/10 qualification | **BLOCKED / 0 OF 10 EXECUTED** | Historical RDP runs cannot be reused. |
-| Reusable browser runtime-kit release | **NOT YET QUALIFIED** | Mandatory browser delivery/input gates remain blocked. |
+| Manual browser smoke | **FAIL** | Run `0e2276a168` negotiated VNC and displayed the intended framebuffer, but Octane was absent after its host exited with WebView2 `HRESULT 0x800700AA`. |
+| Automated browser acceptance | **BLOCKED / NOT_RUN** | Approved unattended browser control remains unavailable; stable application readiness is also a failed prerequisite. |
+| Browser 10/10 qualification | **BLOCKED / 0 OF 10 EXECUTED** | Historical RDP runs cannot be reused; no candidate currently reaches stable application readiness. |
+| Reusable browser runtime-kit release | **NOT YET QUALIFIED** | Transport works, but the unchanged installed application fails before workload/dialog/export acceptance. |
 | Another external application | **UNTESTED** | It never inherits Octane's result. |
 
-The browser blocker is a validation-capability blocker, not a demonstrated failure of Docker, Wine, noVNC, Edge, Firefox, or the target application. noVNC browser compatibility and the automation system's permitted control paths are separate questions.
+The former validation-only blocker has been narrowed. noVNC authentication, negotiation, and framebuffer delivery are demonstrated. The measured application blocker is WebView2 browser-process instability under the tested browser display profiles: Xvfb later produced Tauri `HRESULT 0x800700AA`; standalone Xorg and TigerVNC Xvnc produced a Wine stack overflow and a defunct `CrBrowserMain` while the native Octane frame stayed white. This is not evidence that noVNC is incompatible with Edge or Firefox, nor a universal Wine/WebView2 impossibility claim.
 
 ## 2. Owner constraints
 
@@ -586,7 +586,7 @@ Rollback means selecting a retained exact image/profile/installer in a new clean
 
 ## 21. Known limitations
 
-- Browser framebuffer/input/manual smoke and ten-run qualification are not yet executed.
+- Browser negotiation/framebuffer delivery were executed and passed once; the manual application smoke failed before input/workload/dialog/export. Browser-originated target input and the ten-run qualification remain NOT_RUN.
 - HTTP/RFB on loopback is not a remote multi-user security design.
 - The custom Wine visible-region patch is a maintenance condition.
 - The native Win32 WebView2 probe remains white.
@@ -625,11 +625,11 @@ acceptance BLOCKED and provide the exact manual operator handoff.
 
 ## 23. Smallest next action
 
-With candidate run `octane-c71f9b509b` still present, an authorized operator can run `Show-OctaneManualBrowserHandoff.ps1`, open its verified URL in an approved Windows browser, perform the seven-step smoke checklist, collect attributable browser evidence, and then stop the exact container. If the run is gone, recreate it from the locked image/profile/installer. Only after that smoke succeeds should unattended browser qualification resume.
+Do not add another container engine or display transport. Reproduce the `CrBrowserMain` stack overflow once with a bounded Wine exception trace on the integrated Xvnc candidate, capture the browser-process exit and call chain, and compare that trace with the same unchanged installer under the historically qualified Xorgxrdp lock. Any debugger capability must stay in a separately labeled diagnostic profile. Resume browser input/workload testing only after the original WebView2 browser process remains alive through the declared 90-second stability gate.
 
 ## 24. Implemented fresh-build replacement and WSL storage design
 
-The runtime now implements immutable intake before replacement, one active build by default, explicit isolated comparison, WSL-native per-run application state, separate selected/uploaded input views, retained Windows outputs/evidence, and authenticated browser upload. The implementation and protocol/component checks passed. Browser-originated file selection and application ingestion through the streamed GUI remain unverified because the approved browser path is still blocked.
+The runtime now implements immutable intake before replacement, one active build by default, explicit isolated comparison, WSL-native per-run application state, separate selected/uploaded input views, retained Windows outputs/evidence, and authenticated browser upload. The implementation and protocol/component checks passed. Browser-originated file selection and application ingestion remain NOT_RUN because the installed WebView2 browser process fails the sustained-readiness gate before functional interaction.
 
 ### Fresh application state for every build
 

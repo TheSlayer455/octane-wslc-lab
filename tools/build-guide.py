@@ -120,7 +120,7 @@ def image_grid(items):
 page(1, "Octane<br/>Windows installer compatibility lab")
 p(
     "<b>Complete implementation, operation, and measured-validation reference</b><br/>"
-    "Guide revision 10 | November 15, 2026 | Windows x64 + packaged WSL/Docker + Wine 11.21 + browser candidate"
+    "Guide revision 11 | November 15, 2026 | Windows x64 + packaged WSL/Docker + Wine 11.21 + measured browser candidates"
 )
 p(
     "Octane is a repository-independent, container-runtime-independent lab for a real "
@@ -1302,15 +1302,17 @@ page(31, "Browser candidate status and exact identity")
 p(
     "The delivered browser layer is a new candidate, not a relabeling of the historical RDP result. It preserves "
     "the exact qualified Wine/Staging/visible-region foundation, changes the display session to Xvfb/XFCE and the "
-    "viewer to x11vnc/Websockify/noVNC, and keeps browser acceptance independent."
+    "viewer to x11vnc/Websockify/noVNC, and keeps browser acceptance independent. A later manual run proved noVNC "
+    "negotiation and framebuffer delivery, then exposed an installed WebView2 host failure."
 )
 table(["Verdict", "Current result"], [
     ["Historical Octane/RDP", "QUALIFIED 10/10 under lock 0137c535..."],
-    ["Browser component candidate", "PASS for clean install, identities, X11/VNC/Websockify/auth/no-RDP/evidence/cleanup"],
-    ["Manual browser smoke", "NOT_RUN; no attributable operator evidence supplied"],
-    ["Automated browser acceptance", "BLOCKED by unavailable approved controllable browser"],
-    ["Browser 10/10", "BLOCKED; zero of ten declared runs executed"],
-    ["Browser runtime release", "NOT QUALIFIED while mandatory browser gates are blocked"],
+    ["Browser transport", "PASS: authenticated VNC negotiated and intended XFCE framebuffer reached the in-app browser"],
+    ["Manual browser smoke", "FAIL: Octane absent after original host exited with WebView2 HRESULT 0x800700AA"],
+    ["Sustained native readiness", "FAIL on Xorg and Xvnc: CrBrowserMain defunct after Wine stack overflow"],
+    ["Automated browser acceptance", "BLOCKED / NOT_RUN; approved control unavailable and app readiness fails"],
+    ["Browser 10/10", "BLOCKED; zero of ten runs executed"],
+    ["Browser runtime release", "NOT QUALIFIED"],
 ], [165, 327], compact=True)
 code("""Runtime commit: 136944da9e8b0ee4f3c6727613d062abbd958857
 Image ID: sha256:a43c4441d45ddd57e899c1d77e9461c22414c654213e17a27031be3347191f1a
@@ -1318,11 +1320,13 @@ Candidate lock SHA-256: 5227a24f4279a599679ff6adb00138776b93fd5205e8627ef11780b2
 noVNC: 63107bd06d9e1f6136ff21aeda8cd62cbf0d433e
 Websockify: e81894751365afc19fe64fc9d0e5c6fc52655c36
 Executable reference run: octane-3ca7d5cbb6
-Retained manual handoff: octane-c71f9b509b""")
+Browser smoke: octane-0e2276a168 / checksum 3bf8bb7b...
+Xorg image/run: sha256:8d611400... / octane-e1e95b2d01
+Xvnc image/run: sha256:10205a6e... / octane-7d9e41587c""")
 p(
-    "HTTP 200 proves static viewer delivery. A VNC connect event would prove negotiation. Neither proves that the "
-    "actual Octane client pixels reached a Windows browser or that browser-originated input drove dialogs/workload. "
-    "A container-side screenshot is supplemental native evidence only."
+    "HTTP 200 still proves only static delivery. Run 0e2276a168 went farther: VNC negotiated and the intended framebuffer "
+    "was visible in the browser. It did not prove application readiness; Octane had exited. A transport PASS cannot promote "
+    "the target pixels, input, dialogs, workload, or export gates."
 )
 h("What component PASS established")
 p(
@@ -1456,20 +1460,20 @@ p(
 
 page(35, "Browser evidence and blocked qualification")
 p(
-    "Executable run 3ca7d5cbb6 is the final 136944d component/file-bridge result; retained run c71f9b509b remains the manual "
-    "operator handoff. Both leave browser acceptance BLOCKED. The lock is intentionally a candidate lock with status "
-    "candidate-end-to-end-blocked."
+    "Component run 3ca7d5cbb6 remains the final appliance/file-bridge result. Browser run 0e2276a168 proved negotiation and "
+    "framebuffer delivery but failed application visibility. The candidate lock remains blocked and cannot start a ten-run batch."
 )
 table(["Required browser batch gate", "Current status"], [
-    ["Viewer listener, authentication, intended session", "Component PASS; browser connection NOT_RUN"],
+    ["Viewer listener, authentication, intended session", "PASS in browser run 0e2276a168"],
     ["Fresh install/executable/WebView2 identity", "PASS in reference candidate"],
-    ["Initial target pixels in browser without helper", "NOT_RUN / BLOCKED"],
+    ["Sustained original host/browser process", "FAIL on Xvfb/Xorg/Xvnc candidates"],
+    ["Initial target pixels in browser without helper", "FAIL / BLOCKED by readiness"],
     ["Continuing browser pixels + mouse/keyboard/scroll/focus", "NOT_RUN / BLOCKED"],
     ["Real 8-file Rust workload", "NOT_RUN through browser"],
     ["Unicode/space/missing/open-save cancel/repeat", "NOT_RUN through browser"],
     ["Independent export/no-overwrite/input validation", "NOT_RUN through browser"],
     ["Post-dialog resize/restore and evidence", "NOT_RUN through browser"],
-    ["Ten sequential fresh runs", "0/10; every declared row NOT_RUN"],
+    ["Ten sequential fresh runs", "0/10; readiness prerequisite failed"],
 ], [255, 237], compact=True)
 p(
     "An HTTP response, noVNC shell, VNC connect event, native X11 screenshot, process, loaded WebView2, live DOM, or direct "
@@ -1478,24 +1482,27 @@ p(
 )
 h("Available verification")
 p(
-    "Current local checks: 48 browser/runtime assertions, 30 appliance-packaging assertions, 12 upload-protocol assertions, "
+    "Current local checks: 61 browser/runtime assertions, 30 appliance-packaging assertions, 12 upload-protocol assertions, "
     "48 mocked PowerShell assertions, 12 qualification-policy assertions, 19 Node tests, Bash/PowerShell parsing, "
     "controlled endpoint positive/negative cases, synthetic 420 MiB "
     "transport, extracted-kit lifecycle, archive export/import, and exact cleanup. These are not browser GUI acceptance."
 )
 
 
-page(36, "Manual browser smoke and qualification resume path")
-code("""# Verify the retained handoff still exists; never assume port/session liveness.
-./scripts/Show-OctaneManualBrowserHandoff.ps1 `
-  -Container octane-c71f9b509b -WslDistro Ubuntu-24.04
+page(36, "Measured browser smoke and qualification resume path")
+code("""# Create a fresh diagnostic run; use the emitted container identity and URL.
+./scripts/Start-OctanePreview.ps1 `
+  -Profile ../example-app-octane/app.json `
+  -Installer 'C:\\Builds\\setup.exe' `
+  -InputDirectory 'C:\\TestData\\Inputs' `
+  -OutputDirectory 'C:\\TestData\\Results' `
+  -WslDistro Ubuntu-24.04 `
+  -Port 3005 -UploadPort 3006 `
+  -Image octane-lab:browser-appliance-v1-136944d `
+  -BuildLabel 'diagnostic' -LifecycleMode ReplaceActive
 
-# Copy its password to the clipboard without printing it.
-./scripts/Get-OctaneViewerCredential.ps1 `
-  -Container octane-c71f9b509b
-
-# Exact candidate URL when the verifier succeeds:
-http://127.0.0.1:3005/octane.html""")
+# Copy the per-run password without printing it.
+./scripts/Get-OctaneViewerCredential.ps1 -Container octane-<run-id>""")
 table(["Operator step", "Required observation"], [
     ["Connect", "VNC negotiated, then actual Octane client—not merely desktop/frame/viewer"],
     ["Initial presentation", "Normal pixels without resize/minimize/restore/click/reconnect/relaunch/helper"],
@@ -1507,15 +1514,16 @@ table(["Operator step", "Required observation"], [
     ["Collect/stop", "Browser-attributable evidence first; exact run cleanup second"],
 ], [112, 380], compact=True)
 p(
-    "If the run is absent, recreate it with Start-OctanePreview and the locked image/profile/installer rather than guessing "
-    "the URL or using RDP. Label resulting evidence operator-performed browser smoke. If it passes, configure an approved "
+    "Use only the fresh run identity and URL emitted by Start-OctanePreview; never guess a stale URL or use RDP. Label "
+    "resulting evidence operator-performed browser smoke. If it passes, configure an approved "
     "browser-control path, freeze a new final lock, declare ten run IDs before run one, and execute every fresh run through "
     "the browser framebuffer/input path. Preserve all first outcomes; any FAIL/BLOCKED/NOT_RUN means not 10/10."
 )
 p(
-    "Until then: historical technical feasibility remains demonstrated and historical Octane acceptance remains qualified "
-    "for its exact RDP-era lock. Browser status remains candidate implemented, end-to-end validation and unattended "
-    "qualification blocked. The smallest next action is an approved operator browser smoke—not another image rebuild."
+    "The checklist was attempted on run 0e2276a168. The viewer negotiated and showed the intended desktop, but the application "
+    "was absent after a WebView2 host exit, so the smoke is FAIL and later steps are BLOCKED. Historical RDP acceptance remains "
+    "qualified for its exact lock. The next action is a bounded Wine exception trace of the CrBrowserMain stack overflow and "
+    "a comparison with the historically qualified Xorgxrdp lock—not another display rebuild."
 )
 
 
@@ -1626,7 +1634,7 @@ table(["Stage", "Result"], [
     ["Source-tree live candidate", "PASS: fresh install/runtime, upload/Wine path, collection, exact cleanup"],
     ["Active replacement", "PASS with identical installer bytes; two distinct real builds NOT_TESTED"],
     ["Extracted package", "PASS: unique import, Docker/image, doctor, preview/components, collection, exact cleanup"],
-    ["Browser application acceptance", "BLOCKED: negotiation, framebuffer, browser input, workload/dialog/export NOT_RUN"],
+    ["Browser application acceptance", "FAIL: transport/framebuffer PASS; stable Octane/WebView2 client FAIL"],
     ["Cleanup", "PASS: exact container, credential, distro, marker-owned storage, ports, and active journal removed"],
 ], [150, 342], compact=True)
 p(
@@ -1641,8 +1649,8 @@ table(["Conclusion", "Status"], [
     ["Historical Octane/RDP", "QUALIFIED 10/10 for its exact immutable lock"],
     ["Browser image components", "PASS in the source-tree and imported-appliance paths"],
     ["Refreshed appliance packaging", "PASS for exact extracted component lifecycle and cleanup"],
-    ["Manual browser smoke", "NOT_RUN"],
-    ["Automated browser acceptance", "BLOCKED by unavailable approved browser control"],
+    ["Manual browser smoke", "FAIL after transport PASS and application host exit"],
+    ["Automated browser acceptance", "BLOCKED / NOT_RUN; app readiness also fails"],
     ["Browser-specific ten-run batch", "BLOCKED; 0/10 executed"],
     ["Another Windows application", "UNTESTED; never inherits the reference result"],
 ], [190, 302], compact=True)
@@ -1650,7 +1658,7 @@ h("What the appliance changes")
 p(
     "It makes setup predictable: one verified import, one pinned image load, and one Windows launcher. It does not change "
     "the target bytes, Wine compatibility, the custom patch maintenance condition, the white minimal WebView2 probe, or "
-    "the need to prove browser-delivered pixels/input."
+    "the measured browser-process failure."
 )
 h("Environment-specific test note")
 p(
@@ -1661,9 +1669,9 @@ p(
 )
 h("Next action")
 p(
-    "Use the retained port-3005 handoff or recreate the same candidate, perform the documented smoke in an approved Windows "
-    "browser, and preserve browser-attributable frame/input evidence. Only after that passes should a final lock and ten "
-    "fresh browser runs begin. Until then the appliance is a component-tested candidate, not a qualified release."
+    "Capture one bounded Wine exception trace for the CrBrowserMain stack overflow on integrated Xvnc and compare it with the "
+    "same unchanged installer under the historically qualified Xorgxrdp lock. Begin browser input and ten fresh runs only after "
+    "the original browser process survives the 90-second stability gate."
 )
 
 
@@ -1672,7 +1680,7 @@ p(
     "<b>Implementation status:</b> Executable commit 136944da9e8b0ee4f3c6727613d062abbd958857 now provides "
     "validate-before-replace intake, one active build by default, explicit comparison mode, WSL-native marker-owned "
     "application state, selected/uploaded/output separation, authenticated upload, evidence collection, and exact cleanup. "
-    "Browser-delivered pixels/input/upload and the browser ten-run batch remain unverified."
+    "Browser transport pixels were observed, but target readiness/input/upload and the browser ten-run batch remain failed or blocked."
 )
 code(r"""
 pipeline -> new Windows x64 installer
@@ -1840,7 +1848,7 @@ def decorate(canvas, doc):
     canvas.line(54, 44, 558, 44)
     canvas.setFont("Helvetica", 8)
     canvas.setFillColor(colors.HexColor("#657989"))
-    canvas.drawString(54, 30, "OCTANE / PUBLIC SOURCE REFERENCE / GUIDE REVISION 10")
+    canvas.drawString(54, 30, "OCTANE / PUBLIC SOURCE REFERENCE / GUIDE REVISION 11")
     canvas.drawRightString(558, 30, str(doc.page))
 
 

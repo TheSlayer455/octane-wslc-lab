@@ -1,6 +1,6 @@
 # Browser candidate operator quick start
 
-This is the normal browser workflow for the current **unqualified candidate**. Historical RDP commands are intentionally absent. Browser acceptance remains blocked until an approved browser path supplies real framebuffer and input evidence.
+This is the operator workflow for the current **unqualified diagnostic candidate**. Historical RDP commands are intentionally absent. Authenticated noVNC negotiation and framebuffer delivery have been observed, but the retained Octane/WebView2 browser process did not remain stable on the tested Xvfb, standalone-Xorg, or Xvnc profiles. Use this workflow for diagnosis only; do not treat a viewer connection, native frame, or first WebView2 process as application readiness.
 
 ## Packaged appliance (recommended operator path)
 
@@ -155,13 +155,14 @@ Record this as an operator browser smoke test. One manual pass is not unattended
 
 Collection precedes deletion. Stop removes only the exact asserted managed container and that run's ignored credential directory. It never prunes globally or shuts down WSL.
 
-## Current known live handoff
+## Historical handoff state
 
-At the time of the candidate checkpoint, run `octane-c71f9b509b` was deliberately retained at `http://127.0.0.1:3005/octane.html` for an operator smoke test. Never assume it is still alive: first run the handoff verifier.
+At the candidate checkpoint, run `octane-c71f9b509b` was retained at `http://127.0.0.1:3005/octane.html`. It has since been removed by exact cleanup. No live endpoint is shipped or left behind. Recreate a diagnostic run with the Preview command above and use the emitted run identity and URL; never reuse the historical container name or assume port 3005 is occupied by Octane.
 
 ```powershell
+# Expected to report that the historical run is absent.
 ./scripts/Show-OctaneManualBrowserHandoff.ps1 `
   -Container octane-c71f9b509b -WslDistro Ubuntu-24.04
 ```
 
-If that command says the run is absent, recreate it with the Preview command above. Do not substitute `/`, an old port, RDP, or direct X11 automation.
+Do not substitute `/`, an old port, RDP, or direct X11 automation. The current candidates are diagnostic only and are expected to fail the sustained WebView2 readiness gate until the recorded browser-process defect is resolved.
