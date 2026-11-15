@@ -7,18 +7,23 @@ display_number="${display_number%%.*}"
 authority="${XAUTHORITY:-/run/octane/Xauthority}"
 config="${OCTANE_XORG_CONFIG:-/etc/X11/octane-xorg-dummy.conf}"
 log="${OCTANE_XORG_LOG:-/home/wineuser/.octane/evidence/browser/xorg-dummy.log}"
+runtime_uid="${USER_UID:-1010}"
+runtime_gid="${USER_GID:-$runtime_uid}"
 
 [[ "$display_number" =~ ^[0-9]+$ ]] || { echo "Unsupported X11 display: $display" >&2; exit 64; }
 [[ -f "$config" ]] || { echo "Xorg dummy configuration is missing: $config" >&2; exit 65; }
 
-mkdir -p "$(dirname "$authority")" "$(dirname "$log")"
+mkdir -p "$(dirname "$authority")"
+install -d -o "$runtime_uid" -g "$runtime_gid" -m 0755 "$(dirname "$log")"
 touch "$authority" "$log"
 cookie=$(mcookie)
 xauth -f "$authority" add "$display" . "$cookie"
 # xauth atomically replaces its file with mode 0600. The retained base
 # entrypoint creates the unprivileged runtime account after this wrapper starts
-# Xorg, so make the container-local cookie readable only after xauth writes it.
-chmod 0644 "$authority"
+# Xorg. Assign the base entrypoint's declared numeric identity after xauth
+# writes the file; numeric ownership does not require the account to exist yet.
+chown "$runtime_uid:$runtime_gid" "$authority"
+chmod 0600 "$authority"
 
 Xorg "$display" \
     -config "$config" \
