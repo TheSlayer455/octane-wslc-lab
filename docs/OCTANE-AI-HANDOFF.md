@@ -602,3 +602,122 @@ acceptance BLOCKED and provide the exact manual operator handoff.
 ## 23. Smallest next action
 
 With candidate run `octane-c71f9b509b` still present, an authorized operator can run `Show-OctaneManualBrowserHandoff.ps1`, open its verified URL in an approved Windows browser, perform the seven-step smoke checklist, collect attributable browser evidence, and then stop the exact container. If the run is gone, recreate it from the locked image/profile/installer. Only after that smoke succeeds should unattended browser qualification resume.
+
+## 24. Recommended fresh-build replacement and WSL storage design
+
+This section records the recommended next implementation, not a claim that every behavior below already exists. The current appliance establishes fresh unchanged-installer staging, disposable containers and prefixes, explicit input/output copying, evidence collection, and exact cleanup. Automatic replacement of an active build, side-by-side `compare`, browser file upload, and the illustrative `/opt/octane-data` layout remain proposed.
+
+### Fresh application state for every build
+
+Keep the Ubuntu WSL appliance, Docker Engine, and pinned patched Wine/browser image installed. For each new Windows installer, create a fresh application session containing a new container, Wine prefix, registry/settings state, application user profile, WebView2 user-data directory, installation, output area, and viewer credential. Do not rebuild Wine, reinstall Docker, or reimport WSL for each pipeline build.
+
+```text
+build pipeline -> new Windows x64 installer
+               -> Octane streams and hashes exact bytes
+               -> new disposable container and Wine prefix
+               -> fresh install, settings, WebView2 data, and profile
+               -> actual Windows executable under Wine
+               -> authenticated localhost browser viewer
+```
+
+The desired everyday shorthand is:
+
+```powershell
+octane open 'C:\Builds\Application-v2.4.0.exe'
+```
+
+For a generic target today, use the implemented explicit profile and directory parameters shown in section 6. The shorthand assumes a previously validated default application profile. The major changing artifact is the new installer; the known-good WSL appliance and Wine/browser image remain cached.
+
+### One active build by default
+
+The recommended policy is that `open` replaces the active build by default:
+
+1. Build 101 starts in `octane-101`, with a fresh install and browser session.
+2. When Build 102 is requested, Octane first records Build 101's identity, collects requested logs, screenshots, reports, and exports, and reports any collection failure.
+3. Octane removes only Build 101's exact managed container, writable layer, Wine prefix, temporary application state, WebView2 data, per-run credential, and session-owned storage.
+4. Build 102 then starts in a new container and clean application environment.
+
+Never erase a failed build before evidence collection. A replacement failure must not silently fall back to the prior build or delete unrelated resources. The controller must use immutable run IDs and ownership labels, not name substrings.
+
+| Resource | Replacement policy |
+| --- | --- |
+| Ubuntu WSL appliance | Keep |
+| Docker Engine | Keep |
+| Patched Wine/WebView2 browser image | Keep |
+| Previous application container and writable layer | Delete after collection |
+| Previous Wine prefix, settings, application data, and WebView2 data | Delete |
+| Installer copy inside the previous session | Delete |
+| Optional verified installer cache | Separate, bounded retention policy |
+| Synthetic test-input library | Keep |
+| Collected exports and evidence | Keep outside disposable state |
+| Producer-pipeline installer | Governed by pipeline retention policy |
+
+Docker documents that `docker rm -v` removes anonymous volumes but does not remove named volumes. Octane must therefore journal every session-owned mount or directory and remove only those exact resources. It does not need, and must never substitute, a global `docker system prune`. See [Docker container removal](https://docs.docker.com/reference/cli/docker/container/rm/).
+
+An optional future `compare` command may retain two independently isolated builds for side-by-side inspection. It must allocate separate containers, prefixes, ports, credentials, application data, inputs/outputs, and evidence identities. `open` replacement and `compare` are proposed lifecycle features, not current qualification results.
+
+### WSL-backed file ingestion
+
+Prefer the WSL Linux filesystem for Octane's intensive working data while letting the operator select permitted files and output destinations from Windows. Keep three trust and lifecycle zones separate:
+
+```text
+Windows operator input                 Proposed WSL-owned working state
+C:\Octane\Input                       /opt/octane-data/
+                                         inputs/
+                                         sessions/build-102/
+                                           installer/
+                                           wine-prefix/
+                                           app-data/
+                                         outputs/
+                                         evidence/
+
+Wine-visible stable paths             Windows collection destination
+profile-defined input path             C:\Octane\Output
+profile-defined output path
+```
+
+The `/opt/octane-data` tree and example build numbers are illustrative. The current reference profile uses `C:\octane-input` and `C:\octane-output` inside Wine. Do not hard-code `Z:\octane\inputs` or `Z:\octane\outputs` until the selected profile verifies those mappings with the actual application and Wine build.
+
+Support two deliberately different ingestion methods:
+
+1. **Windows folder staging.** The implemented launcher accepts `-InputDirectory` and `-OutputDirectory`. Octane validates the Windows paths, rejects traversal/reparse escapes, hashes inputs, copies them into WSL-native per-run staging, rehashes the copy, and presents input read-only where practical. Output uses a distinct writable location and is copied to the selected Windows destination during collection.
+2. **Authenticated browser upload (proposed).** A small Octane control outside the streamed application viewport may accept explicitly selected files, enforce authentication, size/type/path limits and stable-file checks, write them atomically into that session's input staging, and expose them through the same stable Wine path. This must be an Octane feature; the Tauri application's native picker does not automatically see arbitrary Windows host files.
+
+An illustrative future convenience syntax is:
+
+```powershell
+octane open 'C:\Builds\Application.exe' `
+  --input 'C:\Octane\Input' `
+  --output 'C:\Octane\Output'
+```
+
+The tested current PowerShell parameters are `-InputDirectory` and `-OutputDirectory`; the GNU-style options above are proposed, not advertised as implemented. Docker bind mounts are resolved on the Docker daemon host, not the invoking client, and are writable by default. Use explicit daemon-visible WSL paths and `readonly`/`ro` for input mounts. See [Docker bind mounts](https://docs.docker.com/engine/storage/bind-mounts/).
+
+### Recommended physical placement
+
+| Data type | Recommended location |
+| --- | --- |
+| WSL appliance and reusable Docker image | WSL virtual disk |
+| Per-build Wine prefix, settings, and WebView2 state | Disposable WSL/container storage |
+| Large active ingestion datasets | WSL ext4 storage |
+| Installer downloaded from CI | Windows build folder, then immutable staged copy in WSL |
+| Exported results | Per-run WSL staging, then collected to selected Windows output |
+| Screenshots, logs, and machine-readable evidence | Persistent WSL evidence, optionally exported after redaction |
+
+Microsoft recommends storing files in the WSL filesystem when Linux tools perform the intensive work, rather than repeatedly operating across `/mnt/c`. Windows can access Linux files through `\\wsl$\<DistroName>\...` or `\\wsl.localhost\<DistroName>\...`. See [working across Windows and Linux filesystems](https://learn.microsoft.com/en-us/windows/wsl/filesystems) and [WSL interop](https://learn.microsoft.com/en-us/windows/dev-environment/wsl-interop).
+
+For example, a future layout might be visible as:
+
+```text
+\\wsl.localhost\Octane-Ubuntu\opt\octane-data\
+```
+
+`Octane-Ubuntu` and `/opt/octane-data` are proposed names, not established paths in the current package. Discover the installed distribution identity from Octane configuration rather than assuming it.
+
+### Application and security contract
+
+The staged files must behave like ordinary files on a stable Wine-accessible filesystem. A target-specific scenario should verify native-dialog selection; file content; folders and filenames containing spaces and Unicode; separate writable exports; cancellation and repeated use; unchanged inputs; and any explicitly approved network endpoint. These tests do not establish native Windows ACL, domain authentication, mapped-drive, client-certificate, device-compliance, or integrated-identity equivalence.
+
+Destroy application settings and caches with the session. Preserve only deliberately separated inputs, verified installer cache entries, exports, and evidence according to their retention policies. Use approved test artifacts and permitted data. The WSL/container architecture must not bypass endpoint controls, organizational execution policy, data-handling rules, identity restrictions, or missing authorization.
+
+The intended outcome is: produce a new EXE, open it through Octane, inspect the real GUI in a localhost browser, ingest controlled files, collect results, and replace the build without reinstalling the stable WSL/Docker/Wine foundation. The current appliance proves the underlying packaging and staging components; it does not yet prove every proposed replacement, upload, comparison, or storage behavior in this section.

@@ -120,7 +120,7 @@ def image_grid(items):
 page(1, "Octane<br/>Windows installer compatibility lab")
 p(
     "<b>Complete implementation, operation, and measured-validation reference</b><br/>"
-    "Guide revision 8 | November 14, 2026 | Windows x64 + packaged WSL/Docker + Wine 11.21 + browser candidate"
+    "Guide revision 9 | November 15, 2026 | Windows x64 + packaged WSL/Docker + Wine 11.21 + browser candidate"
 )
 p(
     "Octane is a repository-independent, container-runtime-independent lab for a real "
@@ -153,7 +153,8 @@ p(
     "record historical verification, inventory, sources, and continuing work. Pages 31-36 define "
     "the browser candidate, daily workflow, security/file/network boundaries, runtime kit, blocked "
     "qualification, and operator handoff. Pages 37-40 define the packaged WSL appliance, one-command "
-    "operator workflow, recovery/test evidence, and exact remaining boundary. Commands run in "
+    "operator workflow, recovery/test evidence, and exact remaining boundary. Pages 41-44 record the recommended "
+    "fresh-build replacement policy, WSL-backed ingestion model, physical storage placement, and implementation boundary. Commands run in "
     "<b>PowerShell 7 from the repository root</b> unless a desktop terminal is named."
 )
 
@@ -180,12 +181,14 @@ topics = [
     "Manual browser smoke and qualification resume path",
     "Packaged WSL appliance architecture", "One-command appliance workflow",
     "Appliance build, recovery, and live test", "Appliance verdict and maintenance boundary",
+    "Recommended fresh-build session model", "One-active-build replacement and comparison",
+    "WSL-backed file ingestion design", "Storage placement and capability boundaries",
 ]
 contents_rows = []
-for offset in range(20):
+for offset in range(22):
     contents_rows.append([
         str(offset + 1), topics[offset],
-        str(offset + 21), topics[offset + 20],
+        str(offset + 23), topics[offset + 22],
     ])
 table(["Page", "Topic", "Page", "Topic"], contents_rows, [27, 214, 27, 224], compact=True)
 p(
@@ -1651,6 +1654,172 @@ p(
 )
 
 
+page(41, "Recommended fresh-build session model")
+p(
+    "<b>Design status:</b> This is the recommended next implementation. The current appliance already provides fresh "
+    "unchanged-installer staging, disposable containers and Wine prefixes, explicit input/output copying, evidence "
+    "collection, and exact cleanup. Automatic active-build replacement, compare mode, browser upload, and the example "
+    "data layout on pages 42-44 remain proposed."
+)
+code(r"""
+pipeline -> new Windows x64 installer
+             |
+      streamed hash and immutable byte identity
+             |
+ fresh container + Wine prefix + registry/settings
+ + WebView2 user data + application profile + output
+             |
+ install and launch the unchanged Windows EXE through Wine
+             |
+ authenticated localhost browser -> actual streamed GUI
+""")
+h("Everyday command")
+code(r"""octane open 'C:\Builds\Application-v2.4.0.exe'""")
+p(
+    "For a generic target today, pass the implemented -Profile, -InputDirectory, and -OutputDirectory parameters. The "
+    "short form assumes a previously validated default application profile. The new installer is the major changing "
+    "artifact; the WSL appliance, Docker Engine, and pinned Wine/browser image stay installed and cached."
+)
+h("Stable foundation versus fresh session")
+table(["Layer", "Policy"], [
+    ["Ubuntu WSL appliance", "Keep; do not reimport for every application build."],
+    ["Docker Engine", "Keep inside the selected appliance distribution."],
+    ["Patched Wine/browser image", "Keep by exact image identity; no warmed installed-app prefix."],
+    ["Application container", "Create new for every build."],
+    ["Wine registry/settings/profile", "Create new inside that disposable session."],
+    ["WebView2 user data and output", "Create new; collect outputs before exact cleanup."],
+], [176, 316], compact=True)
+p(
+    "This model makes a new build clean without repeatedly installing infrastructure on Windows. It also preserves the "
+    "qualification boundary: a cached base image is reusable infrastructure, not persisted application state."
+)
+
+
+page(42, "One-active-build replacement and comparison")
+h("Recommended replacement sequence")
+table(["Step", "Required behavior"], [
+    ["1. Build 101 active", "Fresh container, installation, viewer credential, inputs, outputs, and evidence identity."],
+    ["2. Build 102 requested", "Record Build 101 state; collect requested logs, screenshots, reports, and exports first."],
+    ["3. Retire Build 101", "Remove only its exact container, writable layer, prefix, app/WebView data, secret, and owned storage."],
+    ["4. Start Build 102", "Create a new clean session; never replace a failed start with hidden reuse or fallback."],
+], [112, 380], compact=True)
+h("Retention policy")
+table(["Resource", "After replacement"], [
+    ["WSL appliance / Docker / pinned image", "KEEP"],
+    ["Old application container and writable layer", "DELETE after collection"],
+    ["Old Wine prefix, settings, profile, WebView2 data", "DELETE"],
+    ["Installer copy inside the old session", "DELETE"],
+    ["Optional verified installer cache", "Separate bounded retention policy"],
+    ["Test-input library", "KEEP"],
+    ["Exports and evidence", "KEEP outside disposable state"],
+    ["Producer-pipeline EXE", "Pipeline retention policy"],
+], [214, 278], compact=True)
+p(
+    "Docker documents that docker rm -v removes anonymous volumes but does not remove named volumes. Octane must journal "
+    "every session-owned mount or directory and remove only those exact resources. Global docker system prune is neither "
+    "required nor permitted by this design."
+)
+link("Docker container removal and volume behavior", "https://docs.docker.com/reference/cli/docker/container/rm/")
+h("Two explicit modes")
+table(["Mode", "Recommended meaning"], [
+    ["open", "Replace the one active build by default, after attributable collection."],
+    ["compare (proposed)", "Retain two fully isolated builds with different ports, prefixes, credentials, I/O, and evidence."],
+], [132, 360], compact=True)
+p(
+    "Neither automatic replacement nor compare is part of the current browser qualification. A collection failure must be "
+    "reported and must not silently delete the previous environment."
+)
+
+
+page(43, "WSL-backed file ingestion design")
+p(
+    "Prefer the WSL Linux filesystem for intensive Octane working data while allowing the operator to select permitted "
+    "Windows inputs and output destinations. Keep operator files, disposable session state, and retained evidence in "
+    "separate lifecycle and trust zones."
+)
+code(r"""
+Windows input                         Proposed WSL working state
+C:\Octane\Input                      /opt/octane-data/
+                                        inputs/
+                                        sessions/build-102/
+                                          installer/
+                                          wine-prefix/
+                                          app-data/
+                                        outputs/
+                                        evidence/
+
+Wine-visible stable paths            Windows collection destination
+profile-defined input/output          C:\Octane\Output
+""")
+p(
+    "The /opt/octane-data layout is illustrative. The current reference profile uses C:\\octane-input and "
+    "C:\\octane-output inside Wine. Do not hard-code Z:\\octane\\inputs or Z:\\octane\\outputs until the selected "
+    "profile verifies those mappings with the actual application and Wine build."
+)
+h("Two ingestion methods")
+table(["Method", "Contract"], [
+    ["A. Windows folder staging", "Implemented foundation: validate paths, reject escapes, hash/copy to WSL-native per-run storage, rehash, present input read-only where practical, collect output separately."],
+    ["B. Browser upload", "Proposed: authenticated Octane control outside the streamed app, with size/path/type limits, stable-file checks, atomic admission, and the same Wine-visible input path."],
+], [150, 342], compact=True)
+h("Command surface")
+code(r"""
+# Implemented PowerShell parameters
+octane open 'C:\Builds\Application.exe' `
+  -InputDirectory 'C:\Octane\Input' `
+  -OutputDirectory 'C:\Octane\Output'
+
+# Proposed shorthand; not yet advertised as working
+octane open 'C:\Builds\Application.exe' --input 'C:\Octane\Input' --output 'C:\Octane\Output'
+""")
+p(
+    "Docker bind mounts resolve on the daemon host, not the invoking client, and are writable by default. Resolve explicit "
+    "WSL daemon-visible paths and use readonly/ro for input mounts. Browser upload must be an Octane feature; a native Wine "
+    "file picker does not automatically expose arbitrary Windows host files."
+)
+link("Docker bind mounts and read-only options", "https://docs.docker.com/engine/storage/bind-mounts/")
+
+
+page(44, "Storage placement and capability boundaries")
+table(["Data", "Recommended physical location"], [
+    ["WSL appliance and reusable Docker image", "WSL virtual disk"],
+    ["Per-build prefix, settings, and WebView2 state", "Disposable WSL/container storage"],
+    ["Large active ingestion datasets", "WSL ext4 storage"],
+    ["Installer downloaded from CI", "Windows build folder, then immutable staged copy in WSL"],
+    ["Exported results", "Per-run WSL staging, then selected Windows output"],
+    ["Screenshots, logs, machine-readable evidence", "Persistent WSL evidence, optionally exported after review/redaction"],
+], [216, 276], compact=True)
+p(
+    "Microsoft recommends the WSL filesystem when Linux tools perform intensive work rather than repeatedly operating "
+    "across /mnt/c. Windows can inspect Linux files through \\\\wsl$\\<DistroName>\\... or "
+    "\\\\wsl.localhost\\<DistroName>\\.... A possible future path is "
+    "\\\\wsl.localhost\\Octane-Ubuntu\\opt\\octane-data\\, but both the distribution name and directory are proposed."
+)
+link("Microsoft: working across Windows and Linux filesystems", "https://learn.microsoft.com/en-us/windows/wsl/filesystems")
+link("Microsoft: WSL interop and UNC access", "https://learn.microsoft.com/en-us/windows/dev-environment/wsl-interop")
+h("Application-level checks")
+table(["Capability", "Required interpretation"], [
+    ["Native open/save dialogs", "Browse, select, cancel, reopen, and return to a responsive app."],
+    ["Filesystem semantics", "Read real contents; cover folders, spaces, Unicode, missing files, and unchanged inputs."],
+    ["Exports", "Write only to separate writable output; independently validate collected bytes."],
+    ["Network", "Test only explicitly approved endpoints and authentication mechanisms."],
+    ["Windows equivalence", "Do not infer native ACL, domain, mapped-drive, certificate, or device identity parity."],
+], [160, 332], compact=True)
+h("Security and implementation boundary")
+p(
+    "Destroy application settings and caches with the session. Preserve only deliberately separated inputs, bounded verified "
+    "cache entries, exports, and evidence. Use approved artifacts and permitted data; WSL must not bypass endpoint controls, "
+    "execution policy, data-handling rules, identity restrictions, or missing authorization."
+)
+table(["Already established", "Still proposed / unqualified"], [
+    ["Fresh session staging, clean prefix/install, explicit I/O copy, collection, exact cleanup", "Automatic active replacement, compare mode, browser upload, /opt/octane-data policy"],
+    ["Cached immutable WSL/Wine/browser foundation", "Browser-only application acceptance and ten-run qualification"],
+], [246, 246], compact=True)
+p(
+    "The intended result is a repeatable loop: produce an EXE, open it in Octane, inspect the real browser-streamed GUI, "
+    "ingest controlled files, collect results, and replace the build without reinstalling the stable foundation."
+)
+
+
 def decorate(canvas, doc):
     canvas.setTitle("Octane - Complete Windows Installer Compatibility Lab Guide")
     canvas.setAuthor("Octane Lab")
@@ -1658,7 +1827,7 @@ def decorate(canvas, doc):
     canvas.line(54, 44, 558, 44)
     canvas.setFont("Helvetica", 8)
     canvas.setFillColor(colors.HexColor("#657989"))
-    canvas.drawString(54, 30, "OCTANE / PUBLIC SOURCE REFERENCE / GUIDE REVISION 8")
+    canvas.drawString(54, 30, "OCTANE / PUBLIC SOURCE REFERENCE / GUIDE REVISION 9")
     canvas.drawRightString(558, 30, str(doc.page))
 
 
