@@ -13,10 +13,12 @@ log="${OCTANE_XORG_LOG:-/home/wineuser/.octane/evidence/browser/xorg-dummy.log}"
 
 mkdir -p "$(dirname "$authority")" "$(dirname "$log")"
 touch "$authority" "$log"
-chmod 0600 "$authority"
+# The retained base entrypoint creates the unprivileged runtime account after
+# this wrapper starts Xorg. Keep this container-local cookie readable until
+# that handoff instead of assuming the account already exists.
+chmod 0644 "$authority"
 cookie=$(mcookie)
 xauth -f "$authority" add "$display" . "$cookie"
-chown wineuser:wineuser "$authority"
 
 Xorg "$display" \
     -config "$config" \

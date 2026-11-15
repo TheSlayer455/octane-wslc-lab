@@ -126,6 +126,7 @@ try{
     $xorgEntrypoint=Get-Content -LiteralPath (Join-Path $root 'lab/browser/octane-xorg-entrypoint') -Raw
     Check ($xorgDockerfile -match 'xserver-xorg-video-dummy' -and $xorgDockerfile -match 'browser-rdp-required="false"') 'Xorg candidate must use the dummy driver and retain the no-RDP identity.'
     Check ($xorgEntrypoint -match '-nolisten tcp' -and $xorgEntrypoint -match '-auth "\$authority"') 'Standalone Xorg must disable TCP and require a per-container Xauthority cookie.'
+    Check ($xorgEntrypoint -notmatch 'chown\s+wineuser') 'Xorg startup must not assume the base entrypoint has already created its runtime account.'
     Check ($xorgEntrypoint -notmatch '(?m)^[^#\r\n]*(?:xrdp|xfreerdp|freerdp)') 'Standalone Xorg candidate must not invoke an RDP component.'
 
     $scriptText=(Get-ChildItem -LiteralPath (Join-Path $root 'scripts') -Filter '*.ps1' | ForEach-Object {Get-Content -LiteralPath $_.FullName -Raw}) -join "`n"
