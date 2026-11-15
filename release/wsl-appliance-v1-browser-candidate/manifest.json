@@ -2,16 +2,16 @@
   "schemaVersion": 1,
   "kind": "private-wsl-appliance-release-candidate",
   "version": "1.0.0-browser-candidate",
-  "createdAtUtc": "2026-11-14T23:01:06Z",
+  "createdAtUtc": "2026-11-15T00:29:25Z",
   "status": "candidate-end-to-end-blocked",
   "publication": {
     "status": "BLOCKED",
-    "reason": "Browser framebuffer delivery, browser-originated input, application acceptance through the viewer, and the browser-specific ten-run batch were not executed. No tag, release, upload, or replacement of v0.1.1 is authorized by component evidence alone."
+    "reason": "The source repository is public. The binary appliance remains local because browser framebuffer/input acceptance and the browser-specific ten-run batch were not executed, and third-party binary redistribution has not been separately reviewed."
   },
   "source": {
-    "branch": "browser-runtime-kit-v1",
+    "branch": "main",
     "executableHarnessCommit": "b88db7bafdf129f9727921d27a434a3174998df7",
-    "documentationCommit": "85713713d4ac78eda948ecf62d51b079f6d1e01d",
+    "documentationCommit": "554f0bce9211a190187db840fa4a4f21d4c95230",
     "rootfsSourceCommit": "d8654e38f1db10f11c5a96c69502b784b2aebb3a",
     "browserImageCommit": "b227260e579bc4806cbd92659ea9956b06fbb253"
   },
@@ -38,15 +38,15 @@
     "uncompressedArchiveSha256": "6c1f4f9fd364ed970fc1ba1796a71952e2f917ae7603ea3cf10903d6209dbfb5"
   },
   "package": {
-    "localPath": "work/appliance-v1-release-final/Octane-v1",
+    "localPath": "work/appliance-v1-public-final/Octane-v1",
     "files": 80,
-    "totalBytes": 2583696204,
-    "manifestSha256": "233ff11340e4c050e3c0900660062f88a0491d39a932658d7d160a6e262aaf76",
-    "checksumsSha256": "faa69a30d545bf4d5a58d1b13cce5ba66595889dffb4507b2d526878e0d17ca9",
-    "runtimeChecksumsSha256": "ac252608bae8f3bf46ecae96e9095a4d752112cc37061d3e3e5ee1d50d9aa18f",
-    "runtimeKitManifestSha256": "1f3237a467f7e0e53b78067339b88098c45dfa766e9a2a518bfb6098fcaaa4bd",
+    "totalBytes": 2583696224,
+    "manifestSha256": "d30748ffafb445471a7249c7ad9da83d1eadc0ba243c2dff0955864fec63da7c",
+    "checksumsSha256": "4099b22e577209463ded122ce30d17893a9d3fda02441e72f198cc091a409f6c",
+    "runtimeChecksumsSha256": "416e29d9943c8478a58e1d37fb70dc94067b18a525fb14291982b99c7605f21a",
+    "runtimeKitManifestSha256": "b5185348dea92190dd13d63d2871852b45b9e248c9055af124e95b841a8f3008",
     "guidePages": 40,
-    "guideSha256": "01a3d8c21d5e9344abd00dd5e837eae863e840ff74f1afebfec3ddf948b7be0f",
+    "guideSha256": "fc1c71a60b442b3e333467ac8b98c73f67ae14e4b502004fa2b7023cb1e9edc2",
     "planOnlyVerification": "PASS for package files, archive identities, runtime checksums, and default LocalAppData path plan; no host state changed",
     "integrityModel": "SHA-256 checksums only; no signature or authenticity claim"
   },
