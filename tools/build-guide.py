@@ -130,16 +130,16 @@ p(
     "it never substitutes a Linux build or browser-only application."
 )
 link(
-    "Private repository: TheSlayer455/octane-wslc-lab",
+    "Public source repository: TheSlayer455/octane-wslc-lab",
     "https://github.com/TheSlayer455/octane-wslc-lab",
 )
 h("What is delivered")
 p(
-    "The private repository contains the Rust/Tauri reference app, fixtures, Windows NSIS "
+    "The public source repository contains the Rust/Tauri reference app, fixtures, Windows NSIS "
     "build workflow, explicit WSLC and Docker adapters, WineGUI and Docker-Wine controls, "
     "a noVNC browser candidate, an importable WSL/Docker appliance, generic target profiles, a runtime doctor, normalized run-state "
     "and evidence tooling, a source-independent runtime kit, regression checks, and this guide. "
-    "The measured installer and matching manifest remain retained in private v0.1.1."
+    "The measured installer and matching manifest remain retained in the historical v0.1.1 release."
 )
 h("Headline result")
 p(html.escape(status.get("summary", "Validation data unavailable.")))
@@ -321,7 +321,7 @@ p(
     "The runtime route needs Windows x64, WSL, PowerShell 7, the selected engine, network "
     "access to the pinned image when not cached, several GiB of storage, and a free loopback "
     "port. A local Windows build additionally needs Rust stable MSVC, Visual Studio C++ Build "
-    "Tools with a Windows SDK, Node 22, pnpm 11.25.0, and Git. Downloading the private artifact "
+    "Tools with a Windows SDK, Node 22, pnpm 11.25.0, and Git. Downloading the retained artifact "
     "pair avoids local compiler prerequisites."
 )
 p(
@@ -387,9 +387,9 @@ code("""./scripts/Stage-OctaneArtifact.ps1 `
 
 # Local Windows build; does not install Octane on the host.
 ./scripts/Build-Octane.ps1""")
-h("Private GitHub delivery")
+h("GitHub release and artifact delivery")
 p(
-    "The v0.1.1 private prerelease retains the measured EXE, manifest, and its historical guide; "
+    "The v0.1.1 prerelease retains the measured EXE, manifest, and its historical guide; "
     "this revision does not replace that release. The last separately verified "
     "application-build run 43560204604 verified implementation commit 6199155 with locked Rust/core and Node "
     "checks, the 37-assertion PowerShell harness, Tauri's NSIS build, and artifact upload. Its "
@@ -398,7 +398,7 @@ p(
     "production and runtime acceptance remain separate concerns."
 )
 link(
-    "Private v0.1.1 release",
+    "v0.1.1 release",
     "https://github.com/TheSlayer455/octane-wslc-lab/releases/tag/v0.1.1",
 )
 link(
@@ -415,7 +415,7 @@ h("Diagnostic artifact intake")
 p(
     "The separate webview2-diagnostic workflow builds Release|x64 and uploads "
     "WebView2Diagnostic.exe plus diagnostic-manifest.json. Before a diagnostic or SER8 run, "
-    "download that private workflow artifact into diagnostics/webview2-win32/artifacts and "
+    "download that workflow artifact into diagnostics/webview2-win32/artifacts and "
     "verify its manifest hash. The current measured diagnostic came from commit "
     "0228527976b0ee7b0a8847f453fae37173f46df0 with SDK 1.0.3856.49; its SHA-256 was "
     "82cd1cab4930ffeb940a27898fabdb30322decd84f681ef3d15264c51e86f5b5. Generated binaries "
@@ -1198,7 +1198,7 @@ p(
 
 page(29, "Verification and repository inventory")
 table(["Verification", "Observed result"], [
-    ["Private repository", "TheSlayer455/octane-wslc-lab; private main and private v0.1.1 prerelease."],
+    ["Public source repository", "TheSlayer455/octane-wslc-lab; public main and v0.1.1 prerelease as of 2026-11-15."],
     ["Windows artifact", status.get("windowsBuild", "")],
     ["Node checks", "19 PASS: application, diagnostic, dialog-probe, and qualification contracts."],
     ["Rust core", "4 historical PASS in measured installer build: fixtures/hash, path errors, export/no-overwrite, limits."],
@@ -1231,7 +1231,7 @@ table(["Path", "Purpose"], [
     ["lab/browser/", "Pinned noVNC/Websockify/x11vnc viewer, session, and unchanged-target helper."],
     ["lab/", "Pinned profile Dockerfiles, helpers, and strict native-SER8 Ansible lifecycle."],
     ["tests/", "Node behavior tests and mocked adapter/lifecycle harness."],
-    [".github/workflows/", "Private Windows installer build and artifact upload."],
+    [".github/workflows/", "GitHub Windows installer build and artifact upload."],
     ["docs/ and tools/", "Validation snapshot, visual evidence, PDF, and generator."],
     ["artifacts/runs/evidence", "Generated installer intake, run state, and portable output; Git-ignored."],
 ], [170, 322], compact=True)
@@ -1647,7 +1647,7 @@ h("Next action")
 p(
     "Use the retained port-3005 handoff or recreate the same candidate, perform the documented smoke in an approved Windows "
     "browser, and preserve browser-attributable frame/input evidence. Only after that passes should a final lock and ten "
-    "fresh browser runs begin. Until then the appliance is a private component-tested candidate, not a qualified release."
+    "fresh browser runs begin. Until then the appliance is a component-tested candidate, not a qualified release."
 )
 
 
@@ -1658,7 +1658,7 @@ def decorate(canvas, doc):
     canvas.line(54, 44, 558, 44)
     canvas.setFont("Helvetica", 8)
     canvas.setFillColor(colors.HexColor("#657989"))
-    canvas.drawString(54, 30, "OCTANE / PRIVATE PROJECT REFERENCE / GUIDE REVISION 8")
+    canvas.drawString(54, 30, "OCTANE / PUBLIC SOURCE REFERENCE / GUIDE REVISION 8")
     canvas.drawRightString(558, 30, str(doc.page))
 
 

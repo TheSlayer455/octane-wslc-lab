@@ -141,4 +141,4 @@ The minimal native Win32 WebView2 probe still renders a white client. The custom
 
 The core accepts a local EXE, application profile, fixtures, and output directory. GitHub/GitLab download or upload steps are optional wrappers. Profiles are data only; trusted scenario code must come from the repository. No workflow uses `Invoke-Expression`, mounts the Docker socket, mounts a broad Windows drive, enables privileged/host networking, adds ptrace, passes `--no-sandbox`, or silently changes Docker context/distro/runtime.
 
-The repository is private and has no open-source license grant. Third-party components retain their own licenses. Installer bytes, image archives, credentials, and raw evidence remain outside ordinary Git history.
+The source repository is public but currently has no open-source license grant. Third-party components retain their own licenses. Installer bytes, image archives, credentials, and raw evidence remain outside ordinary Git history and are not implied public downloads.

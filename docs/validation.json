@@ -1,6 +1,6 @@
 {
   "guideRevision": 8,
-  "reconciledAtUtc": "2026-11-14T22:58:09Z",
+  "reconciledAtUtc": "2026-11-15T00:27:23Z",
   "summary": "Historical Docker/Wine technical feasibility and the exact RDP-era Octane contract remain qualified 10/10. The noVNC browser candidate and new self-contained WSL appliance package both pass their measured component lifecycles: verified importable Ubuntu rootfs, pinned Docker 29.6.2, separate image load, fresh unchanged-installer run, exact executable/WebView2 identity, X11/VNC/Websockify/loopback/authentication/no-RDP checks, evidence collection, and exact cleanup. Browser framebuffer delivery, browser-originated input, the application workload/dialog/export path through the viewer, and the browser-specific 10/10 batch were not executed because no approved controllable browser was available. The appliance/browser runtime kit is therefore a preserved, component-tested candidate, not a qualified browser release.",
   "verdict": "QUALIFIED_EXACT_10_OF_10_UNATTENDED_FRESH_PREFIX_CONTRACT",
   "technicalFeasibility": "demonstrated",
@@ -71,7 +71,7 @@
   "previous27PageGuideSha256": "fc85fd66f7ffab5bd46987d31867f480cbf251ec4beed3f6c2cbd97236055f87",
   "current30PageGuideSha256": "32cbbe25de17fa31acea8a4a188cc8436401250ae65893cd60c4e26e8fd77a43",
   "current36PageGuideSha256": "b2e7472b4e519dd49fb829b546f6ac156228e6b793ad3d796c6b65af3cd13cb2",
-  "current40PageGuideSha256": "01a3d8c21d5e9344abd00dd5e837eae863e840ff74f1afebfec3ddf948b7be0f",
+  "current40PageGuideSha256": "fc1c71a60b442b3e333467ac8b98c73f67ae14e4b502004fa2b7023cb1e9edc2",
   "windowsBuild": "Historical PASS: Windows Server 2022 run 43560204604 on implementation commit 61991552b7d2cb278e8d11d39b01795e9260d4cb. That build is not the Wine-tested installer. No new native-Windows GUI qualification was available in this iteration.",
   "runUrl": "https://github.com/TheSlayer455/octane-wslc-lab/actions/runs/43560204604",
   "measuredInstallerRunUrl": "https://github.com/TheSlayer455/octane-wslc-lab/actions/runs/43540018084",

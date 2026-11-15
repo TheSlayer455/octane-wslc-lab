@@ -35,7 +35,7 @@ Do not weaken or reinterpret these:
 - Podman, Proton, CrossOver, VPN work, alternate distributions, host GPU mapping, Windows VMs, Kubernetes, and broad management UI are out of scope.
 - Do not disable URL-policy enforcement or browser safeguards, expose localhost through a tunnel, weaken host security, or switch controllers merely to evade an automation restriction.
 - No global Docker prune, WSL shutdown, distro unregister, VHD deletion, broad host mount, Docker-socket mount, privileged/host-network mode, ptrace, disabled sandbox, or unrelated cleanup.
-- Keep the repository private. Do not publish logs, target binaries, screenshots, releases, issues, or repository visibility changes without separate authorization.
+- The source repository is public and has no open-source license grant. Do not publish additional logs, target binaries, raw screenshots/evidence, binary releases, or sensitive issue content without separate authorization and applicable redistribution review.
 - Do not use the owner's private application name in generic prompts, docs, filenames, screenshots, commits, issues, or release metadata. Use `example-app`, `<app-id>`, and `<app-id>-octane`.
 
 ## 3. Architecture and trust boundaries
@@ -522,7 +522,7 @@ Build the larger private appliance release only from verified inputs:
   -UncompressedImageArchiveSha256 6c1f4f9fd364ed970fc1ba1796a71952e2f917ae7603ea3cf10903d6209dbfb5
 ```
 
-The release builder verifies its input manifests before copying and writes a top-level manifest plus checksums for every packaged file. Large archives remain outside Git. Redistribution permission for third-party binaries is not inferred from a successful build; keep this candidate private unless licensing and owner authorization are separately established.
+The release builder verifies its input manifests before copying and writes a top-level manifest plus checksums for every packaged file. Large archives remain outside Git. The source repository is public, but redistribution permission for third-party binaries is not inferred from a successful build; keep the binary candidate local until license review and a separate binary-release decision are complete.
 
 The extracted-kit exercise used a path containing spaces and `ü`, created/validated `example-app-octane`, staged the external retained EXE to the exact hash, started a clean preview without source-tree fallbacks, passed every available component check, collected output/evidence, and removed the exact container. Browser input remained blocked. Re-run this exercise after final docs/kit packaging changes.
 
