@@ -175,6 +175,91 @@ function Remove-OctaneRuntimeSecretFile {
     }
 }
 
+function New-OctaneRuntimeSessionStorage {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)][ValidateSet('Docker')][string]$Engine,
+        [Parameter(Mandatory=$true)][string]$WslDistro,
+        [Parameter(Mandatory=$true)][ValidatePattern('^octane-[a-f0-9]{10}$')][string]$Container,
+        [Parameter(Mandatory=$true)][string]$InputDirectory,
+        [Parameter(Mandatory=$true)][string]$ArtifactPath,
+        [Parameter(Mandatory=$true)][string]$ArtifactManifestPath,
+        [Parameter(Mandatory=$true)][ValidatePattern('^[a-f0-9]{64}$')][string]$ArtifactSha256
+    )
+
+    if(-not $IsWindows){throw 'WSL-native session storage currently requires the Windows Docker-in-WSL adapter.'}
+    $inputRuntime=ConvertTo-OctaneRuntimePath -Engine $Engine -WslDistro $WslDistro -Path $InputDirectory
+    $artifactRuntime=ConvertTo-OctaneRuntimePath -Engine $Engine -WslDistro $WslDistro -Path $ArtifactPath
+    $manifestRuntime=ConvertTo-OctaneRuntimePath -Engine $Engine -WslDistro $WslDistro -Path $ArtifactManifestPath
+    $root="/var/lib/octane/sessions/$Container"
+    $script=@'
+set -euo pipefail
+root="$1"; container="$2"; input="$3"; artifact="$4"; manifest="$5"; expected="$6"
+test "$root" = "/var/lib/octane/sessions/$container"
+test ! -e "$root"
+trap 'rm -rf --one-file-system -- "$root"' ERR
+install -d -m 0700 -- "$root"
+install -d -o 1010 -g 1010 -m 0755 -- "$root/home" "$root/home/.octane" "$root/home/.octane/target" "$root/home/.octane/input" "$root/home/.octane/output" "$root/home/.octane/evidence"
+install -d -o root -g root -m 0555 -- "$root/selected" "$root/artifact"
+install -d -o 1010 -g 1010 -m 0755 -- "$root/upload"
+cp -a -- "$input"/. "$root/selected"/
+cp -- "$artifact" "$root/artifact"/
+cp -- "$manifest" "$root/artifact"/
+find "$root/selected" -type d -exec chmod 0555 {} +
+find "$root/selected" -type f -exec chmod 0444 {} +
+find "$root/artifact" -type d -exec chmod 0555 {} +
+find "$root/artifact" -type f -exec chmod 0444 {} +
+actual=$(sha256sum "$root/artifact/$(basename "$artifact")" | awk '{print $1}')
+test "$actual" = "$expected"
+printf '{"schemaVersion":1,"kind":"octane-session-storage","container":"%s"}\n' "$container" > "$root/session.json"
+chmod 0444 "$root/session.json"
+trap - ERR
+'@
+    $result=Invoke-OctaneNativeProcess -FileName 'wsl.exe' -Arguments @(
+        '-d',$WslDistro,'-u','root','--exec','bash','-c',$script,'octane-session-create',
+        $root,$Container,$inputRuntime,$artifactRuntime,$manifestRuntime,$ArtifactSha256
+    ) -TimeoutSeconds 900
+    if($result.TimedOut -or $result.ExitCode -ne 0){
+        throw "Unable to create WSL-native session storage for $Container. $($result.StdErr.Trim())"
+    }
+    return [pscustomobject]@{
+        root=$root
+        home="$root/home"
+        selectedInput="$root/selected"
+        uploadedInput="$root/upload"
+        artifact="$root/artifact"
+        output="$root/home/.octane/output"
+        evidence="$root/home/.octane/evidence"
+    }
+}
+
+function Remove-OctaneRuntimeSessionStorage {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)][ValidateSet('Docker')][string]$Engine,
+        [Parameter(Mandatory=$true)][string]$WslDistro,
+        [Parameter(Mandatory=$true)][ValidatePattern('^octane-[a-f0-9]{10}$')][string]$Container
+    )
+    if(-not $IsWindows){throw 'WSL-native session cleanup currently requires the Windows Docker-in-WSL adapter.'}
+    $root="/var/lib/octane/sessions/$Container"
+    $script=@'
+set -euo pipefail
+root="$1"; container="$2"
+test "$root" = "/var/lib/octane/sessions/$container"
+if [[ ! -e "$root" ]]; then exit 0; fi
+test -f "$root/session.json"
+grep -Fq '"kind":"octane-session-storage"' "$root/session.json"
+grep -Fq '"container":"'"$container"'"' "$root/session.json"
+rm -rf --one-file-system -- "$root"
+'@
+    $result=Invoke-OctaneNativeProcess -FileName 'wsl.exe' -Arguments @(
+        '-d',$WslDistro,'-u','root','--exec','bash','-c',$script,'octane-session-remove',$root,$Container
+    ) -TimeoutSeconds 300
+    if($result.TimedOut -or $result.ExitCode -ne 0){
+        throw "Unable to remove exact WSL-native session storage for $Container. $($result.StdErr.Trim())"
+    }
+}
+
 function Assert-OctaneContainer {
     [CmdletBinding()]
     param(

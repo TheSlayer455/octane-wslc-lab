@@ -6,10 +6,12 @@ param(
     [Parameter(Mandatory=$true)][string]$OutputDirectory,
     [string]$WslDistro='Ubuntu-24.04',
     [ValidateRange(1024,65535)][int]$Port=3001,
+    [ValidateRange(0,65535)][int]$UploadPort=0,
     [string]$Image='octane-lab:browser-novnc-dev',
     [string]$BuildLabel,
     [ValidatePattern('^[a-fA-F0-9]{64}$')][string]$ProducerSha256,
     [string]$Provenance,
+    [ValidateSet('Standalone','ReplaceActive','Comparison')][string]$LifecycleMode='Standalone',
     [switch]$OpenBrowser,
     [switch]$SkipDeepDoctor
 )
@@ -32,7 +34,11 @@ foreach($item in Get-ChildItem -LiteralPath $inputPath -Recurse -Force){
     if($item.Attributes -band [IO.FileAttributes]::ReparsePoint){throw "Input contains a symlink or junction, which copy mode rejects: $($item.FullName)"}
 }
 New-Item -ItemType Directory -Path $outputPath -Force | Out-Null
-if(-not (Test-OctanePortAvailable -Port $Port)){throw "Loopback port $Port is already in use."}
+if($UploadPort -eq 0){
+    if($Port -ge 65535){throw 'The viewer port leaves no adjacent port for authenticated upload.'}
+    $UploadPort=$Port+1
+}
+if($UploadPort -eq $Port){throw 'Viewer and upload ports must be different.'}
 
 $artifactRoot=Join-Path $root 'runs/artifacts'
 $stageArguments=@{Installer=$Installer;OutputDirectory=$artifactRoot}
@@ -47,10 +53,11 @@ $statePath=Join-Path $runs "$name.json"
 $doctorPath=Join-Path $runs "$name-doctor.json"
 $secretDirectory=Join-Path $runs "secrets/$name"
 $password=[Convert]::ToHexString([Security.Cryptography.RandomNumberGenerator]::GetBytes(4)).ToLowerInvariant()
-New-Item -ItemType Directory -Path $secretDirectory -Force | Out-Null
 $secretPath=Join-Path $secretDirectory 'viewer-password'
-[IO.File]::WriteAllText($secretPath,$password,[Text.UTF8Encoding]::new($false))
 $runtimeSecretCreated=$false
+$sessionStorageCreated=$false
+$lifecycleLock=$null
+$replacedContainer=$null
 $inputManifestPath=Join-Path $runs "$name-input-manifest.json"
 $inputManifest=Get-OctaneDirectoryManifest -Path $inputPath
 Write-OctaneJsonAtomic -Path $inputManifestPath -Value $inputManifest
@@ -81,13 +88,39 @@ Set-OctaneRunMetadata -Path $statePath -Values @{
     targetPreview=$true;targetId=$profileResult.id;targetProfileSha256=$profileResult.profileSha256
     artifactId=$artifact.artifactId;artifactManifest=$artifact.manifestPath;operatorOutputDirectory=$outputPath
     browserEndToEndStatus='BLOCKED';browserEndToEndReason='Requires an approved browser path or separately recorded operator evidence.'
-    viewerPath='/octane.html';viewerTransport='noVNC';fileAccessMode='copy';inputSource=$inputPath
+    viewerPath='/octane.html';viewerTransport='noVNC';fileAccessMode='wsl-native-copy';inputSource=$inputPath
+    lifecycleMode=$LifecycleMode;uploadPort=$UploadPort
     inputManifestPath=$inputManifestPath;inputManifestSha256=(Get-FileHash -LiteralPath $inputManifestPath -Algorithm SHA256).Hash.ToLowerInvariant()
 }
 
+$lifecycleLock=if($LifecycleMode -ne 'Standalone'){Enter-OctaneLifecycleLock -RunsDirectory $runs -TimeoutSeconds 30}else{$null}
 $activeStage='artifact'
 try{
     Update-OctaneRunStage -Path $statePath -Stage artifact -Status PASS -Detail "Staged immutable $($artifact.artifactId); source and staged hashes agree."
+
+    if($LifecycleMode -eq 'ReplaceActive'){
+        $active=Get-OctaneActiveRun -RunsDirectory $runs
+        if($active){
+            if([string]$active.record.wslDistro -ne $WslDistro){throw "Active run belongs to WSL distribution $($active.record.wslDistro), not $WslDistro."}
+            $replacedContainer=[string]$active.record.container
+            if([string]$active.record.state -ne 'REMOVED'){
+                if(-not ($active.record.PSObject.Properties['previewOutputCollected'] -and [bool]$active.record.previewOutputCollected)){
+                    & (Join-Path $PSScriptRoot 'Collect-OctanePreview.ps1') -Container $replacedContainer -WslDistro $WslDistro | Out-Null
+                }
+                & (Join-Path $PSScriptRoot 'Stop-OctaneLab.ps1') -Container $replacedContainer -Engine Docker -WslDistro $WslDistro | Out-Null
+            }else{
+                [void](Clear-OctaneActiveRun -RunsDirectory $runs -Container $replacedContainer)
+            }
+            Set-OctaneRunMetadata -Path $statePath -Values @{replacedContainer=$replacedContainer;replacementCollected=$true;replacementRemoved=$true}
+        }
+        Set-OctaneActiveRun -RunsDirectory $runs -Container $name -RunId $id -Port $Port -State INITIALIZING | Out-Null
+    }elseif($LifecycleMode -eq 'Comparison'){
+        $active=Get-OctaneActiveRun -RunsDirectory $runs
+        if($active){Set-OctaneRunMetadata -Path $statePath -Values @{comparedWithContainer=[string]$active.record.container}}
+    }
+
+    if(-not (Test-OctanePortAvailable -Port $Port)){throw "Loopback viewer port $Port is already in use."}
+    if(-not (Test-OctanePortAvailable -Port $UploadPort)){throw "Loopback upload port $UploadPort is already in use."}
     $activeStage='runtimeDoctor'
     $doctorArgs=@{Engine='Docker';WslDistro=$WslDistro;Port=$Port;OutputPath=$doctorPath}
     if(-not $SkipDeepDoctor){$doctorArgs.Deep=$true}
@@ -103,42 +136,48 @@ try{
     Update-OctaneRunStage -Path $statePath -Stage imageBuild -Status PASS -Detail "Reused prebuilt browser image $Image ($($imageObject.Id)); no application prefix was cached."
     Set-OctaneRunMetadata -Path $statePath -Values @{resolvedImageId=[string]$imageObject.Id;resolvedBaseImage=[string]$imageObject.Id}
 
+    $activeStage='sessionStorage'
+    New-Item -ItemType Directory -Path $secretDirectory -Force | Out-Null
+    [IO.File]::WriteAllText($secretPath,$password,[Text.UTF8Encoding]::new($false))
+    $sessionStorage=New-OctaneRuntimeSessionStorage -Engine Docker -WslDistro $WslDistro -Container $name `
+        -InputDirectory $inputPath -ArtifactPath $artifact.artifactPath -ArtifactManifestPath $artifact.manifestPath -ArtifactSha256 $artifact.sha256
+    $sessionStorageCreated=$true
+    Set-OctaneRunResource -Path $statePath -Resource sessionStorageCreated -Value $true
+    Set-OctaneRunMetadata -Path $statePath -Values @{sessionStorageRoot=$sessionStorage.root;wslNativeWorkingData=$true}
+    Update-OctaneRunStage -Path $statePath -Stage sessionStorage -Status PASS -Detail "Created exact WSL-native disposable session storage $($sessionStorage.root); selected inputs and installer are read-only mounts."
+    $inputAfterCopy=Get-OctaneDirectoryManifest -Path $inputPath
+    Assert-OctaneDirectoryManifest -Expected $inputManifest -Actual $inputAfterCopy -Context 'Host input changed while it was being staged.'
+
     $runtimeSecret=New-OctaneRuntimeSecretFile -Engine Docker -WslDistro $WslDistro -Container $name -Secret $password -ControllerPath $secretPath
     $runtimeSecretCreated=$true
     $runArgs=@(
         'run','-d','--name',$name,
         '--label','com.octanelab.managed=true','--label','com.octanelab.engine=docker','--label','com.octanelab.profile=DockerWineStaging1121VisRgnBrowser',
-        '--label',"com.octanelab.run=$id",'--label',"com.octanelab.target=$($profileResult.id)",
-        '--shm-size=1gb','-p',"127.0.0.1:${Port}:3000",'--platform','linux/amd64',
+        '--label',"com.octanelab.run=$id",'--label',"com.octanelab.target=$($profileResult.id)",'--label',"com.octanelab.lifecycle=$($LifecycleMode.ToLowerInvariant())",
+        '--shm-size=1gb','-p',"127.0.0.1:${Port}:3000",'-p',"127.0.0.1:${UploadPort}:3002",'--platform','linux/amd64',
         '--mount',"type=bind,src=$runtimeSecret,dst=/run/octane/viewer-password,readonly",
+        '--mount',"type=bind,src=$($sessionStorage.home),dst=/home/wineuser",
+        '--mount',"type=bind,src=$($sessionStorage.selectedInput),dst=/home/wineuser/.octane/input/selected,readonly",
+        '--mount',"type=bind,src=$($sessionStorage.uploadedInput),dst=/home/wineuser/.octane/input/uploaded,readonly",
+        '--mount',"type=bind,src=$($sessionStorage.uploadedInput),dst=/run/octane/upload",
+        '--mount',"type=bind,src=$($sessionStorage.artifact),dst=/home/wineuser/.octane/target/artifact,readonly",
         '-e','TZ=America/Chicago','-e','RDP_SERVER=no','-e','USE_XVFB=yes','-e','USER_SUDO=no','-e',"OCTANE_RUN_ID=$id",
-        '-e',"OCTANE_VIEWER_ORIGINS=http://127.0.0.1:$Port http://localhost:$Port",$Image
+        '-e',"OCTANE_VIEWER_ORIGINS=http://127.0.0.1:$Port http://localhost:$Port",'-e',"OCTANE_UPLOAD_PUBLIC_URL=http://127.0.0.1:$UploadPort",$Image
     )
     $activeStage='containerCreate'
     $created=Invoke-OctaneRuntime -Engine Docker -WslDistro $WslDistro -Arguments $runArgs -TimeoutSeconds 180
     Set-OctaneRunResource -Path $statePath -Resource containerCreated -Value $true
-    Update-OctaneRunStage -Path $statePath -Stage containerCreate -Status PASS -Detail "Created fresh container $name with one loopback browser publication and one read-only distro-local credential-file bind."
+    Update-OctaneRunStage -Path $statePath -Stage containerCreate -Status PASS -Detail "Created fresh container $name with loopback-only viewer/upload publications, WSL-native disposable home, read-only selected/artifact mounts, and one read-only credential bind."
     Set-OctaneRunMetadata -Path $statePath -Values @{containerId=$created.StdOut.Trim()}
 
     $activeStage='desktopEndpoint'
     $endpointMs=Wait-OctanePreviewEndpoint -Container $name -Port $Port -TimeoutSeconds 240
     $address="http://127.0.0.1:$Port/octane.html"
+    $uploadAddress="http://127.0.0.1:$UploadPort"
     Update-OctaneRunStage -Path $statePath -Stage desktopEndpoint -Status PASS -Detail "Viewer page returned HTTP at $address; VNC negotiation and browser rendering remain separate gates." -DurationMs $endpointMs
 
-    Invoke-OctaneRuntime -Engine Docker -WslDistro $WslDistro -Arguments @('exec','-u','root',$name,'bash','-lc','mkdir -p /home/wineuser/.octane/target/artifact /home/wineuser/.octane/input /home/wineuser/.octane/output && chown -R wineuser:wineuser /home/wineuser/.octane') -TimeoutSeconds 60 | Out-Null
     $runtimeProfile=ConvertTo-OctaneRuntimePath -Engine Docker -WslDistro $WslDistro -Path $profilePath
-    $runtimeArtifact=ConvertTo-OctaneRuntimePath -Engine Docker -WslDistro $WslDistro -Path $artifact.artifactPath
-    $runtimeManifest=ConvertTo-OctaneRuntimePath -Engine Docker -WslDistro $WslDistro -Path $artifact.manifestPath
-    $runtimeInput=ConvertTo-OctaneRuntimePath -Engine Docker -WslDistro $WslDistro -Path $inputPath
     Invoke-OctaneRuntime -Engine Docker -WslDistro $WslDistro -Arguments @('cp',$runtimeProfile,"$name`:/home/wineuser/.octane/target/app.json") -TimeoutSeconds 120 | Out-Null
-    Invoke-OctaneRuntime -Engine Docker -WslDistro $WslDistro -Arguments @('cp',$runtimeArtifact,"$name`:/home/wineuser/.octane/target/artifact/$([IO.Path]::GetFileName($artifact.artifactPath))") -TimeoutSeconds 600 | Out-Null
-    Invoke-OctaneRuntime -Engine Docker -WslDistro $WslDistro -Arguments @('cp',$runtimeManifest,"$name`:/home/wineuser/.octane/target/artifact/$([IO.Path]::GetFileName($artifact.manifestPath))") -TimeoutSeconds 120 | Out-Null
-    if(@(Get-ChildItem -LiteralPath $inputPath -Force).Count -gt 0){
-        Invoke-OctaneRuntime -Engine Docker -WslDistro $WslDistro -Arguments @('cp',"$runtimeInput/.","$name`:/home/wineuser/.octane/input") -TimeoutSeconds 600 | Out-Null
-    }
-    $inputAfterCopy=Get-OctaneDirectoryManifest -Path $inputPath
-    Assert-OctaneDirectoryManifest -Expected $inputManifest -Actual $inputAfterCopy -Context 'Host input changed while it was being staged.'
-    Invoke-OctaneRuntime -Engine Docker -WslDistro $WslDistro -Arguments @('exec','-u','root',$name,'chown','-R','wineuser:wineuser','/home/wineuser/.octane') -TimeoutSeconds 120 | Out-Null
 
     $activeStage='installer'
     Invoke-OctaneRuntime -Engine Docker -WslDistro $WslDistro -Arguments @('exec','-u','wineuser',$name,'octane-target','prepare') -TimeoutSeconds 300 | Out-Null
@@ -157,14 +196,18 @@ try{
     $network=Invoke-OctaneRuntime -Engine Docker -WslDistro $WslDistro -Arguments @('exec','-u','wineuser',$name,'octane-target','probe-network') -TimeoutSeconds 120 -AllowFailure
     $endpointCount=@($profileValue.network.requiredEndpoints).Count
     $networkStatus=if($endpointCount -eq 0){'NOT_TESTED'}elseif($network.ExitCode -eq 0 -and -not $network.TimedOut){'PASS'}else{'FAIL'}
-    Set-OctaneRunMetadata -Path $statePath -Values @{desktopAddress=$address;stateDirectory='/home/wineuser/.octane';evidenceDirectory='/home/wineuser/.octane/evidence';networkProbeExitCode=$network.ExitCode;networkCapabilityStatus=$networkStatus}
+    Set-OctaneRunMetadata -Path $statePath -Values @{desktopAddress=$address;uploadAddress=$uploadAddress;stateDirectory='/home/wineuser/.octane';evidenceDirectory='/home/wineuser/.octane/evidence';networkProbeExitCode=$network.ExitCode;networkCapabilityStatus=$networkStatus}
     Set-OctaneRunState -Path $statePath -State RUNNING
+    if($LifecycleMode -eq 'ReplaceActive'){
+        Set-OctaneActiveRun -RunsDirectory $runs -Container $name -RunId $id -Port $Port -State RUNNING | Out-Null
+    }
 
     Write-Output "Container: $name"
     Write-Output "Run ID: $id"
     Write-Output "Target: $($profileResult.id)"
     Write-Output "Artifact: $($artifact.artifactId)"
     Write-Output "Viewer: $address"
+    Write-Output "Input upload: browser control backed by $uploadAddress (authenticated; no directory browsing or download API)"
     Write-Output "Credential: ./scripts/Get-OctaneViewerCredential.ps1 -Container $name"
     Write-Output 'Status: candidate implemented; browser end-to-end validation and unattended qualification blocked by unavailable approved browser automation.'
     Write-Output "Run metadata: $statePath"
@@ -175,7 +218,13 @@ try{
     $record=Get-Content -LiteralPath $statePath -Raw | ConvertFrom-Json
     if(-not $record.resources.containerCreated){
         if($runtimeSecretCreated){try{Remove-OctaneRuntimeSecretFile -Engine Docker -WslDistro $WslDistro -Container $name}catch{}}
+        if($sessionStorageCreated){try{Remove-OctaneRuntimeSessionStorage -Engine Docker -WslDistro $WslDistro -Container $name}catch{}}
         Remove-Item -LiteralPath $secretDirectory -Recurse -Force -ErrorAction SilentlyContinue
+        if($LifecycleMode -eq 'ReplaceActive'){try{[void](Clear-OctaneActiveRun -RunsDirectory $runs -Container $name)}catch{}}
+    }elseif($LifecycleMode -eq 'ReplaceActive'){
+        try{Set-OctaneActiveRun -RunsDirectory $runs -Container $name -RunId $id -Port $Port -State FAILED | Out-Null}catch{}
     }
     throw "Preview start failed at $activeStage. Any created container was retained under exact run identity $name for collection and diagnosis. $($_.Exception.Message)"
+}finally{
+    if($lifecycleLock){$lifecycleLock.Dispose()}
 }

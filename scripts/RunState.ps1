@@ -21,7 +21,7 @@ function Initialize-OctaneRunState {
         [Parameter(Mandatory=$true)][hashtable]$Identity
     )
     $stages = [ordered]@{}
-    foreach ($stage in @('artifact','runtimeDoctor','imageBuild','containerCreate','desktopEndpoint','basicWine','installer','webviewDiagnostic','dialogDiagnostic','repaintDiagnostic','application','workload','nativeDialogs','export','evidence','cleanup')) {
+    foreach ($stage in @('artifact','runtimeDoctor','imageBuild','sessionStorage','containerCreate','desktopEndpoint','basicWine','installer','webviewDiagnostic','dialogDiagnostic','repaintDiagnostic','application','workload','nativeDialogs','export','evidence','cleanup')) {
         $stages[$stage] = [ordered]@{status='NOT_RUN'}
     }
     $record = [ordered]@{
@@ -40,7 +40,7 @@ function Initialize-OctaneRunState {
         state = 'INITIALIZING'
         createdAtUtc = [DateTime]::UtcNow.ToString('o')
         updatedAtUtc = [DateTime]::UtcNow.ToString('o')
-        resources = [ordered]@{imageCreated=$false;containerCreated=$false}
+        resources = [ordered]@{imageCreated=$false;containerCreated=$false;sessionStorageCreated=$false}
         stages = $stages
     }
     Write-OctaneJsonAtomic -Path $Path -Value $record
@@ -68,11 +68,87 @@ function Update-OctaneRunStage {
 
 function Set-OctaneRunResource {
     [CmdletBinding()]
-    param([Parameter(Mandatory=$true)][string]$Path,[Parameter(Mandatory=$true)][ValidateSet('imageCreated','containerCreated')][string]$Resource,[bool]$Value)
+    param([Parameter(Mandatory=$true)][string]$Path,[Parameter(Mandatory=$true)][ValidateSet('imageCreated','containerCreated','sessionStorageCreated')][string]$Resource,[bool]$Value)
     $record = Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json -AsHashtable
     $record.resources[$Resource] = $Value
     $record.updatedAtUtc = [DateTime]::UtcNow.ToString('o')
     Write-OctaneJsonAtomic -Path $Path -Value $record
+}
+
+function Get-OctaneActiveRunPath {
+    [CmdletBinding()]
+    param([Parameter(Mandatory=$true)][string]$RunsDirectory)
+    return Join-Path ([IO.Path]::GetFullPath($RunsDirectory)) 'active.json'
+}
+
+function Enter-OctaneLifecycleLock {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)][string]$RunsDirectory,
+        [ValidateRange(1,300)][int]$TimeoutSeconds=30
+    )
+    $directory=[IO.Path]::GetFullPath($RunsDirectory)
+    New-Item -ItemType Directory -Path $directory -Force | Out-Null
+    $path=Join-Path $directory 'active.lock'
+    $deadline=[DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
+    do{
+        try{
+            return [IO.File]::Open($path,[IO.FileMode]::OpenOrCreate,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None)
+        }catch [IO.IOException]{
+            if([DateTime]::UtcNow -ge $deadline){throw "Another Octane lifecycle operation still owns $path."}
+            Start-Sleep -Milliseconds 200
+        }
+    }while($true)
+}
+
+function Get-OctaneActiveRun {
+    [CmdletBinding()]
+    param([Parameter(Mandatory=$true)][string]$RunsDirectory)
+    $path=Get-OctaneActiveRunPath -RunsDirectory $RunsDirectory
+    if(-not (Test-Path -LiteralPath $path -PathType Leaf)){return $null}
+    $value=Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
+    if($value.schemaVersion -ne 1 -or [string]$value.container -notmatch '^octane-[a-f0-9]{10}$'){
+        throw "Active-run journal is invalid: $path"
+    }
+    $runPath=Join-Path ([IO.Path]::GetFullPath($RunsDirectory)) "$($value.container).json"
+    if(-not (Test-Path -LiteralPath $runPath -PathType Leaf)){
+        throw "Active-run journal references a missing run record: $runPath"
+    }
+    $record=Get-Content -LiteralPath $runPath -Raw | ConvertFrom-Json
+    if([string]$record.container -ne [string]$value.container -or [string]$record.runId -ne [string]$value.runId){
+        throw 'Active-run journal does not match its immutable run record.'
+    }
+    return [pscustomobject]@{journalPath=$path;runPath=$runPath;journal=$value;record=$record}
+}
+
+function Set-OctaneActiveRun {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)][string]$RunsDirectory,
+        [Parameter(Mandatory=$true)][ValidatePattern('^octane-[a-f0-9]{10}$')][string]$Container,
+        [Parameter(Mandatory=$true)][ValidatePattern('^[a-f0-9]{10}$')][string]$RunId,
+        [Parameter(Mandatory=$true)][ValidateRange(1024,65535)][int]$Port,
+        [Parameter(Mandatory=$true)][ValidateSet('INITIALIZING','RUNNING','FAILED')][string]$State
+    )
+    $path=Get-OctaneActiveRunPath -RunsDirectory $RunsDirectory
+    Write-OctaneJsonAtomic -Path $path -Value ([ordered]@{
+        schemaVersion=1;container=$Container;runId=$RunId;port=$Port;state=$State;updatedAtUtc=[DateTime]::UtcNow.ToString('o')
+    })
+    return $path
+}
+
+function Clear-OctaneActiveRun {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)][string]$RunsDirectory,
+        [Parameter(Mandatory=$true)][ValidatePattern('^octane-[a-f0-9]{10}$')][string]$Container
+    )
+    $path=Get-OctaneActiveRunPath -RunsDirectory $RunsDirectory
+    if(-not (Test-Path -LiteralPath $path -PathType Leaf)){return $false}
+    $value=Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
+    if([string]$value.container -ne $Container){return $false}
+    Remove-Item -LiteralPath $path -Force
+    return $true
 }
 
 function Set-OctaneRunState {

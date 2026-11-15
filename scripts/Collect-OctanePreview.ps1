@@ -56,6 +56,9 @@ $collectArgs=@{Container=$Container;Engine='Docker';WslDistro=$WslDistro}
 if($ScreenshotDirectory){$collectArgs.ScreenshotDirectory=$ScreenshotDirectory}
 if($RecordingPath){$collectArgs.RecordingPath=$RecordingPath}
 $evidence=& (Join-Path $PSScriptRoot 'Collect-Evidence.ps1') @collectArgs
+$evidenceLine=$evidence | Where-Object {$_ -match '^Evidence: '} | Select-Object -First 1
+$evidencePath=if($evidenceLine){($evidenceLine -replace '^Evidence:\s*','').Trim()}else{$null}
+Set-OctaneRunMetadata -Path $metadataPath -Values @{previewOutputCollected=$true;previewOutputPath=$runOutput;previewEvidencePath=$evidencePath;previewCollectedAtUtc=[DateTime]::UtcNow.ToString('o')}
 Write-Output $evidence
 Write-Output "Collected target output: $runOutput"
 Write-Output 'Browser gates remain BLOCKED unless separately attributable operator or approved automation evidence was supplied.'

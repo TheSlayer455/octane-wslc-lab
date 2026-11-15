@@ -5,6 +5,8 @@ state_dir="${OCTANE_STATE_DIR:-/home/wineuser/.octane}"
 evidence_dir="${OCTANE_EVIDENCE_DIR:-$state_dir/evidence}"
 password_file="${OCTANE_VIEWER_PASSWORD_FILE:-/run/octane/viewer-password}"
 viewer_port="${OCTANE_BROWSER_CONTAINER_PORT:-3000}"
+upload_port="${OCTANE_UPLOAD_CONTAINER_PORT:-3002}"
+upload_url="${OCTANE_UPLOAD_PUBLIC_URL:-}"
 origins="${OCTANE_VIEWER_ORIGINS:-http://127.0.0.1:3000 http://localhost:3000}"
 mkdir -p "$state_dir" "$evidence_dir/browser" "$HOME/.config/xfce4"
 
@@ -16,7 +18,7 @@ fi
 cleanup() {
     local status=$?
     trap - EXIT INT TERM
-    for pid in "${websockify_pid:-}" "${x11vnc_pid:-}" "${desktop_pid:-}"; do
+    for pid in "${websockify_pid:-}" "${upload_pid:-}" "${x11vnc_pid:-}" "${desktop_pid:-}"; do
         [[ -z "$pid" ]] || kill "$pid" 2>/dev/null || true
     done
     wait 2>/dev/null || true
@@ -55,6 +57,22 @@ until ss -ltnH '( sport = :5901 )' | grep -q '127.0.0.1:5901'; do
     sleep 0.2
 done
 
+/usr/local/bin/octane-upload-server >"$evidence_dir/browser/upload-server.log" 2>&1 &
+upload_pid=$!
+
+deadline=$((SECONDS + 30))
+until ss -ltnH "( sport = :${upload_port} )" | grep -q ":${upload_port}"; do
+    if ! kill -0 "$upload_pid" 2>/dev/null; then
+        echo 'Upload service exited before its browser listener became ready.' >&2
+        exit 75
+    fi
+    if (( SECONDS >= deadline )); then
+        echo 'Upload service listener did not become ready.' >&2
+        exit 76
+    fi
+    sleep 0.2
+done
+
 PYTHONPATH=/opt/websockify /opt/websockify/run \
     --web /opt/novnc --file-only --heartbeat 30 \
     --auth-plugin ExpectOrigin --auth-source "$origins" \
@@ -80,7 +98,8 @@ jq -n \
     --arg display "$DISPLAY" \
     --arg resolution "$(xdpyinfo | awk '/dimensions:/{print $2; exit}')" \
     --arg transport 'noVNC 1.7.0 / Websockify 0.13.0 / x11vnc' \
-    '{schemaVersion:1,runId:$runId,display:$display,resolution:$resolution,transport:$transport,applicationReadiness:"unverified"}' \
+    --arg uploadUrl "$upload_url" \
+    '{schemaVersion:1,runId:$runId,display:$display,resolution:$resolution,transport:$transport,uploadUrl:($uploadUrl|if length>0 then . else null end),applicationReadiness:"unverified"}' \
     > "$state_dir/browser-session.json"
 
 {
@@ -88,6 +107,8 @@ jq -n \
     echo "display=$DISPLAY"
     echo "resolution=$(xdpyinfo | awk '/dimensions:/{print $2; exit}')"
     echo "viewer_port=$viewer_port"
+    echo "upload_port=$upload_port"
+    echo "upload_url=$upload_url"
     echo "allowed_origins=$origins"
     echo 'authentication=rfb-password-file'
     echo 'clipboard=false'

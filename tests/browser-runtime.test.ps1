@@ -66,6 +66,18 @@ try{
     try{Assert-OctaneDirectoryManifest -Expected $inputOne -Actual (Get-OctaneDirectoryManifest -Path $inputTree)}catch{$changed=$true}
     Check $changed 'Input integrity comparison must detect changed bytes.'
 
+    . (Join-Path $root 'scripts/RunState.ps1')
+    $activeRuns=Join-Path $temp 'active-runs'
+    $activeRecord=Join-Path $activeRuns 'octane-0123456789.json'
+    Initialize-OctaneRunState -Path $activeRecord -Identity @{
+        runId='0123456789';container='octane-0123456789';image='candidate';engine='Docker';engineContext='docker:wsl:test';wslDistro='test';wineProfile='browser';baseImage='candidate';port=3005;endpointKind='Http';installerSha256=('a'*64)
+    } | Out-Null
+    Set-OctaneActiveRun -RunsDirectory $activeRuns -Container 'octane-0123456789' -RunId '0123456789' -Port 3005 -State RUNNING | Out-Null
+    $active=Get-OctaneActiveRun -RunsDirectory $activeRuns
+    Check ($active.record.container -eq 'octane-0123456789') 'Active-run journal must resolve through an immutable run record.'
+    Check (-not (Clear-OctaneActiveRun -RunsDirectory $activeRuns -Container octane-aaaaaaaaaa)) 'Unrelated cleanup must not clear the active-run journal.'
+    Check (Clear-OctaneActiveRun -RunsDirectory $activeRuns -Container octane-0123456789) 'Exact cleanup must clear the matching active-run journal.'
+
     . (Join-Path $root 'scripts/RuntimeProfiles.ps1')
     $browser=Get-OctaneWineProfile -WineProfile DockerWineStaging1121VisRgnBrowser
     Check ($browser.EndpointKind -eq 'Http' -and $browser.EndpointPath -eq '/octane.html') 'Browser profile must expose the exact HTTP viewer path.'
@@ -77,20 +89,31 @@ try{
         Check ($viewer.Contains($state)) "Viewer must expose state '$state'."
     }
     Check ($viewer -notmatch 'password=.*(?:[&#]|$)') 'Viewer must not place credentials in a URL.'
+    Check ($viewer -match 'upload-file' -and $viewer -match 'Authorization.*Bearer') 'Viewer must provide an authenticated, explicit file-selection control.'
     $session=Get-Content -LiteralPath (Join-Path $root 'lab/browser/octane-browser-session') -Raw
     Check ($session -match '-passwdfile "\$password_file"') 'VNC authentication must use the per-run password file.'
     Check ($session -match '--auth-plugin ExpectOrigin') 'WebSocket origin validation must be configured.'
     Check ($session -match '-rfbportv6 0 -listen 127\.0\.0\.1 -listen6 ::1') 'Raw VNC listeners must be constrained to container loopback on IPv4 and IPv6.'
     Check ($session -match '\$state_dir/browser-session\.json') 'Viewer session identity must be written inside per-run user-owned state.'
     Check ($session -notmatch 'xrdp|xfreerdp|freerdp') 'Browser session must not invoke an RDP component.'
+    Check ($session -match 'octane-upload-server' -and $session -match 'OCTANE_UPLOAD_PUBLIC_URL') 'Browser session must start and identify the scoped upload service.'
+    $uploadServer=Get-Content -LiteralPath (Join-Path $root 'lab/browser/octane-upload-server') -Raw
+    Check ($uploadServer -match 'hmac\.compare_digest' -and $uploadServer -match 'ALLOWED_ORIGINS') 'Upload service must authenticate and enforce exact origins.'
+    Check ($uploadServer -match 'destination-exists' -and $uploadServer -notmatch 'do_DELETE') 'Upload service must reject overwrite and expose no delete API.'
+    Check ($uploadServer -notmatch 'send_file|SimpleHTTPRequestHandler') 'Upload service must not expose a file-download server.'
     $preview=Get-Content -LiteralPath (Join-Path $root 'scripts/Start-OctanePreview.ps1') -Raw
     Check ($preview -notmatch 'Write-Output\s+"Password:') 'Preview startup must not echo the viewer credential into controller output.'
     Check ($preview -match 'Get-OctaneViewerCredential\.ps1') 'Preview startup must direct the operator to explicit credential retrieval.'
     Check ($preview -match 'New-OctaneRuntimeSecretFile') 'Preview startup must stage its bind source inside the selected WSL distribution.'
+    Check ($preview -match 'New-OctaneRuntimeSessionStorage' -and $preview -match 'lifecycleMode') 'Preview startup must create exact WSL-native per-run storage and record lifecycle mode.'
+    Check ($preview.IndexOf('Stage-OctaneArtifact.ps1') -lt $preview.IndexOf('Collect-OctanePreview.ps1')) 'A replacement must stage and validate the new installer before collecting/removing the active run.'
+    Check ($preview.IndexOf('Collect-OctanePreview.ps1') -lt $preview.IndexOf('Stop-OctaneLab.ps1')) 'A replacement must collect the active run before exact removal.'
     $runtime=Get-Content -LiteralPath (Join-Path $root 'scripts/Runtime.ps1') -Raw
     Check ($runtime -match 'StandardInput \$Secret') 'WSL-native credential staging must send the secret over standard input rather than command arguments.'
+    Check ($runtime -match '/var/lib/octane/sessions/\$Container' -and $runtime -match 'octane-session-storage') 'Runtime storage must be run-scoped and marker-verified before deletion.'
     $stop=Get-Content -LiteralPath (Join-Path $root 'scripts/Stop-OctaneLab.ps1') -Raw
     Check ($stop -match 'Remove-OctaneRuntimeSecretFile') 'Exact run cleanup must remove the distro-local credential file.'
+    Check ($stop -match 'Remove-OctaneRuntimeSessionStorage' -and $stop -match 'Clear-OctaneActiveRun') 'Exact cleanup must remove only the run-owned WSL storage and matching active journal.'
     $target=Get-Content -LiteralPath (Join-Path $root 'lab/browser/octane-target') -Raw
     Check ($target -match 'WebView2 drift') 'Target launcher must fail visibly on a declared WebView2 version mismatch.'
 

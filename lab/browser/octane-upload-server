@@ -1,0 +1,252 @@
+#!/usr/bin/env python3
+"""Authenticated, per-run file intake for the Octane browser viewer.
+
+This deliberately is not a general file manager.  It accepts one explicitly
+selected file per request, never serves file contents, and writes only beneath
+the run-owned upload directory.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import hmac
+import json
+import os
+import re
+import tempfile
+import unicodedata
+from http import HTTPStatus
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+from urllib.parse import parse_qs, urlparse
+
+
+ROOT = Path(os.environ.get("OCTANE_UPLOAD_ROOT", "/run/octane/upload")).resolve()
+EVIDENCE = Path(
+    os.environ.get(
+        "OCTANE_UPLOAD_EVIDENCE",
+        "/home/wineuser/.octane/evidence/browser-upload",
+    )
+).resolve()
+PASSWORD_FILE = Path(
+    os.environ.get("OCTANE_VIEWER_PASSWORD_FILE", "/run/octane/viewer-password")
+)
+PORT = int(os.environ.get("OCTANE_UPLOAD_CONTAINER_PORT", "3002"))
+MAX_BYTES = int(os.environ.get("OCTANE_UPLOAD_MAX_BYTES", str(512 * 1024 * 1024)))
+ALLOWED_ORIGINS = {
+    value for value in os.environ.get("OCTANE_VIEWER_ORIGINS", "").split() if value
+}
+WINDOWS_DEVICES = {
+    "CON",
+    "PRN",
+    "AUX",
+    "NUL",
+    *(f"COM{i}" for i in range(1, 10)),
+    *(f"LPT{i}" for i in range(1, 10)),
+}
+
+
+def atomic_json(path: Path, value: object) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as stream:
+            json.dump(value, stream, ensure_ascii=False, indent=2, sort_keys=True)
+            stream.write("\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
+    finally:
+        try:
+            os.unlink(temporary)
+        except FileNotFoundError:
+            pass
+
+
+def file_identity(path: Path) -> dict[str, object]:
+    digest = hashlib.sha256()
+    length = 0
+    with path.open("rb") as stream:
+        while chunk := stream.read(8 * 1024 * 1024):
+            digest.update(chunk)
+            length += len(chunk)
+    return {"name": path.name, "length": length, "sha256": digest.hexdigest()}
+
+
+def current_manifest() -> dict[str, object]:
+    files = []
+    for path in sorted(ROOT.iterdir(), key=lambda item: item.name.casefold()):
+        if path.name.startswith(".incoming-"):
+            continue
+        if not path.is_file() or path.is_symlink():
+            raise RuntimeError(f"unexpected upload entry: {path.name}")
+        files.append(file_identity(path))
+    return {"schemaVersion": 1, "files": files}
+
+
+def valid_name(raw: str) -> str:
+    name = unicodedata.normalize("NFC", raw)
+    if not name or len(name) > 255 or name in {".", ".."}:
+        raise ValueError("invalid filename length")
+    if name != Path(name).name or "/" in name or "\\" in name:
+        raise ValueError("path components are not accepted")
+    if name[-1] in {" ", "."} or re.search(r'[<>:"|?*\x00-\x1f]', name):
+        raise ValueError("filename is not valid for the Windows application view")
+    if name.split(".", 1)[0].upper() in WINDOWS_DEVICES:
+        raise ValueError("reserved Windows device name")
+    return name
+
+
+class Handler(BaseHTTPRequestHandler):
+    server_version = "OctaneUpload/1"
+
+    def log_message(self, pattern: str, *args: object) -> None:
+        print(f"{self.log_date_time_string()} {self.client_address[0]} {pattern % args}", flush=True)
+
+    def _origin_ok(self) -> bool:
+        return self.headers.get("Origin", "") in ALLOWED_ORIGINS
+
+    def _authenticated(self) -> bool:
+        try:
+            expected = PASSWORD_FILE.read_text(encoding="utf-8").strip()
+        except OSError:
+            return False
+        supplied = self.headers.get("Authorization", "")
+        return supplied.startswith("Bearer ") and hmac.compare_digest(
+            supplied.removeprefix("Bearer "), expected
+        )
+
+    def _headers(self, status: HTTPStatus, length: int, *, cors: bool = True) -> None:
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(length))
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Referrer-Policy", "no-referrer")
+        if cors and self._origin_ok():
+            self.send_header("Access-Control-Allow-Origin", self.headers["Origin"])
+            self.send_header("Vary", "Origin")
+        self.end_headers()
+
+    def _json(self, status: HTTPStatus, value: object, *, cors: bool = True) -> None:
+        body = (json.dumps(value, ensure_ascii=False) + "\n").encode("utf-8")
+        self._headers(status, len(body), cors=cors)
+        self.wfile.write(body)
+
+    def _authorize(self) -> bool:
+        if not self._origin_ok():
+            self._json(HTTPStatus.FORBIDDEN, {"error": "origin-not-allowed"}, cors=False)
+            return False
+        if not self._authenticated():
+            self._json(HTTPStatus.UNAUTHORIZED, {"error": "authentication-required"})
+            return False
+        return True
+
+    def do_OPTIONS(self) -> None:  # noqa: N802
+        if not self._origin_ok():
+            self._json(HTTPStatus.FORBIDDEN, {"error": "origin-not-allowed"}, cors=False)
+            return
+        self.send_response(HTTPStatus.NO_CONTENT)
+        self.send_header("Access-Control-Allow-Origin", self.headers["Origin"])
+        self.send_header("Access-Control-Allow-Headers", "Authorization, Content-Type")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Max-Age", "300")
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
+    def do_GET(self) -> None:  # noqa: N802
+        path = urlparse(self.path).path
+        if path == "/health":
+            self._json(
+                HTTPStatus.OK,
+                {"status": "ready", "authentication": "required", "maxBytes": MAX_BYTES},
+                cors=False,
+            )
+            return
+        if path != "/uploads":
+            self._json(HTTPStatus.NOT_FOUND, {"error": "not-found"}, cors=False)
+            return
+        if not self._authorize():
+            return
+        self._json(HTTPStatus.OK, current_manifest())
+
+    def do_POST(self) -> None:  # noqa: N802
+        parsed = urlparse(self.path)
+        if parsed.path != "/upload":
+            self._json(HTTPStatus.NOT_FOUND, {"error": "not-found"}, cors=False)
+            return
+        if not self._authorize():
+            return
+        names = parse_qs(parsed.query, keep_blank_values=True).get("name", [])
+        try:
+            name = valid_name(names[0] if len(names) == 1 else "")
+            length = int(self.headers.get("Content-Length", "-1"))
+        except (ValueError, IndexError):
+            self._json(HTTPStatus.BAD_REQUEST, {"error": "invalid-upload-metadata"})
+            return
+        if length < 0 or length > MAX_BYTES:
+            self._json(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, {"error": "invalid-upload-length"})
+            return
+
+        destination = ROOT / name
+        if destination.exists():
+            existing = file_identity(destination)
+            self._json(
+                HTTPStatus.CONFLICT,
+                {"error": "destination-exists", "existing": existing},
+            )
+            return
+
+        fd, temporary_name = tempfile.mkstemp(prefix=".incoming-", dir=ROOT)
+        temporary = Path(temporary_name)
+        digest = hashlib.sha256()
+        received = 0
+        try:
+            with os.fdopen(fd, "wb") as stream:
+                remaining = length
+                while remaining:
+                    chunk = self.rfile.read(min(8 * 1024 * 1024, remaining))
+                    if not chunk:
+                        raise EOFError("request body ended before Content-Length")
+                    stream.write(chunk)
+                    digest.update(chunk)
+                    received += len(chunk)
+                    remaining -= len(chunk)
+                stream.flush()
+                os.fsync(stream.fileno())
+            if destination.exists():
+                raise FileExistsError(name)
+            os.chmod(temporary, 0o444)
+            os.replace(temporary, destination)
+            manifest = current_manifest()
+            atomic_json(EVIDENCE / "upload-manifest.json", manifest)
+            self._json(
+                HTTPStatus.CREATED,
+                {"status": "stored", "name": name, "length": received, "sha256": digest.hexdigest()},
+            )
+        except FileExistsError:
+            self._json(HTTPStatus.CONFLICT, {"error": "destination-exists"})
+        except EOFError:
+            self._json(HTTPStatus.BAD_REQUEST, {"error": "incomplete-upload"})
+        finally:
+            try:
+                temporary.unlink()
+            except FileNotFoundError:
+                pass
+
+
+def main() -> None:
+    if not ALLOWED_ORIGINS:
+        raise SystemExit("OCTANE_VIEWER_ORIGINS must name at least one exact origin")
+    if not PASSWORD_FILE.is_file() or PASSWORD_FILE.stat().st_size == 0:
+        raise SystemExit("the per-run viewer password file is missing or empty")
+    ROOT.mkdir(parents=True, exist_ok=True)
+    EVIDENCE.mkdir(parents=True, exist_ok=True)
+    atomic_json(EVIDENCE / "upload-manifest.json", current_manifest())
+    server = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
+    server.daemon_threads = True
+    server.serve_forever()
+
+
+if __name__ == "__main__":
+    main()

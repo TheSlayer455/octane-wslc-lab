@@ -26,9 +26,10 @@ COPY lab/browser/mandatory.json /opt/novnc/mandatory.json
 COPY lab/browser/defaults.json /opt/novnc/defaults.json
 COPY lab/browser/octane.html /opt/novnc/octane.html
 COPY lab/browser/octane-browser-session /usr/local/bin/octane-browser-session
+COPY lab/browser/octane-upload-server /usr/local/bin/octane-upload-server
 COPY lab/browser/octane-target /usr/local/bin/octane-target
 RUN ln -s /home/wineuser/.octane/browser-session.json /opt/novnc/octane-session.json \
-    && chmod 755 /usr/local/bin/octane-browser-session /usr/local/bin/octane-target \
+    && chmod 755 /usr/local/bin/octane-browser-session /usr/local/bin/octane-upload-server /usr/local/bin/octane-target \
     && printf '{\n  "schemaVersion": 1,\n  "transport": "noVNC",\n  "noVncCommit": "%s",\n  "websockifyCommit": "%s",\n  "vncServer": "x11vnc",\n  "desktop": "Xvfb/XFCE",\n  "resolution": "1280x800x24",\n  "httpTls": false,\n  "authentication": "per-run RFB password",\n  "clipboard": false,\n  "remoteResize": false\n}\n' \
        "${NOVNC_COMMIT}" "${WEBSOCKIFY_COMMIT}" > /opt/octane/browser-transport.json
 
@@ -40,6 +41,9 @@ ENV RDP_SERVER=no \
     DISPLAY=:1 \
     USER_SUDO=no \
     OCTANE_BROWSER_CONTAINER_PORT=3000 \
+    OCTANE_UPLOAD_CONTAINER_PORT=3002 \
+    OCTANE_UPLOAD_ROOT=/run/octane/upload \
+    OCTANE_UPLOAD_MAX_BYTES=536870912 \
     OCTANE_VIEWER_PASSWORD_FILE=/run/octane/viewer-password \
     OCTANE_VIEWER_ORIGINS="http://127.0.0.1:3000 http://localhost:3000"
 

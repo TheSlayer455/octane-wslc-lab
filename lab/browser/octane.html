@@ -9,7 +9,7 @@
     * { box-sizing: border-box; }
     html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: #111827; }
     body { display: grid; grid-template-rows: auto 1fr; }
-    header { display: flex; align-items: center; gap: 1rem; min-height: 52px; padding: .6rem 1rem; background: #172033; border-bottom: 1px solid #334155; }
+    header { display: flex; align-items: center; flex-wrap: wrap; gap: .75rem 1rem; min-height: 52px; padding: .6rem 1rem; background: #172033; border-bottom: 1px solid #334155; }
     h1 { margin: 0; font-size: 1rem; white-space: nowrap; }
     #state { border-radius: 999px; padding: .25rem .65rem; background: #334155; font-weight: 650; }
     #state[data-state="vnc-negotiated"] { color: #052e16; background: #86efac; }
@@ -25,12 +25,23 @@
     button { margin-top: .75rem; border-color: #38bdf8; color: #082f49; background: #7dd3fc; font-weight: 750; cursor: pointer; }
     .note { color: #cbd5e1; font-size: .85rem; }
     #history { max-height: 7rem; overflow: auto; margin: .9rem 0 0; padding-left: 1.25rem; color: #94a3b8; font-size: .78rem; }
+    #upload-panel { display: flex; align-items: center; gap: .45rem; min-width: min(100%, 430px); }
+    #upload-panel[hidden] { display: none; }
+    #upload-file { width: min(260px, 42vw); min-height: 34px; padding: .3rem; }
+    #upload-button { width: auto; min-height: 34px; margin: 0; padding: .35rem .65rem; }
+    #upload-status { max-width: 19rem; overflow: hidden; color: #cbd5e1; font-size: .78rem; text-overflow: ellipsis; white-space: nowrap; }
   </style>
 </head>
 <body>
   <header>
     <h1>Octane browser viewer</h1>
     <span id="state" data-state="viewer-page-loaded">Viewer page loaded</span>
+    <div id="upload-panel" hidden>
+      <label for="upload-file" class="note">Add run input</label>
+      <input id="upload-file" type="file" multiple>
+      <button id="upload-button" type="button" disabled>Stage</button>
+      <span id="upload-status" role="status">Connect first</span>
+    </div>
     <span id="session">Loading session identity…</span>
   </header>
   <main id="screen" aria-label="Remote desktop canvas">
@@ -54,7 +65,14 @@
     const passwordNode = document.querySelector('#password');
     const sessionNode = document.querySelector('#session');
     const screenNode = document.querySelector('#screen');
+    const uploadPanel = document.querySelector('#upload-panel');
+    const uploadFile = document.querySelector('#upload-file');
+    const uploadButton = document.querySelector('#upload-button');
+    const uploadStatus = document.querySelector('#upload-status');
     let rfb = null;
+    let pendingCredential = '';
+    let uploadCredential = '';
+    let uploadUrl = null;
 
     function record(state, label) {
       stateNode.dataset.state = state;
@@ -72,6 +90,15 @@
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const value = await response.json();
         sessionNode.textContent = `run ${value.runId} · ${value.display} · ${value.resolution}`;
+        if (value.uploadUrl) {
+          const candidate = new URL(value.uploadUrl);
+          if (!['127.0.0.1', 'localhost'].includes(candidate.hostname) || !['http:', 'https:'].includes(candidate.protocol)) {
+            throw new Error('Upload endpoint is not an approved localhost URL');
+          }
+          uploadUrl = candidate;
+          uploadPanel.hidden = false;
+          uploadStatus.textContent = 'Connect first';
+        }
       } catch (error) {
         sessionNode.textContent = 'Session identity unavailable';
       }
@@ -80,6 +107,7 @@
     form.addEventListener('submit', (event) => {
       event.preventDefault();
       const password = passwordNode.value;
+      pendingCredential = password;
       passwordNode.value = '';
       if (rfb) rfb.disconnect();
       record('websocket-attempted', 'WebSocket connection attempted');
@@ -96,20 +124,60 @@
         passwordNode.focus();
       });
       rfb.addEventListener('securityfailure', (event) => {
+        pendingCredential = '';
+        uploadCredential = '';
+        uploadButton.disabled = true;
         loginNode.hidden = false;
         record('security-negotiation-failed', `Security negotiation failed${event.detail?.reason ? `: ${event.detail.reason}` : ''}`);
       });
       rfb.addEventListener('connect', () => {
+        uploadCredential = pendingCredential;
+        pendingCredential = '';
+        uploadButton.disabled = !uploadUrl;
+        if (uploadUrl) uploadStatus.textContent = 'Ready for explicit file selection';
         loginNode.hidden = true;
         record('vnc-negotiated', 'VNC negotiated; application readiness unverified');
       });
       rfb.addEventListener('disconnect', (event) => {
+        pendingCredential = '';
+        uploadCredential = '';
+        uploadButton.disabled = true;
         loginNode.hidden = false;
         record(event.detail.clean ? 'disconnected-clean' : 'disconnected-unclean', event.detail.clean ? 'Disconnected' : 'Disconnected unexpectedly');
       });
       rfb.addEventListener('desktopname', (event) => {
         document.title = `Octane viewer — ${event.detail.name}`;
       });
+    });
+
+    uploadButton.addEventListener('click', async () => {
+      const files = Array.from(uploadFile.files || []);
+      if (!uploadUrl || !uploadCredential || files.length === 0) {
+        uploadStatus.textContent = 'Select at least one file after connecting';
+        return;
+      }
+      uploadButton.disabled = true;
+      try {
+        for (const file of files) {
+          uploadStatus.textContent = `Staging ${file.name}…`;
+          const endpoint = new URL('/upload', uploadUrl);
+          endpoint.searchParams.set('name', file.name);
+          const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${uploadCredential}`, 'Content-Type': 'application/octet-stream' },
+            body: file,
+            cache: 'no-store',
+          });
+          const result = await response.json().catch(() => ({}));
+          if (!response.ok) throw new Error(result.error || `HTTP ${response.status}`);
+          uploadStatus.textContent = `Staged ${result.name} · ${result.sha256.slice(0, 12)}…`;
+        }
+        uploadFile.value = '';
+      } catch (error) {
+        uploadStatus.textContent = `Upload failed: ${error.message}`;
+      } finally {
+        uploadButton.disabled = !uploadUrl || !uploadCredential;
+      }
     });
 
     record('viewer-page-loaded', 'Viewer page loaded');

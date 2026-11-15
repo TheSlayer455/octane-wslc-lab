@@ -1,5 +1,8 @@
 [CmdletBinding()]
-param([ValidateSet('All','PowerShell','PowerShellPortable','Node')][string]$Scope='All')
+param(
+    [ValidateSet('All','PowerShell','PowerShellPortable','Node')][string]$Scope='All',
+    [string]$WslDistro='Ubuntu-24.04'
+)
 
 $ErrorActionPreference='Stop'
 $root=Split-Path $PSScriptRoot -Parent
@@ -10,6 +13,18 @@ try{
         if($LASTEXITCODE -ne 0){throw 'Browser/runtime PowerShell contract tests failed.'}
         & pwsh -NoProfile -File (Join-Path $root 'tests/appliance-packaging.test.ps1')
         if($LASTEXITCODE -ne 0){throw 'WSL appliance packaging contract tests failed.'}
+    }
+    if($Scope -eq 'All'){
+        if($IsWindows){
+            . (Join-Path $root 'scripts/Runtime.ps1')
+            $runtimeTest=ConvertTo-OctaneRuntimePath -Engine Docker -WslDistro $WslDistro -Path (Join-Path $root 'tests/upload-server.test.sh')
+            $result=Invoke-OctaneNativeProcess -FileName 'wsl.exe' -Arguments @('-d',$WslDistro,'--exec','bash',$runtimeTest) -TimeoutSeconds 120
+            if($result.ExitCode -ne 0 -or $result.TimedOut){throw "Browser upload protocol tests failed. $($result.StdErr) $($result.StdOut)"}
+            $result.StdOut.Trim() | Write-Output
+        }else{
+            & bash (Join-Path $root 'tests/upload-server.test.sh')
+            if($LASTEXITCODE -ne 0){throw 'Browser upload protocol tests failed.'}
+        }
     }
     if($Scope -in @('All','PowerShell')){
         & pwsh -NoProfile -File (Join-Path $root 'tests/scripts.test.ps1')

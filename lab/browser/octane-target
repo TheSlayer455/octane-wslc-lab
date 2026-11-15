@@ -6,6 +6,8 @@ target_dir="$state_dir/target"
 profile="$target_dir/app.json"
 artifact_dir="$target_dir/artifact"
 input_dir="$state_dir/input"
+selected_input_dir="$input_dir/selected"
+uploaded_input_dir="$input_dir/uploaded"
 output_dir="$state_dir/output"
 evidence_dir="${OCTANE_EVIDENCE_DIR:-$state_dir/evidence}/target"
 export WINEPREFIX="${WINEPREFIX:-$state_dir/prefix}"
@@ -28,11 +30,11 @@ prepare() {
     require_intake
     wineboot -u >"$evidence_dir/logs/wineboot.log" 2>&1
     wineserver -w
-    mkdir -p "$WINEPREFIX/drive_c"
+    mkdir -p "$WINEPREFIX/drive_c" "$selected_input_dir" "$uploaded_input_dir"
     rm -rf "$WINEPREFIX/drive_c/octane-input" "$WINEPREFIX/drive_c/octane-output"
     ln -s "$input_dir" "$WINEPREFIX/drive_c/octane-input"
     ln -s "$output_dir" "$WINEPREFIX/drive_c/octane-output"
-    find "$input_dir" -type f -print0 | sort -z | xargs -0 -r sha256sum > "$evidence_dir/input-before.sha256"
+    find "$selected_input_dir" -type f -print0 | sort -z | xargs -0 -r sha256sum > "$evidence_dir/selected-input-before.sha256"
     cp "$profile" "$evidence_dir/application-profile.json"
     cp "$manifest" "$evidence_dir/installer-manifest.json"
     cp /opt/octane/browser-transport.json "$evidence_dir/browser-transport.json"
@@ -42,7 +44,7 @@ prepare() {
         --arg wine "$(wine --version)" \
         --arg display "${DISPLAY:-unset}" \
         --arg prefix "$WINEPREFIX" \
-        '{schemaVersion:1,preparedAtUtc:$preparedAtUtc,wine:$wine,display:$display,winePrefix:$prefix,inputWinePath:"C:\\octane-input",outputWinePath:"C:\\octane-output"}' \
+        '{schemaVersion:1,preparedAtUtc:$preparedAtUtc,wine:$wine,display:$display,winePrefix:$prefix,inputWinePath:"C:\\octane-input",outputWinePath:"C:\\octane-output",broadWineZDriveDuringInstall:true}' \
         > "$evidence_dir/preparation.json"
 }
 
@@ -63,6 +65,14 @@ install_target() {
     # install into an unbounded lifecycle wait. Executable discovery below is
     # the bounded postcondition for this stage.
     discover_executable
+    # Wine needs its default Z: mapping to execute the immutable installer
+    # from the read-only Unix artifact mount.  Remove that broad mapping before
+    # the installed target is launched; normal file dialogs then receive only
+    # the declared C:\octane-input and C:\octane-output bridges.
+    rm -f "$WINEPREFIX/dosdevices/z:"
+    jq -n --arg removedAtUtc "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+        '{schemaVersion:1,broadWineZDriveAvailableToInstalledApplication:false,removedAtUtc:$removedAtUtc}' \
+        > "$evidence_dir/application-drive-policy.json"
 }
 
 discover_executable() {
@@ -172,8 +182,28 @@ probe_network() {
 }
 
 verify_inputs() {
-    find "$input_dir" -type f -print0 | sort -z | xargs -0 -r sha256sum > "$evidence_dir/input-after.sha256"
-    cmp -s "$evidence_dir/input-before.sha256" "$evidence_dir/input-after.sha256" || { echo 'Input contents changed.' >&2; exit 73; }
+    find "$selected_input_dir" -type f -print0 | sort -z | xargs -0 -r sha256sum > "$evidence_dir/selected-input-after.sha256"
+    cmp -s "$evidence_dir/selected-input-before.sha256" "$evidence_dir/selected-input-after.sha256" || { echo 'Selected input contents changed.' >&2; exit 73; }
+
+    upload_manifest="${OCTANE_EVIDENCE_DIR:-$state_dir/evidence}/browser-upload/upload-manifest.json"
+    if [[ ! -f "$upload_manifest" ]]; then
+        [[ -z "$(find "$uploaded_input_dir" -maxdepth 1 -type f -print -quit)" ]] || { echo 'Uploaded input exists without its authenticated manifest.' >&2; exit 74; }
+        return 0
+    fi
+    expected_count=$(jq -r '.files | length' "$upload_manifest")
+    actual_count=$(find "$uploaded_input_dir" -maxdepth 1 -type f ! -name '.incoming-*' | wc -l)
+    [[ "$expected_count" -eq "$actual_count" ]] || { echo 'Uploaded input count does not match its authenticated manifest.' >&2; exit 75; }
+    while IFS= read -r encoded; do
+        name=$(printf '%s' "$encoded" | base64 -d)
+        [[ "$name" != */* && "$name" != *\\* ]] || { echo 'Upload manifest contains an invalid filename.' >&2; exit 76; }
+        path="$uploaded_input_dir/$name"
+        [[ -f "$path" && ! -L "$path" ]] || { echo "Uploaded input is missing or not a regular file: $name" >&2; exit 77; }
+        actual_hash=$(sha256sum "$path" | awk '{print $1}')
+        actual_length=$(stat -c '%s' "$path")
+        expected_hash=$(jq -r --arg name "$name" '.files[] | select(.name == $name) | .sha256' "$upload_manifest")
+        expected_length=$(jq -r --arg name "$name" '.files[] | select(.name == $name) | .length' "$upload_manifest")
+        [[ "$actual_hash" = "$expected_hash" && "$actual_length" = "$expected_length" ]] || { echo "Uploaded input identity changed: $name" >&2; exit 78; }
+    done < <(jq -r '.files[].name | @base64' "$upload_manifest")
 }
 
 case "${1:-help}" in
