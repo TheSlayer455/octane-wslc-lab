@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+display="${DISPLAY:-:1}"
+display_number="${display#:}"
+display_number="${display_number%%.*}"
+authority="${XAUTHORITY:-/run/octane/Xauthority}"
+config="${OCTANE_XORG_CONFIG:-/etc/X11/octane-xorg-dummy.conf}"
+log="${OCTANE_XORG_LOG:-/home/wineuser/.octane/evidence/browser/xorg-dummy.log}"
+
+[[ "$display_number" =~ ^[0-9]+$ ]] || { echo "Unsupported X11 display: $display" >&2; exit 64; }
+[[ -f "$config" ]] || { echo "Xorg dummy configuration is missing: $config" >&2; exit 65; }
+
+mkdir -p "$(dirname "$authority")" "$(dirname "$log")"
+touch "$authority" "$log"
+chmod 0600 "$authority"
+cookie=$(mcookie)
+xauth -f "$authority" add "$display" . "$cookie"
+chown wineuser:wineuser "$authority"
+
+Xorg "$display" \
+    -config "$config" \
+    -noreset \
+    -nolisten tcp \
+    -auth "$authority" \
+    -logfile "$log" &
+xorg_pid=$!
+
+cleanup() {
+    local status=$?
+    trap - EXIT INT TERM
+    kill "$xorg_pid" 2>/dev/null || true
+    wait "$xorg_pid" 2>/dev/null || true
+    exit "$status"
+}
+trap cleanup EXIT INT TERM
+
+deadline=$((SECONDS + 30))
+until XAUTHORITY="$authority" xdpyinfo -display "$display" >/dev/null 2>&1; do
+    if ! kill -0 "$xorg_pid" 2>/dev/null; then
+        echo "Standalone Xorg dummy server exited before display $display became ready." >&2
+        exit 70
+    fi
+    if (( SECONDS >= deadline )); then
+        echo "Standalone Xorg dummy server did not make display $display ready." >&2
+        exit 71
+    fi
+    sleep 0.2
+done
+
+export DISPLAY="$display"
+export XAUTHORITY="$authority"
+export USE_XVFB=no
+export OCTANE_DISPLAY_SERVER=xorg-dummy
+
+# The retained base entrypoint still performs its normal non-root user setup,
+# but USE_XVFB=no prevents it from starting the former Xvfb display. Xorg is a
+# direct local display server here; no XRDP/FreeRDP process or protocol is used.
+set +e
+/usr/bin/entrypoint "$@"
+status=$?
+set -e
+exit "$status"

@@ -132,9 +132,10 @@ try{
     if($imageObject.Config.Labels.'com.octanelab.browser-transport' -ne 'novnc' -or $imageObject.Config.Labels.'com.octanelab.browser-rdp-required' -ne 'false'){
         throw 'Selected image is not an identified noVNC browser candidate.'
     }
+    $displayServer=if($imageObject.Config.Labels.'com.octanelab.browser-display-server'){[string]$imageObject.Config.Labels.'com.octanelab.browser-display-server'}else{'xvfb'}
     $activeStage='imageBuild'
     Update-OctaneRunStage -Path $statePath -Stage imageBuild -Status PASS -Detail "Reused prebuilt browser image $Image ($($imageObject.Id)); no application prefix was cached."
-    Set-OctaneRunMetadata -Path $statePath -Values @{resolvedImageId=[string]$imageObject.Id;resolvedBaseImage=[string]$imageObject.Id}
+    Set-OctaneRunMetadata -Path $statePath -Values @{resolvedImageId=[string]$imageObject.Id;resolvedBaseImage=[string]$imageObject.Id;displayServer=$displayServer}
 
     $activeStage='sessionStorage'
     New-Item -ItemType Directory -Path $secretDirectory -Force | Out-Null
@@ -192,7 +193,8 @@ try{
     }else{
         Update-OctaneRunStage -Path $statePath -Stage webviewDiagnostic -Status NOT_RUN -Detail 'The application profile does not require WebView2.'
     }
-    Update-OctaneRunStage -Path $statePath -Stage application -Status BLOCKED -Detail 'A matching native X11 window was observed, but browser delivery, visible client rendering, and browser-originated input require approved/manual browser evidence.' -DurationMs $native.DurationMs
+    $stable=Invoke-OctaneRuntime -Engine Docker -WslDistro $WslDistro -Arguments @('exec','-u','wineuser',$name,'octane-target','wait-stable') -TimeoutSeconds ([int]$profileValue.application.readinessStabilitySeconds+30)
+    Update-OctaneRunStage -Path $statePath -Stage application -Status BLOCKED -Detail "A matching native X11 window and required application processes remained present for the declared $($profileValue.application.readinessStabilitySeconds)-second stability interval. Browser delivery, visible client rendering, and browser-originated input still require approved/manual browser evidence." -DurationMs ($native.DurationMs+$stable.DurationMs)
     $network=Invoke-OctaneRuntime -Engine Docker -WslDistro $WslDistro -Arguments @('exec','-u','wineuser',$name,'octane-target','probe-network') -TimeoutSeconds 120 -AllowFailure
     $endpointCount=@($profileValue.network.requiredEndpoints).Count
     $networkStatus=if($endpointCount -eq 0){'NOT_TESTED'}elseif($network.ExitCode -eq 0 -and -not $network.TimedOut){'PASS'}else{'FAIL'}

@@ -1,0 +1,28 @@
+ARG BASE_IMAGE=octane-lab:browser-appliance-v1-136944d
+FROM ${BASE_IMAGE}
+
+USER root
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends xauth xserver-xorg-video-dummy \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY lab/browser/octane-xorg-dummy.conf /etc/X11/octane-xorg-dummy.conf
+COPY lab/browser/octane-xorg-entrypoint /usr/local/bin/octane-xorg-entrypoint
+COPY lab/browser/octane-browser-session /usr/local/bin/octane-browser-session
+COPY lab/browser/octane-target /usr/local/bin/octane-target
+RUN chmod 755 /usr/local/bin/octane-xorg-entrypoint /usr/local/bin/octane-browser-session /usr/local/bin/octane-target \
+    && jq '.desktop="standalone Xorg dummy/XFCE" | .displayServer="xorg-dummy"' \
+       /opt/octane/browser-transport.json > /opt/octane/browser-transport.json.new \
+    && mv /opt/octane/browser-transport.json.new /opt/octane/browser-transport.json
+
+ENV DISPLAY=:1 \
+    XAUTHORITY=/run/octane/Xauthority \
+    USE_XVFB=no \
+    OCTANE_DISPLAY_SERVER=xorg-dummy
+
+LABEL com.octanelab.browser-display-server="xorg-dummy" \
+      com.octanelab.browser-rdp-required="false" \
+      com.octanelab.browser-experiment="standalone-xorg-without-rdp"
+
+ENTRYPOINT ["/usr/local/bin/octane-xorg-entrypoint"]
+CMD ["/usr/local/bin/octane-browser-session"]

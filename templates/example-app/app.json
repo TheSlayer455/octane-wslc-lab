@@ -21,6 +21,7 @@
     "launchArguments": [],
     "windowTitleRegex": "^Example App$",
     "readinessTimeoutSeconds": 180,
+    "readinessStabilitySeconds": 90,
     "webView2": {
       "required": true,
       "distribution": "installer-managed",

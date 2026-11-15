@@ -35,13 +35,14 @@
     "application": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["executableFileName", "expectedRelativePath", "launchArguments", "windowTitleRegex", "readinessTimeoutSeconds", "webView2"],
+      "required": ["executableFileName", "expectedRelativePath", "launchArguments", "windowTitleRegex", "readinessTimeoutSeconds", "readinessStabilitySeconds", "webView2"],
       "properties": {
         "executableFileName": { "type": "string", "pattern": "^[A-Za-z0-9._ -]{1,128}\\.exe$" },
         "expectedRelativePath": { "type": ["string", "null"], "maxLength": 512 },
         "launchArguments": { "type": "array", "maxItems": 32, "items": { "type": "string", "maxLength": 2048 } },
         "windowTitleRegex": { "type": "string", "minLength": 1, "maxLength": 512 },
         "readinessTimeoutSeconds": { "type": "integer", "minimum": 10, "maximum": 900 },
+        "readinessStabilitySeconds": { "type": "integer", "minimum": 10, "maximum": 300 },
         "webView2": {
           "type": "object",
           "additionalProperties": false,

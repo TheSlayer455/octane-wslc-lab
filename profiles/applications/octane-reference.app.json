@@ -21,6 +21,7 @@
     "launchArguments": [],
     "windowTitleRegex": "Octane.*File analysis lab",
     "readinessTimeoutSeconds": 180,
+    "readinessStabilitySeconds": 90,
     "webView2": {
       "required": true,
       "distribution": "evergreen",

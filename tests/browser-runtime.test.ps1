@@ -97,6 +97,7 @@ try{
     Check ($session -match '\$state_dir/browser-session\.json') 'Viewer session identity must be written inside per-run user-owned state.'
     Check ($session -notmatch 'xrdp|xfreerdp|freerdp') 'Browser session must not invoke an RDP component.'
     Check ($session -match 'octane-upload-server' -and $session -match 'OCTANE_UPLOAD_PUBLIC_URL') 'Browser session must start and identify the scoped upload service.'
+    Check ($session -match 'OCTANE_DISPLAY_SERVER' -and $session -match 'displayServer') 'Browser evidence must identify the effective X11 display-server profile.'
     $uploadServer=Get-Content -LiteralPath (Join-Path $root 'lab/browser/octane-upload-server') -Raw
     Check ($uploadServer -match 'hmac\.compare_digest' -and $uploadServer -match 'ALLOWED_ORIGINS') 'Upload service must authenticate and enforce exact origins.'
     Check ($uploadServer -match 'destination-exists' -and $uploadServer -notmatch 'do_DELETE') 'Upload service must reject overwrite and expose no delete API.'
@@ -116,6 +117,16 @@ try{
     Check ($stop -match 'Remove-OctaneRuntimeSessionStorage' -and $stop -match 'Clear-OctaneActiveRun') 'Exact cleanup must remove only the run-owned WSL storage and matching active journal.'
     $target=Get-Content -LiteralPath (Join-Path $root 'lab/browser/octane-target') -Raw
     Check ($target -match 'WebView2 drift') 'Target launcher must fail visibly on a declared WebView2 version mismatch.'
+    Check ($target -match 'wait_stable' -and $target -match 'application-stability\.json') 'Target launcher must implement an attributable sustained-readiness gate.'
+    Check ($target -match 'relaunchUsed:false' -and $target -match 'forcedRepaintUsed:false') 'Sustained readiness evidence must explicitly exclude relaunch and forced repaint.'
+    Check ($preview -match "octane-target','wait-stable" -and $preview -match 'readinessStabilitySeconds') 'Preview startup must enforce the profile-locked sustained-readiness interval.'
+    $referenceProfile=Get-Content -LiteralPath (Join-Path $root 'profiles/applications/octane-reference.app.json') -Raw | ConvertFrom-Json
+    Check ([int]$referenceProfile.application.readinessStabilitySeconds -ge 90) 'The retained reference profile must observe readiness beyond the delayed failure seen in browser smoke testing.'
+    $xorgDockerfile=Get-Content -LiteralPath (Join-Path $root 'lab/Dockerfile.browser-xorgdummy') -Raw
+    $xorgEntrypoint=Get-Content -LiteralPath (Join-Path $root 'lab/browser/octane-xorg-entrypoint') -Raw
+    Check ($xorgDockerfile -match 'xserver-xorg-video-dummy' -and $xorgDockerfile -match 'browser-rdp-required="false"') 'Xorg candidate must use the dummy driver and retain the no-RDP identity.'
+    Check ($xorgEntrypoint -match '-nolisten tcp' -and $xorgEntrypoint -match '-auth "\$authority"') 'Standalone Xorg must disable TCP and require a per-container Xauthority cookie.'
+    Check ($xorgEntrypoint -notmatch '(?m)^[^#\r\n]*(?:xrdp|xfreerdp|freerdp)') 'Standalone Xorg candidate must not invoke an RDP component.'
 
     $scriptText=(Get-ChildItem -LiteralPath (Join-Path $root 'scripts') -Filter '*.ps1' | ForEach-Object {Get-Content -LiteralPath $_.FullName -Raw}) -join "`n"
     Check ($scriptText -notmatch '\bInvoke-Expression\b') 'Controller must not use Invoke-Expression.'

@@ -8,6 +8,7 @@ viewer_port="${OCTANE_BROWSER_CONTAINER_PORT:-3000}"
 upload_port="${OCTANE_UPLOAD_CONTAINER_PORT:-3002}"
 upload_url="${OCTANE_UPLOAD_PUBLIC_URL:-}"
 origins="${OCTANE_VIEWER_ORIGINS:-http://127.0.0.1:3000 http://localhost:3000}"
+display_server="${OCTANE_DISPLAY_SERVER:-xvfb}"
 mkdir -p "$state_dir" "$evidence_dir/browser" "$HOME/.config/xfce4"
 
 if [[ ! -f "$password_file" || ! -s "$password_file" ]]; then
@@ -96,15 +97,17 @@ done
 jq -n \
     --arg runId "${OCTANE_RUN_ID:-unassigned}" \
     --arg display "$DISPLAY" \
+    --arg displayServer "$display_server" \
     --arg resolution "$(xdpyinfo | awk '/dimensions:/{print $2; exit}')" \
     --arg transport 'noVNC 1.7.0 / Websockify 0.13.0 / x11vnc' \
     --arg uploadUrl "$upload_url" \
-    '{schemaVersion:1,runId:$runId,display:$display,resolution:$resolution,transport:$transport,uploadUrl:($uploadUrl|if length>0 then . else null end),applicationReadiness:"unverified"}' \
+    '{schemaVersion:1,runId:$runId,display:$display,displayServer:$displayServer,resolution:$resolution,transport:$transport,uploadUrl:($uploadUrl|if length>0 then . else null end),applicationReadiness:"unverified"}' \
     > "$state_dir/browser-session.json"
 
 {
     echo "started_at_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
     echo "display=$DISPLAY"
+    echo "display_server=$display_server"
     echo "resolution=$(xdpyinfo | awk '/dimensions:/{print $2; exit}')"
     echo "viewer_port=$viewer_port"
     echo "upload_port=$upload_port"
