@@ -98,6 +98,7 @@ try{
     Check ($session -notmatch 'xrdp|xfreerdp|freerdp') 'Browser session must not invoke an RDP component.'
     Check ($session -match 'octane-upload-server' -and $session -match 'OCTANE_UPLOAD_PUBLIC_URL') 'Browser session must start and identify the scoped upload service.'
     Check ($session -match 'OCTANE_DISPLAY_SERVER' -and $session -match 'displayServer') 'Browser evidence must identify the effective X11 display-server profile.'
+    Check ($session -match 'OCTANE_VNC_SERVER_MODE' -and $session -match 'Xtigervnc' -and $session -match 'tigervncpasswd -f') 'Integrated Xvnc mode must use the same per-run credential without exposing raw VNC.'
     $uploadServer=Get-Content -LiteralPath (Join-Path $root 'lab/browser/octane-upload-server') -Raw
     Check ($uploadServer -match 'hmac\.compare_digest' -and $uploadServer -match 'ALLOWED_ORIGINS') 'Upload service must authenticate and enforce exact origins.'
     Check ($uploadServer -match 'destination-exists' -and $uploadServer -notmatch 'do_DELETE') 'Upload service must reject overwrite and expose no delete API.'
@@ -120,6 +121,7 @@ try{
     Check ($target -match 'wait_stable' -and $target -match 'application-stability\.json') 'Target launcher must implement an attributable sustained-readiness gate.'
     Check ($target -match 'relaunchUsed:false' -and $target -match 'forcedRepaintUsed:false') 'Sustained readiness evidence must explicitly exclude relaunch and forced repaint.'
     Check ($preview -match "octane-target','wait-stable" -and $preview -match 'readinessStabilitySeconds') 'Preview startup must enforce the profile-locked sustained-readiness interval.'
+    Check ($preview -match 'useXvfb=if\(\$displayServer -eq ''xvfb''\)' -and $preview -match 'USE_XVFB=\$useXvfb') 'Preview startup must not silently start Xvfb for a separately identified display candidate.'
     $referenceProfile=Get-Content -LiteralPath (Join-Path $root 'profiles/applications/octane-reference.app.json') -Raw | ConvertFrom-Json
     Check ([int]$referenceProfile.application.readinessStabilitySeconds -ge 90) 'The retained reference profile must observe readiness beyond the delayed failure seen in browser smoke testing.'
     $xorgDockerfile=Get-Content -LiteralPath (Join-Path $root 'lab/Dockerfile.browser-xorgdummy') -Raw
@@ -129,6 +131,8 @@ try{
     Check ($xorgEntrypoint -notmatch 'chown\s+wineuser') 'Xorg startup must not assume the base entrypoint has already created its runtime account.'
     Check ($xorgEntrypoint -match 'USER_UID:-1010' -and $xorgEntrypoint -match 'install -d -o "\$runtime_uid"') 'Xorg bootstrap files must use the retained base entrypoint numeric runtime identity.'
     Check ($xorgEntrypoint -notmatch '(?m)^[^#\r\n]*(?:xrdp|xfreerdp|freerdp)') 'Standalone Xorg candidate must not invoke an RDP component.'
+    $xvncDockerfile=Get-Content -LiteralPath (Join-Path $root 'lab/Dockerfile.browser-xvnc') -Raw
+    Check ($xvncDockerfile -match 'tigervnc-standalone-server' -and $xvncDockerfile -match 'browser-rdp-required="false"') 'Integrated Xvnc candidate must be reproducible and retain the no-RDP identity.'
 
     $scriptText=(Get-ChildItem -LiteralPath (Join-Path $root 'scripts') -Filter '*.ps1' | ForEach-Object {Get-Content -LiteralPath $_.FullName -Raw}) -join "`n"
     Check ($scriptText -notmatch '\bInvoke-Expression\b') 'Controller must not use Invoke-Expression.'

@@ -1,0 +1,28 @@
+ARG BASE_IMAGE=octane-lab:browser-appliance-v1-136944d
+FROM ${BASE_IMAGE}
+
+USER root
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends tigervnc-standalone-server tigervnc-tools \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY lab/browser/octane-browser-session /usr/local/bin/octane-browser-session
+COPY lab/browser/octane-target /usr/local/bin/octane-target
+RUN chmod 755 /usr/local/bin/octane-browser-session /usr/local/bin/octane-target \
+    && jq '.desktop="TigerVNC Xvnc/XFCE" | .displayServer="tigervnc-xvnc" | .vncServer="TigerVNC Xvnc"' \
+       /opt/octane/browser-transport.json > /opt/octane/browser-transport.json.new \
+    && mv /opt/octane/browser-transport.json.new /opt/octane/browser-transport.json
+
+ENV DISPLAY=:1 \
+    USE_XVFB=no \
+    OCTANE_DISPLAY_SERVER=tigervnc-xvnc \
+    OCTANE_VNC_SERVER_MODE=xtigervnc \
+    OCTANE_DISPLAY_RESOLUTION=1280x800 \
+    OCTANE_DISPLAY_DEPTH=24
+
+LABEL com.octanelab.browser-display-server="tigervnc-xvnc" \
+      com.octanelab.browser-rdp-required="false" \
+      com.octanelab.browser-experiment="integrated-xvnc-without-rdp"
+
+ENTRYPOINT ["/usr/bin/entrypoint"]
+CMD ["/usr/local/bin/octane-browser-session"]

@@ -133,6 +133,7 @@ try{
         throw 'Selected image is not an identified noVNC browser candidate.'
     }
     $displayServer=if($imageObject.Config.Labels.'com.octanelab.browser-display-server'){[string]$imageObject.Config.Labels.'com.octanelab.browser-display-server'}else{'xvfb'}
+    $useXvfb=if($displayServer -eq 'xvfb'){'yes'}else{'no'}
     $activeStage='imageBuild'
     Update-OctaneRunStage -Path $statePath -Stage imageBuild -Status PASS -Detail "Reused prebuilt browser image $Image ($($imageObject.Id)); no application prefix was cached."
     Set-OctaneRunMetadata -Path $statePath -Values @{resolvedImageId=[string]$imageObject.Id;resolvedBaseImage=[string]$imageObject.Id;displayServer=$displayServer}
@@ -162,7 +163,7 @@ try{
         '--mount',"type=bind,src=$($sessionStorage.uploadedInput),dst=/home/wineuser/.octane/input/uploaded,readonly",
         '--mount',"type=bind,src=$($sessionStorage.uploadedInput),dst=/run/octane/upload",
         '--mount',"type=bind,src=$($sessionStorage.artifact),dst=/home/wineuser/.octane/target/artifact,readonly",
-        '-e','TZ=America/Chicago','-e','RDP_SERVER=no','-e','USE_XVFB=yes','-e','USER_SUDO=no','-e',"OCTANE_RUN_ID=$id",
+        '-e','TZ=America/Chicago','-e','RDP_SERVER=no','-e',"USE_XVFB=$useXvfb",'-e','USER_SUDO=no','-e',"OCTANE_RUN_ID=$id",
         '-e',"OCTANE_VIEWER_ORIGINS=http://127.0.0.1:$Port http://localhost:$Port",'-e',"OCTANE_UPLOAD_PUBLIC_URL=http://127.0.0.1:$UploadPort",$Image
     )
     $activeStage='containerCreate'
