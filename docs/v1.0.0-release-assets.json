@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "release": "v1.0.0",
+  "repository": "https://github.com/TheSlayer455/octane-wslc-lab",
+  "qualifiedBrowserHarnessCommit": "ad1ba74644bdab49a17ccc40caf26f477d848a6a",
+  "packageRuntimeCommit": "aced057ba3d3979a343247373e68aa7b6cb3a657",
+  "browserLockSha256": "db5babdf10bb9c3aef12731c398a75437d280385799512e1b92838f028d68249",
+  "browserBatchId": "browser-qbatch-06f2a54afe0c",
+  "package": {
+    "files": 98,
+    "bytes": 2586061421,
+    "manifestSha256": "02176b061918de85de755982ed085c41ee4c9d966d934d885a4492020d3fcbeb",
+    "checksumsSha256": "d8e38f1f57a4bba3fd629de7e645734226fc7f169815273d75f4c6364533de4c",
+    "liveTestId": "87945a4f09",
+    "liveTestResultSha256": "2a662c0c35367e324cd25d48f3bef0f7903bc17c9a14b54099afcf1aedfa8886"
+  },
+  "assets": [
+    {
+      "name": "Octane-v1.0.0-runtime.zip",
+      "length": 1691042,
+      "sha256": "bddc32e7108f1451a3106f5e86fe2ad47b3b93c3540a8d9ac945d4b1455e7c39",
+      "extractTo": "."
+    },
+    {
+      "name": "octane-ubuntu.tar",
+      "length": 503298560,
+      "sha256": "cf0350437b0864e1709f23cafafa07dff95ff83267cfdd4d3b85ba985ca24158",
+      "placeAt": "appliance/octane-ubuntu.tar"
+    },
+    {
+      "name": "octane-wine-image.tar.zst",
+      "length": 2080012879,
+      "sha256": "30aa7f68fa63c11fa5f9d3df878e0ef4340a2bda1a545f37f53ce35933204801",
+      "placeAt": "images/octane-wine-image.tar.zst"
+    }
+  ],
+  "assemblyValidation": "PASS: clean runtime ZIP extraction plus the two assets at their declared paths passed Install-Octane.ps1 -PlanOnly and all package/runtime checksums.",
+  "integrityBoundary": "SHA-256 detects byte changes but is not a signature or proof of reproducible build."
+}
