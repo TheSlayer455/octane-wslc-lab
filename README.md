@@ -6,12 +6,12 @@ Octane installs an unchanged Windows x64 installer inside a fresh Docker/Wine co
 
 - Historical Docker/Wine/RDP reference contract: **QUALIFIED 10/10** for its immutable historical lock.
 - Browser-only Octane reference contract: **QUALIFIED 10/10** for batch `browser-qbatch-06f2a54afe0c`, lock SHA-256 `db5babdf10bb9c3aef12731c398a75437d280385799512e1b92838f028d68249`, installer SHA-256 `adde062d79c2857cb2f5e676c5d6870986070252ac3cf7ca7a6b78c8d829080a`, and image ID `sha256:6e77b89e7d5f8d3f9472998bd33859413b6982038c9cc64054a9eb035b25e786`.
-- Generic unchanged-installer preview: implemented. Another application is **UNTESTED** until its exact installer/profile/scenario is measured.
+- Generic unchanged-installer preview: implemented and exercised with two successive real installers from one independent public Tauri application. Build 2.1.1 passed the browser conversion/dialog/export scenario; clean replacement to build 2.2.0 passed, but that build crashed before usable readiness. The independent application is **NOT QUALIFIED**.
 - Minimal native Win32 WebView2 probe: still **FAIL (white client)**. Octane's pass is not a universal WebView2/Wine claim.
 
 The browser batch used ten predeclared, sequential fresh containers and Wine prefixes. All ten passed authenticated noVNC negotiation, changing browser framebuffer evidence, browser-originated pointer/keyboard/wheel input, normal initial rendering, the real Rust workload, native open/save dialogs, independent JSON validation, input integrity, no-RDP checks, evidence collection, and exact cleanup. No repaint helper, application relaunch, hidden scenario retry, manual action, or manual promotion was used.
 
-See [the qualification summary](docs/browser-qualification-summary.json), [compatibility matrix](docs/compatibility-matrix.md), and [single AI/operator handoff](docs/OCTANE-AI-HANDOFF.md).
+See [the qualification summary](docs/browser-qualification-summary.json), [independent two-build result](docs/external-application-two-build-result.md), [compatibility matrix](docs/compatibility-matrix.md), and [single AI/operator handoff](docs/OCTANE-AI-HANDOFF.md).
 
 Public release: [Octane v1.0.0 — Browser appliance](https://github.com/TheSlayer455/octane-wslc-lab/releases/tag/v1.0.0). Download all three package assets and follow `v1.0.0-release-assets.json`; GitHub's server-side digests match the locally recorded SHA-256 values.
 
@@ -68,6 +68,19 @@ Run these commands in Windows PowerShell 7 from the repository root. Docker Engi
 
 Startup hashes and stages the local EXE before replacing an active run. It then collects/removes only the old run's exact managed resources, creates a new WSL-native home/prefix/install/WebView2/output state, installs the unchanged EXE inside Wine, prints the exact `http://127.0.0.1:<port>/octane.html` URL, and opens the Windows default browser when requested.
 
+Verified machine-wide NSIS installers are representable without pretending they are per-user installs:
+
+```powershell
+./scripts/New-OctaneTarget.ps1 -Id example-app `
+  -Output ../example-app-octane `
+  -ExecutableFileName example-app.exe `
+  -WindowTitleRegex '^Example App$' `
+  -InstallArgument /S -InstallScope per-machine `
+  -VerifiedInstallerArguments
+```
+
+Do not select `per-machine` or `/S` unless those properties were verified for the exact installer family.
+
 The credential is never printed by startup:
 
 ```powershell
@@ -113,7 +126,7 @@ Qualification requires the exact local installer, image ID, harness commit, prof
 
 The current local verification consists of:
 
-- 82 browser/runtime PowerShell assertions.
+- 83 browser/runtime PowerShell assertions.
 - 48 controller/mock assertions.
 - 12 qualification-policy assertions.
 - 30 appliance-packaging assertions.

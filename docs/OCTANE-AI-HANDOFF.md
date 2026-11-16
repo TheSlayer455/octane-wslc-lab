@@ -50,12 +50,20 @@ Every run used a new container, prefix, install, WebView2 data, and output direc
 
 ### What this does not prove
 
-- Another installer is untested until its exact bytes/profile/scenario are run.
+- One independent public Tauri application has now been measured with two exact installers: its 2.1.1 browser scenario passed, while 2.2.0 crashed before usable readiness. That target is not qualified, and no other installer inherits either result.
 - The minimal independent Win32 WebView2 probe still shows a white client.
 - The custom Wine patch is a maintenance condition.
 - Stock Wine, arbitrary Tauri applications, Windows identity parity, corporate authentication, device drivers, Office, smart cards, and every Windows service/API are not implied.
 - Linux Chromium performed the unattended browser batch. A separate Windows in-app-browser smoke proved real Windows-side localhost access/input; it is not mislabeled as Windows Edge automation.
 - A successful build job or installation is not GUI acceptance.
+
+### Independent two-build onboarding result
+
+The post-v1 onboarding exercise in `docs/external-application-two-build-result.md` used two unchanged JSONPrism installers and the data-only profile `profiles/applications/jsonprism-2x.app.json`. The first exact installer rendered through authenticated noVNC, selected a space/Unicode fixture through its native dialog, converted three records, saved and independently validated CSV, canceled/reopened its dialog, preserved input hashes, and cleaned up. It is `SCENARIO_TESTED`, not qualified.
+
+`ReplaceActive` then verified the second installer before collecting and exactly removing the first run. The second run used fresh container/prefix/install/WebView2/output state and retained the first run's CSV/evidence, but the application crashed before usable readiness. The browser visibly presented Wine's Program Error UI; the captured stack begins `IDropTarget_Release` -> `RevokeDragDrop`. Workload, application dialogs, and application export are `BLOCKED`. This observed signature is not a root-cause or upstream-bug-equivalence claim.
+
+This result demonstrates that the reusable workflow can reveal a real build-specific compatibility regression without falling back to the reference executable or stale installed state. It does not weaken or extend the reference application's 10/10 lock.
 
 ## 3. Reference architecture
 
@@ -477,7 +485,7 @@ Checksums establish integrity, not signatures or reproducible-build identity. Ra
 
 Current local results:
 
-- Browser/runtime PowerShell contracts: 82 assertions PASS.
+- Browser/runtime PowerShell contracts: 83 assertions PASS.
 - Controller/mock PowerShell contracts: 48 assertions PASS.
 - Qualification-policy contracts: 12 assertions PASS.
 - Appliance-packaging contracts: 30 assertions PASS.
@@ -645,4 +653,4 @@ cleanup. Never infer compatibility from the Octane reference app.
 
 The reusable product workflow is demonstrated for its declared reference contract: unchanged EXE intake, cached WSL/Docker/Wine infrastructure, fresh per-build application state, authenticated browser delivery/input, real workload/dialog/export validation, retained evidence/output, and exact replacement/cleanup.
 
-The correct conclusion for an external application remains one of `UNTESTED`, `PREVIEWED`, `SCENARIO_TESTED`, or `QUALIFIED` for its exact installer/profile/environment. It never inherits Octane's qualification.
+The correct conclusion for an external application remains one of `UNTESTED`, `PREVIEWED`, `SCENARIO_TESTED`, or `QUALIFIED` for its exact installer/profile/environment. It never inherits Octane's qualification. The measured public target is currently split by artifact: 2.1.1 is `SCENARIO_TESTED` PASS, while 2.2.0 has an application compatibility FAIL and is not qualified.

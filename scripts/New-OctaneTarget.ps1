@@ -5,6 +5,7 @@ param(
     [string]$ExecutableFileName,
     [string]$WindowTitleRegex,
     [string[]]$InstallArgument,
+    [ValidateSet('current-user','per-machine')][string]$InstallScope='current-user',
     [switch]$VerifiedInstallerArguments
 )
 
@@ -19,6 +20,7 @@ try{
     $template.application.executableFileName=if($ExecutableFileName){$ExecutableFileName}else{"$Id.exe"}
     $template.application.windowTitleRegex=if($WindowTitleRegex){$WindowTitleRegex}else{'^REPLACE WITH VERIFIED WINDOW TITLE$'}
     $template.installer.installArguments=@($InstallArgument)
+    $template.installer.scope=$InstallScope
     $template.installer.argumentsVerified=[bool]$VerifiedInstallerArguments
     $template.status=if($VerifiedInstallerArguments -and $ExecutableFileName -and $WindowTitleRegex){'preview-only'}else{'template'}
     $template | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath (Join-Path $outputPath 'app.json') -Encoding utf8

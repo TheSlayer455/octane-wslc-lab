@@ -29,7 +29,7 @@
         "argumentsVerified": { "type": "boolean" },
         "timeoutSeconds": { "type": "integer", "minimum": 30, "maximum": 3600 },
         "successCodes": { "type": "array", "minItems": 1, "maxItems": 8, "uniqueItems": true, "items": { "type": "integer", "minimum": 0, "maximum": 65535 } },
-        "scope": { "enum": ["current-user"] }
+        "scope": { "enum": ["current-user", "per-machine"] }
       }
     },
     "application": {

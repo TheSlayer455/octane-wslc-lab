@@ -1,0 +1,88 @@
+{
+  "schemaVersion": 1,
+  "recordedAtUtc": "2026-11-16T02:50:00Z",
+  "target": {
+    "profileId": "jsonprism-2x",
+    "publicUpstream": "https://github.com/poli0981/jsonPrism",
+    "profilePath": "profiles/applications/jsonprism-2x.app.json",
+    "publishedProfileSha256": "f3a4ab93d006513134bc003663d0d5828852e5b56821fe588fc43634bcf39917",
+    "measuredRunProfileSha256": "64e467fedacf641071550b8cb9e0a98e033dde6c486e8a572274aa50ad68d24d",
+    "scenario": "manual browser conversion, native open/save dialogs, output validation, cancellation, and clean replacement",
+    "qualification": "NOT_QUALIFIED"
+  },
+  "runtime": {
+    "image": "octane-lab:browser-xvnc-ad1ba74",
+    "imageId": "sha256:6e77b89e7d5f8d3f9472998bd33859413b6982038c9cc64054a9eb035b25e786",
+    "wslDistribution": "Ubuntu-24.04",
+    "viewer": "authenticated localhost noVNC",
+    "rdpUsed": false,
+    "forcedRepaintUsed": false
+  },
+  "fixtures": [
+    {
+      "name": "people space ü.json",
+      "sha256": "923fa4d954e528616134e1b036ea72f3da8da5c5fd7237657624095678463c90"
+    },
+    {
+      "name": "settings.jsonc",
+      "sha256": "6c13edcca13b28547a37c172f4a9d387b62dbfc68ad6eb813687bda04b118465"
+    }
+  ],
+  "runs": [
+    {
+      "runId": "21762b3de1",
+      "version": "2.1.1",
+      "sourceCommit": "14f593c7a717526892fbda660a297a93b6be62b1",
+      "installerSha256": "40fcf6be703b3a68e7e1792b19f39b176cefd96d6ad44794a56a43e302cc55cb",
+      "installerBytes": 2258891,
+      "browser": "PASS",
+      "application": "PASS",
+      "workload": "PASS",
+      "nativeDialogs": "PASS",
+      "export": "PASS",
+      "inputIntegrity": "PASS",
+      "cleanup": "PASS",
+      "exportSha256": "ae0383b0d1bbba926a2e8f2b9cc98b0035bdb13c92db883f3a9cbd9d96e899de",
+      "evidence": "evidence/octane-21762b3de1-20261116-024009",
+      "evidenceChecksumsSha256": "48b7e94888d8fab1e7354015250bd298cae8c99ed1cca82522ff9a0a0a391f38",
+      "outputChecksumsSha256": "0a2da93dfa4aac258b45cb95ea394e001a7bc893e6b6f1e4273122328fd59c4d"
+    },
+    {
+      "runId": "75b30d12b0",
+      "version": "2.2.0",
+      "sourceCommit": "29d417ec93b8f9c34f826f2ff2b13581c4cd30a1",
+      "installerSha256": "5fcb5abd7ea12b85b4ac670823cc86022063d296611c13e92367b5a570679ed4",
+      "installerBytes": 2261487,
+      "replacementCollected": true,
+      "replacementRemoved": true,
+      "freshInstall": "PASS",
+      "browserTransport": "PASS",
+      "browserApplicationScenario": "FAIL",
+      "application": "FAIL",
+      "workload": "BLOCKED",
+      "nativeDialogs": "BLOCKED",
+      "export": "BLOCKED",
+      "inputIntegrity": "PASS",
+      "cleanup": "PASS",
+      "failureSignature": "page fault; IDropTarget_Release -> RevokeDragDrop",
+      "failureScope": "observed stack signature; equivalence with any upstream Wine bug is not established",
+      "crashReportSha256": "70a6628afcc43625e809fc1a99b42dd9fa6605eeddd381be967d5ca7207dad32",
+      "crashScreenshotSha256": "4454eadf6b2cb86a0a8a82d2ea770c3ba5ffebfae8c932ed5792e1d41ca9f56b",
+      "evidence": "evidence/octane-75b30d12b0-20261116-024952",
+      "evidenceChecksumsSha256": "53c088a7be9eb698fe0fa82fa71f24f502323ab4d6436011defcb22d3a777253",
+      "outputChecksumsSha256": "a79c33db7c0af2f9ed6a43ed4fe454a7633a00b51161a46283152bc896ec21c1"
+    }
+  ],
+  "discoveryRun": {
+    "runId": "5d82e6efeb",
+    "classification": "profile discovery failure",
+    "detail": "The installed filename was lowercase jsonprism.exe; the first profile used different case on a case-sensitive Wine-prefix filesystem. The failed result was preserved before correcting the data-only profile.",
+    "cleanup": "PASS",
+    "evidenceChecksumsSha256": "8b1b63bd622b9a57d4d60acfe8ec23f6e0ba3a00a06454960fdae2a99b8bbdd1"
+  },
+  "replacement": {
+    "status": "PASS",
+    "detail": "The new installer was staged and verified before the prior run was collected and exactly removed. The second run used a new container, prefix, installed application, WebView2 data, and output directory while the first output/evidence remained present."
+  },
+  "verdict": "The reusable Octane intake, browser interaction, file bridge, evidence collection, and clean replacement workflow was demonstrated beyond the reference app. Build 2.1.1 is scenario-tested PASS; build 2.2.0 has an application compatibility FAIL and is not qualified."
+}

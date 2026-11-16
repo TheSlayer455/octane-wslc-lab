@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "id": "jsonprism-2x",
+  "status": "scenario-defined",
+  "runtime": {
+    "octaneRelease": "1.0.0",
+    "wineProfile": "DockerWineStaging1121VisRgnBrowser"
+  },
+  "installer": {
+    "kind": "nsis",
+    "architecture": "x64",
+    "installArguments": ["/S"],
+    "argumentsVerified": true,
+    "timeoutSeconds": 900,
+    "successCodes": [0],
+    "scope": "per-machine"
+  },
+  "application": {
+    "executableFileName": "jsonprism.exe",
+    "expectedRelativePath": "Program Files/JSONPrism/jsonprism.exe",
+    "launchArguments": [],
+    "windowTitleRegex": "^JSONPrism.*Disperse JSON$",
+    "readinessTimeoutSeconds": 180,
+    "readinessStabilitySeconds": 90,
+    "visualReadinessMinColors": 100,
+    "webView2": {
+      "required": true,
+      "distribution": "evergreen",
+      "expectedVersion": "157.0.4341.60"
+    }
+  },
+  "fileAccess": {
+    "mode": "copy",
+    "wineInputPath": "C:\\octane-input",
+    "wineOutputPath": "C:\\octane-output",
+    "inputReadOnly": true
+  },
+  "network": {
+    "requiredEndpoints": []
+  },
+  "scenario": {
+    "status": "manual-only",
+    "trustedScenarioId": null
+  }
+}

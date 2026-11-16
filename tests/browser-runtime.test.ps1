@@ -14,6 +14,11 @@ try{
     Check (Test-Path -LiteralPath (Join-Path $overlay 'MANUAL-CHECKLIST.md')) 'Overlay must include the manual browser checklist.'
     Check (-not (Test-Path -LiteralPath (Join-Path $overlay 'installer.exe'))) 'Overlay must not copy an installer or require target source.'
 
+    $machineOverlay=Join-Path $temp 'machine-app-octane'
+    & (Join-Path $root 'scripts/New-OctaneTarget.ps1') -Id machine-app -Output $machineOverlay -ExecutableFileName 'machine-app.exe' -WindowTitleRegex '^Machine App$' -InstallArgument '/S' -InstallScope per-machine -VerifiedInstallerArguments | Out-Null
+    $machineValid=& (Join-Path $root 'scripts/Test-OctaneTargetProfile.ps1') -Profile (Join-Path $machineOverlay 'app.json') -Operational
+    Check ($machineValid.installScope -eq 'per-machine') 'A verified per-machine NSIS profile must be representable without mislabeling its install scope.'
+
     $bad=Get-Content -LiteralPath (Join-Path $overlay 'app.json') -Raw | ConvertFrom-Json
     $bad.application.expectedRelativePath='../escape/example-app.exe'
     $badPath=Join-Path $temp 'bad-traversal.json'

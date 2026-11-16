@@ -120,7 +120,7 @@ def image_grid(items):
 page(1, "Octane<br/>Windows installer compatibility lab")
 p(
     "<b>Complete implementation, operation, and measured-validation reference</b><br/>"
-    "Guide revision 12 | November 15, 2026 | Windows x64 + packaged WSL/Docker + Wine 11.21 + qualified browser delivery"
+    "Guide revision 13 | November 15, 2026 | Windows x64 + packaged WSL/Docker + Wine 11.21 + qualified browser delivery"
 )
 p(
     "Octane is a repository-independent, container-runtime-independent lab for a real "
@@ -1925,8 +1925,10 @@ h("Large artifacts and build identity")
 p(
     "The transport contract streams and hashes with bounded buffers, detects source mutation and incomplete copies, "
     "uses atomic completion, and keys identity by bytes rather than a reused setup.exe name. A 440,401,920-byte synthetic "
-    "fixture passed capacity, interruption, same-name/different-content, mismatch, reuse, and cleanup tests. It is not a "
-    "second executable installer or a second application acceptance result."
+    "fixture passed capacity, interruption, same-name/different-content, mismatch, reuse, and cleanup tests. Separately, "
+    "two distinct real installers from one independent public Tauri application exercised clean replacement. Build 2.1.1 "
+    "passed its browser conversion/dialog/export scenario; build 2.2.0 installed cleanly but crashed before usable readiness. "
+    "The target is not qualified."
 )
 h("File and network limits")
 p(
@@ -1942,9 +1944,19 @@ table(["Conclusion", "Measured scope"], [
     ["Historical RDP qualification", "Preserved, separate 10/10 result under its original lock; not evidence for browser transport."],
     ["Browser-only Octane qualification", "QUALIFIED 10/10 for the exact retained installer, final Xvnc/noVNC image, lock, fixtures, scenario, and host record."],
     ["Reusable product", "Profile-driven unchanged-installer intake, clean replacement, browser launch, controlled files, evidence, cleanup, appliance, and runtime kit are delivered."],
-    ["External application", "UNTESTED until its exact installer/profile is previewed or scenario-tested; it never inherits Octane qualification."],
+    ["External application", "Measured separately: build 2.1.1 SCENARIO_TESTED PASS; clean replacement PASS; build 2.2.0 application FAIL before readiness. Target NOT QUALIFIED."],
     ["General WebView2/Wine", "NOT established. The minimal native probe remains white and the custom visible-region patch is a maintenance condition."],
 ], [154, 338], compact=True)
+h("Independent two-build application result")
+p(
+    "The public black-box target used two unchanged NSIS installers and a data-only per-machine profile. Run 21762b3de1 "
+    "rendered through authenticated noVNC, selected an exact space/Unicode JSON file in its native dialog, converted three "
+    "records, saved and independently validated CSV, canceled/reopened the dialog, preserved input hashes, and cleaned up. "
+    "ReplaceActive then verified build 2.2.0 before collecting/removing the first run and creating fresh application state. "
+    "Run 75b30d12b0 displayed Wine's Program Error through the browser; its captured read-page-fault stack begins "
+    "IDropTarget_Release -> RevokeDragDrop. That is an observed signature, not a root-cause claim. Workload, application "
+    "dialogs, and export are BLOCKED; input integrity and exact cleanup PASS."
+)
 h("Requalification triggers")
 p(
     "Re-freeze and rerun relevant acceptance after changes to installer bytes, Wine/Staging or patches, WebView2, "
@@ -1973,7 +1985,7 @@ def decorate(canvas, doc):
     canvas.line(54, 44, 558, 44)
     canvas.setFont("Helvetica", 8)
     canvas.setFillColor(colors.HexColor("#657989"))
-    canvas.drawString(54, 30, "OCTANE / PUBLIC SOURCE REFERENCE / GUIDE REVISION 12")
+    canvas.drawString(54, 30, "OCTANE / PUBLIC SOURCE REFERENCE / GUIDE REVISION 13")
     canvas.drawRightString(558, 30, str(doc.page))
 
 

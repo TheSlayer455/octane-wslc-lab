@@ -46,5 +46,6 @@ if($Operational){
     profilePath=$profilePath
     profileSha256=(Get-FileHash -LiteralPath $profilePath -Algorithm SHA256).Hash.ToLowerInvariant()
     wineProfile=[string]$value.runtime.wineProfile
+    installScope=[string]$value.installer.scope
     scenarioStatus=[string]$value.scenario.status
 }
