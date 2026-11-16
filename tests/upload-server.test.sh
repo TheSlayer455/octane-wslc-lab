@@ -3,6 +3,11 @@ set -euo pipefail
 
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 temporary=$(mktemp -d)
+python_cmd=${PYTHON:-python3}
+if ! "$python_cmd" -c 'import sys; raise SystemExit(0)' >/dev/null 2>&1; then
+    python_cmd=python
+fi
+"$python_cmd" -c 'import sys; raise SystemExit(0)' >/dev/null
 server_pid=''
 cleanup() {
     [[ -z "$server_pid" ]] || kill "$server_pid" 2>/dev/null || true
@@ -16,7 +21,7 @@ evidence="$temporary/evidence"
 password_file="$temporary/viewer-password"
 mkdir -p "$uploads" "$evidence"
 printf '%s' 'unit-test-secret' > "$password_file"
-port=$(python3 - <<'PY'
+port=$("$python_cmd" - <<'PY'
 import socket
 s = socket.socket()
 s.bind(('127.0.0.1', 0))
@@ -33,7 +38,7 @@ OCTANE_VIEWER_PASSWORD_FILE="$password_file" \
 OCTANE_UPLOAD_CONTAINER_PORT="$port" \
 OCTANE_UPLOAD_MAX_BYTES=64 \
 OCTANE_VIEWER_ORIGINS="$origin" \
-python3 "$root/lab/browser/octane-upload-server" >"$temporary/server.log" 2>&1 &
+"$python_cmd" "$root/lab/browser/octane-upload-server" >"$temporary/server.log" 2>&1 &
 server_pid=$!
 
 for _ in $(seq 1 100); do
@@ -61,7 +66,7 @@ status=$(curl -sS -o "$temporary/viewer-event.json" -w '%{http_code}' -X POST \
     --data '{"event":"vnc-negotiated","runId":"unit-run","detail":{"displayTarget":"noVNC canvas"}}' \
     "http://127.0.0.1:$port/viewer-event")
 check '[[ "$status" = 201 ]]' 'authenticated viewer event accepted'
-viewer_event=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["events"][0]["event"])' "$evidence/viewer/viewer-events.json")
+viewer_event=$("$python_cmd" -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["events"][0]["event"])' "$evidence/viewer/viewer-events.json")
 check '[[ "$viewer_event" = vnc-negotiated ]]' 'viewer event persisted to its bounded evidence file'
 status=$(curl -sS -o "$temporary/secret-event.json" -w '%{http_code}' -X POST \
     -H "Origin: $origin" -H 'Authorization: Bearer unit-test-secret' \
@@ -80,7 +85,7 @@ check '[[ "$status" = 201 ]]' 'space and Unicode upload accepted'
 check '[[ -f "$uploads/space ü.txt" ]]' 'uploaded file retained under exact safe name'
 check '[[ "$(stat -c %a "$uploads/space ü.txt")" = 444 ]]' 'uploaded file made read-only'
 expected=$(sha256sum "$temporary/payload.bin" | awk '{print $1}')
-actual=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["files"][0]["sha256"])' "$evidence/upload-manifest.json")
+actual=$("$python_cmd" -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["files"][0]["sha256"])' "$evidence/upload-manifest.json")
 check '[[ "$actual" = "$expected" ]]' 'manifest records exact SHA-256'
 
 status=$(curl -sS -o "$temporary/duplicate.json" -w '%{http_code}' -X POST \
@@ -98,7 +103,7 @@ check '[[ "$status" = 413 ]]' 'declared oversize request rejected before intake'
 
 status=$(curl -sS -o "$temporary/list.json" -w '%{http_code}' \
     -H "Origin: $origin" -H 'Authorization: Bearer unit-test-secret' "http://127.0.0.1:$port/uploads")
-listed_name=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["files"][0]["name"])' "$temporary/list.json")
+listed_name=$("$python_cmd" -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["files"][0]["name"])' "$temporary/list.json")
 check '[[ "$status" = 200 && "$listed_name" = "space ü.txt" ]]' 'authenticated manifest listing'
 check '! grep -R -F "unit-test-secret" "$evidence" "$temporary/server.log" >/dev/null' 'credential absent from evidence and logs'
 

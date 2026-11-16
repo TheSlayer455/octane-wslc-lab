@@ -17,8 +17,27 @@ try{
     if($Scope -eq 'All'){
         if($IsWindows){
             . (Join-Path $root 'scripts/Runtime.ps1')
-            $runtimeTest=ConvertTo-OctaneRuntimePath -Engine Docker -WslDistro $WslDistro -Path (Join-Path $root 'tests/upload-server.test.sh')
-            $result=Invoke-OctaneNativeProcess -FileName 'wsl.exe' -Arguments @('-d',$WslDistro,'--exec','bash',$runtimeTest) -TimeoutSeconds 120
+            $testPath=Join-Path $root 'tests/upload-server.test.sh'
+            $wslList=Invoke-OctaneNativeProcess -FileName 'wsl.exe' -Arguments @('--list','--quiet') -TimeoutSeconds 30
+            $availableDistros=if($wslList.ExitCode -eq 0 -and -not $wslList.TimedOut){
+                @($wslList.StdOut -split "`r?`n" | ForEach-Object {([string]$_).Replace(([char]0).ToString(),[string]::Empty).Trim()} | Where-Object {$_})
+            }else{@()}
+            if($availableDistros -contains $WslDistro){
+                $runtimeTest=ConvertTo-OctaneRuntimePath -Engine Docker -WslDistro $WslDistro -Path $testPath
+                $result=Invoke-OctaneNativeProcess -FileName 'wsl.exe' -Arguments @('-d',$WslDistro,'--exec','bash',$runtimeTest) -TimeoutSeconds 120
+            }else{
+                $git=(Get-Command git -ErrorAction SilentlyContinue).Source
+                if(-not $git){throw 'Upload protocol tests require either the selected WSL distribution or Git for Windows.'}
+                $gitRoot=Split-Path (Split-Path $git -Parent) -Parent
+                $bash=Join-Path $gitRoot 'bin/bash.exe'
+                $cygpath=Join-Path $gitRoot 'usr/bin/cygpath.exe'
+                if(-not (Test-Path -LiteralPath $bash -PathType Leaf) -or -not (Test-Path -LiteralPath $cygpath -PathType Leaf)){
+                    throw 'Git for Windows Bash/cygpath is unavailable for the portable upload protocol tests.'
+                }
+                $portableTest=(& $cygpath -u $testPath).Trim()
+                if($LASTEXITCODE -ne 0 -or -not $portableTest){throw 'Unable to convert the upload protocol test path for Git Bash.'}
+                $result=Invoke-OctaneNativeProcess -FileName $bash -Arguments @($portableTest) -TimeoutSeconds 120
+            }
             if($result.ExitCode -ne 0 -or $result.TimedOut){throw "Browser upload protocol tests failed. $($result.StdErr) $($result.StdOut)"}
             $result.StdOut.Trim() | Write-Output
         }else{
