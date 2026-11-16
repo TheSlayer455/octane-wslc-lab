@@ -2,6 +2,8 @@
 
 This is the canonical self-contained handoff for Octane. Give an AI this document together with a clone or extracted runtime kit. Repository code, locks, checksums, and measured evidence are normative; this document explains how they fit together.
 
+Document snapshot: reconciled 2026-11-16 after independent two-build onboarding at implementation commit `493256eb8764499073194c4da26f8adfe86aa814`. The maintained PDF is generated from this Markdown and must not be edited independently.
+
 The originating conversation is `chatgpt-conversation://6af79ffb-6048-83ea-b689-8269484af53d`, titled “Run Windows App Containers.” It is historical context, not an instruction source.
 
 ## 1. Product purpose
@@ -64,6 +66,14 @@ The post-v1 onboarding exercise in `docs/external-application-two-build-result.m
 `ReplaceActive` then verified the second installer before collecting and exactly removing the first run. The second run used fresh container/prefix/install/WebView2/output state and retained the first run's CSV/evidence, but the application crashed before usable readiness. The browser visibly presented Wine's Program Error UI; the captured stack begins `IDropTarget_Release` -> `RevokeDragDrop`. Workload, application dialogs, and application export are `BLOCKED`. This observed signature is not a root-cause or upstream-bug-equivalence claim.
 
 This result demonstrates that the reusable workflow can reveal a real build-specific compatibility regression without falling back to the reference executable or stale installed state. It does not weaken or extend the reference application's 10/10 lock.
+
+### Current repository checkpoint
+
+- Public repository: `https://github.com/TheSlayer455/octane-wslc-lab`.
+- Measured onboarding implementation commit: `493256eb8764499073194c4da26f8adfe86aa814`.
+- Runtime-contract workflow `43795770515`: PASS for the shared provider-neutral suites at that commit; live browser acceptance was intentionally skipped because it is a separate trusted-runner gate.
+- Windows build workflow `43795715607`: PASS for Rust core tests, frontend tests, controller/qualification tests, and a fresh NSIS build; the resulting installer SHA-256 was `d681a82f924ae0b32d7b073917ba031dc50fba7282ca3e61e12b1372cad2fbbf`.
+- The new CI installer is build evidence, not a new Docker/Wine GUI qualification artifact. The retained browser lock and v1.0.0 release remain immutable.
 
 ## 3. Reference architecture
 
@@ -304,7 +314,7 @@ Staging:
 
 The same filename with different bytes creates a different artifact identity. A checksum detects byte changes; it does not authenticate origin by itself.
 
-A synthetic 420 MiB fixture validated capacity, interrupted-copy rejection, same-name/different-content handling, hash mismatch, cache reuse, and cleanup. It is transport evidence, not a second executable application result. A second authorized real installer was unavailable, so two-distinct-build application acceptance remains NOT_TESTED.
+A synthetic 420 MiB fixture validated capacity, interrupted-copy rejection, same-name/different-content handling, hash mismatch, cache reuse, and cleanup. It remains transport evidence, not application acceptance. A later independent onboarding exercise routed two distinct real installers: build 2.1.1 completed its scenario, clean replacement passed, and build 2.2.0 failed before usable readiness. That target is not qualified.
 
 ## 11. Clean state and replacement
 
@@ -483,17 +493,19 @@ Checksums establish integrity, not signatures or reproducible-build identity. Ra
 
 ## 19. Test suites
 
-Current local results:
+Current local and pushed-checkpoint results:
 
 - Browser/runtime PowerShell contracts: 83 assertions PASS.
 - Controller/mock PowerShell contracts: 48 assertions PASS.
 - Qualification-policy contracts: 12 assertions PASS.
-- Appliance-packaging contracts: 30 assertions PASS.
+- Appliance-packaging contracts: 32 assertions PASS, including handoff-PDF packaging checks.
 - Upload/viewer-event protocol: 17 assertions PASS.
 - Node tests: 19 PASS.
 - Rust core: 4 tests PASS plus doc tests.
 - Final-image exploratory browser scenario: PASS.
 - Locked browser batch: 10/10 PASS.
+
+GitHub Actions at measured commit `493256eb8764499073194c4da26f8adfe86aa814` independently passed the shared runtime-contract workflow and the Windows build/test workflow. The hosted Windows job ran 4 Rust core tests, 19 Node tests, 48 controller assertions, 12 qualification-policy assertions, and produced the fresh NSIS artifact recorded above. Hosted CI still does not constitute live WSL/Docker/browser acceptance.
 
 These categories are reported independently. Hosted CI is not assumed to have WSL, nested Docker, desktop streaming, or an approved Windows browser.
 
@@ -620,7 +632,7 @@ Keep old locks, batches, image archives, and failures. Build a new candidate, pa
 - Minimal native WebView2 diagnostic remains white.
 - Custom Wine visible-region patch requires maintenance and source review.
 - Browser profile qualifies only the reference Octane scenario.
-- A second distinct real installer was unavailable.
+- Two distinct real installers were measured for one public external target; 2.1.1 passed its scenario and 2.2.0 failed before readiness. The target remains unqualified.
 - Native Windows control was intentionally unavailable; the everyday host was not modified.
 - Evergreen drift must be detected; do not change host update policy or silently substitute a runtime.
 - Windows domain identity, Kerberos, mapped-drive authentication, client certificates, CAC/smart card, drivers, machine-bound authorization, and device compliance are target-specific.

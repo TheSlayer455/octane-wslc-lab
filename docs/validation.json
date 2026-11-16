@@ -1,6 +1,6 @@
 {
   "guideRevision": 13,
-  "reconciledAtUtc": "2026-11-16T02:55:01Z",
+  "reconciledAtUtc": "2026-11-16T14:44:11Z",
   "summary": "Historical RDP qualification remains preserved for its exact lock. Browser-only Octane acceptance is independently qualified 10/10 under lock db5babdf10bb9c3aef12731c398a75437d280385799512e1b92838f028d68249 and batch browser-qbatch-06f2a54afe0c. A separate two-build onboarding exercise then proved unchanged-installer intake, browser interaction, native dialogs/export, retained evidence, and clean replacement for one independent public Tauri application: 2.1.1 passed its scenario, while 2.2.0 crashed before usable readiness. The external target is not qualified. The reference result still does not generalize to the white minimal probe, stock Wine, arbitrary installers, or Windows identity/network parity.",
   "verdict": "QUALIFIED_EXACT_10_OF_10_UNATTENDED_FRESH_PREFIX_CONTRACT",
   "technicalFeasibility": "demonstrated",
@@ -115,6 +115,9 @@
   "currentRevision12GuidePages": 48,
   "currentRevision13GuideSha256": "b19db848d9169e632a3d63bd678904a6df724ef281eb776e521ae1bd171f032d",
   "currentRevision13GuidePages": 48,
+  "currentHandoffPdfSha256": "108b0e3b53fc68566f376bc8d07c4c0cc78bd52ac66385f9928caf97620297c6",
+  "currentHandoffPdfPages": 16,
+  "currentHandoffPdfSource": "docs/OCTANE-AI-HANDOFF.md",
   "windowsBuild": "Historical PASS: Windows Server 2022 run 43560204604 on implementation commit 61991552b7d2cb278e8d11d39b01795e9260d4cb. That build is not the Wine-tested installer. No new native-Windows GUI qualification was available in this iteration.",
   "runUrl": "https://github.com/TheSlayer455/octane-wslc-lab/actions/runs/43560204604",
   "measuredInstallerRunUrl": "https://github.com/TheSlayer455/octane-wslc-lab/actions/runs/43540018084",
@@ -264,7 +267,7 @@
   "exportAcceptance": "PASS 10/10: Unicode-path, missing-input, and standard workload reports were produced through the GUI; the main JSON independently validated; the pre-existing destination and every input hash remained unchanged.",
   "repeatabilityAcceptance": "Historical RDP PASS 10/10 under lock 0137c535f4eb0d15c12628801020b71f1952a18c65c524b7ac26874f6e6377c1. Browser-only PASS 10/10 under lock db5babdf10bb9c3aef12731c398a75437d280385799512e1b92838f028d68249 and batch browser-qbatch-06f2a54afe0c. Earlier failures remain retained and were not promoted.",
   "webviewAcceptance": "PASS for installed Octane under the exact locked profile: normal initial presentation occurred in 19.000-19.084 seconds in all ten runs without resize/minimize/restore readiness manipulation. The separate minimal native WebView2 probe remains a white-client FAIL and is not rewritten by the Octane result.",
-  "scriptVerification": "PASS locally: 19 Node tests, 48 mocked PowerShell assertions, 12 qualification-policy assertions, 83 browser/runtime assertions, 30 appliance-packaging assertions, 17 direct upload/viewer-event protocol assertions, and 4 Rust core tests plus doc tests. Bash/Python/Node/PowerShell parsing, independent JSON validation, and git diff checks also passed. Static/mock/component results remain separate from live browser qualification and external-application scenario evidence.",
+  "scriptVerification": "PASS: 19 Node tests, 48 mocked PowerShell assertions, 12 qualification-policy assertions, 83 browser/runtime assertions, 32 appliance-packaging assertions including handoff-PDF distribution checks, 17 direct upload/viewer-event protocol assertions, and 4 Rust core tests plus doc tests. Runtime-contract Actions run 43795770515 and Windows build/test run 43795715607 passed at implementation commit 493256eb8764499073194c4da26f8adfe86aa814. Static/mock/component/build results remain separate from live browser qualification and external-application scenario evidence.",
   "security": {
     "exceptions": [
       "Historical RDP qualification only: FreeRDP /cert:ignore for the per-run self-signed XRDP certificate on a localhost-only published port. The browser candidate does not use this exception."

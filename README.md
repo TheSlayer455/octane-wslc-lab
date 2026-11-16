@@ -11,7 +11,7 @@ Octane installs an unchanged Windows x64 installer inside a fresh Docker/Wine co
 
 The browser batch used ten predeclared, sequential fresh containers and Wine prefixes. All ten passed authenticated noVNC negotiation, changing browser framebuffer evidence, browser-originated pointer/keyboard/wheel input, normal initial rendering, the real Rust workload, native open/save dialogs, independent JSON validation, input integrity, no-RDP checks, evidence collection, and exact cleanup. No repaint helper, application relaunch, hidden scenario retry, manual action, or manual promotion was used.
 
-See [the qualification summary](docs/browser-qualification-summary.json), [independent two-build result](docs/external-application-two-build-result.md), [compatibility matrix](docs/compatibility-matrix.md), and [single AI/operator handoff](docs/OCTANE-AI-HANDOFF.md).
+See [the qualification summary](docs/browser-qualification-summary.json), [independent two-build result](docs/external-application-two-build-result.md), [compatibility matrix](docs/compatibility-matrix.md), and the canonical AI/operator handoff in [Markdown](docs/OCTANE-AI-HANDOFF.md) or [PDF](docs/OCTANE-AI-HANDOFF.pdf).
 
 Public release: [Octane v1.0.0 — Browser appliance](https://github.com/TheSlayer455/octane-wslc-lab/releases/tag/v1.0.0). Download all three package assets and follow `v1.0.0-release-assets.json`; GitHub's server-side digests match the locally recorded SHA-256 values.
 
@@ -129,7 +129,7 @@ The current local verification consists of:
 - 83 browser/runtime PowerShell assertions.
 - 48 controller/mock assertions.
 - 12 qualification-policy assertions.
-- 30 appliance-packaging assertions.
+- 32 appliance-packaging assertions.
 - 17 upload/telemetry protocol assertions.
 - 19 Node tests.
 - 4 Rust core tests plus doc tests.

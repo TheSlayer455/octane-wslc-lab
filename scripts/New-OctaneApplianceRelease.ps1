@@ -38,7 +38,7 @@ try{
         Copy-Item -LiteralPath (Join-Path $root "packaging/windows/$name") -Destination (Join-Path $output $name)
     }
     Copy-Item -LiteralPath (Join-Path $root 'templates/example-app/app.json') -Destination (Join-Path $output 'profiles/windows-tauri.json')
-    foreach($name in @('OCTANE-AI-HANDOFF.md','BROWSER-CANDIDATE-QUICKSTART.md','Octane-Complete-Guide.pdf','THIRD-PARTY-NOTICES.md')){
+    foreach($name in @('OCTANE-AI-HANDOFF.md','OCTANE-AI-HANDOFF.pdf','BROWSER-CANDIDATE-QUICKSTART.md','Octane-Complete-Guide.pdf','THIRD-PARTY-NOTICES.md')){
         Copy-Item -LiteralPath (Join-Path $root "docs/$name") -Destination (Join-Path $output "docs/$name")
     }
     $runtimeChecksums=Join-Path $output 'runtime/checksums.sha256'

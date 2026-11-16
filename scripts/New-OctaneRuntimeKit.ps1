@@ -36,7 +36,7 @@ try{
     )
     foreach($script in $scripts){Copy-Item -LiteralPath (Join-Path $root "scripts/$script") -Destination (Join-Path $destination "scripts/$script")}
     New-Item -ItemType Directory -Path (Join-Path $destination 'docs') -Force | Out-Null
-    foreach($document in @('OCTANE-AI-HANDOFF.md','BROWSER-CANDIDATE-QUICKSTART.md','browser-qualification-summary.json','runtime-completion-ledger.md','compatibility-matrix.md','research-evidence-ledger.md','validation.json','Octane-Complete-Guide.pdf','THIRD-PARTY-NOTICES.md')){
+    foreach($document in @('OCTANE-AI-HANDOFF.md','OCTANE-AI-HANDOFF.pdf','BROWSER-CANDIDATE-QUICKSTART.md','browser-qualification-summary.json','runtime-completion-ledger.md','compatibility-matrix.md','research-evidence-ledger.md','validation.json','Octane-Complete-Guide.pdf','THIRD-PARTY-NOTICES.md')){
         $source=Join-Path $root "docs/$document"
         if(Test-Path -LiteralPath $source){Copy-Item -LiteralPath $source -Destination (Join-Path $destination "docs/$document")}
     }
