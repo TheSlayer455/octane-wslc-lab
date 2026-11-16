@@ -7,8 +7,11 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 COPY lab/browser/octane-browser-session /usr/local/bin/octane-browser-session
+COPY lab/browser/octane-upload-server /usr/local/bin/octane-upload-server
 COPY lab/browser/octane-target /usr/local/bin/octane-target
-RUN chmod 755 /usr/local/bin/octane-browser-session /usr/local/bin/octane-target \
+COPY lab/browser/octane.html /opt/novnc/octane.html
+RUN chmod 755 /usr/local/bin/octane-browser-session /usr/local/bin/octane-upload-server /usr/local/bin/octane-target \
+    && install -d -m 0555 -o root -g root /opt/octane/empty-z-drive \
     && jq '.desktop="TigerVNC Xvnc/XFCE" | .displayServer="tigervnc-xvnc" | .vncServer="TigerVNC Xvnc"' \
        /opt/octane/browser-transport.json > /opt/octane/browser-transport.json.new \
     && mv /opt/octane/browser-transport.json.new /opt/octane/browser-transport.json

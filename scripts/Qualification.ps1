@@ -17,6 +17,65 @@ function Get-OctaneQualificationCriticalFiles {
     )
 }
 
+function Get-OctaneBrowserQualificationCriticalFiles {
+    @(
+        'automation/browser/octane-reference-scenario.mjs',
+        'automation/browser/package-lock.json',
+        'lab/Dockerfile.browser-xvnc',
+        'lab/browser/octane-browser-session',
+        'lab/browser/octane-target',
+        'lab/browser/octane-upload-server',
+        'lab/browser/octane.html',
+        'profiles/applications/octane-reference.app.json',
+        'schemas/application-profile.schema.json',
+        'scripts/Collect-OctanePreview.ps1',
+        'scripts/Invoke-OctaneBrowserQualificationBatch.ps1',
+        'scripts/Invoke-OctaneBrowserReferenceScenario.ps1',
+        'scripts/New-OctaneBrowserCandidateLock.ps1',
+        'scripts/Qualification.ps1',
+        'scripts/Start-OctanePreview.ps1',
+        'scripts/Stop-OctaneLab.ps1',
+        'scripts/Test-OctaneBrowserComponents.ps1',
+        'scripts/Validate-OctaneReport.ps1'
+    )
+}
+
+function Get-OctaneBrowserQualificationFileManifest {
+    [CmdletBinding()]
+    param([Parameter(Mandatory=$true)][string]$RepositoryRoot)
+    foreach ($relative in Get-OctaneBrowserQualificationCriticalFiles) {
+        $path = Join-Path $RepositoryRoot $relative
+        if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "Browser qualification input is missing: $relative" }
+        [ordered]@{
+            path = $relative.Replace('\','/')
+            sha256 = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant()
+        }
+    }
+}
+
+function Assert-OctaneBrowserQualificationLockFiles {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)]$Lock,
+        [Parameter(Mandatory=$true)][string]$RepositoryRoot
+    )
+    if ([int]$Lock.schemaVersion -ne 1 -or [string]$Lock.kind -ne 'browser-candidate-lock') { throw 'The browser qualification lock identity is invalid.' }
+    if ([string]$Lock.status -ne 'candidate-ready-for-qualification') { throw "Browser lock is not ready for qualification: $($Lock.status)" }
+    if ([int]$Lock.qualification.plannedRuns -ne 10) { throw 'Browser qualification lock must declare exactly ten planned runs.' }
+    foreach ($entry in @($Lock.harness.files)) {
+        $path = Join-Path $RepositoryRoot ([string]$entry.path)
+        if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "Locked browser harness file is missing: $($entry.path)" }
+        $actual = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant()
+        if ($actual -ne ([string]$entry.sha256).ToLowerInvariant()) { throw "Browser qualification lock drift: $($entry.path)" }
+    }
+    foreach ($entry in @($Lock.fixtures.files)) {
+        $path = Join-Path $RepositoryRoot ([string]$entry.path)
+        if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "Locked browser fixture is missing: $($entry.path)" }
+        $actual = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant()
+        if ($actual -ne ([string]$entry.sha256).ToLowerInvariant()) { throw "Browser qualification fixture drift: $($entry.path)" }
+    }
+}
+
 function Get-OctaneQualificationFileManifest {
     [CmdletBinding()]
     param([Parameter(Mandatory=$true)][string]$RepositoryRoot)

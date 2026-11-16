@@ -22,6 +22,7 @@
     "windowTitleRegex": "^Example App$",
     "readinessTimeoutSeconds": 180,
     "readinessStabilitySeconds": 90,
+    "visualReadinessMinColors": 0,
     "webView2": {
       "required": true,
       "distribution": "installer-managed",

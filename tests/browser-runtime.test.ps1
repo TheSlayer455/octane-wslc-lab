@@ -120,7 +120,35 @@ try{
     Check ($target -match 'WebView2 drift') 'Target launcher must fail visibly on a declared WebView2 version mismatch.'
     Check ($target -match 'wait_stable' -and $target -match 'application-stability\.json') 'Target launcher must implement an attributable sustained-readiness gate.'
     Check ($target -match 'relaunchUsed:false' -and $target -match 'forcedRepaintUsed:false') 'Sustained readiness evidence must explicitly exclude relaunch and forced repaint.'
+    Check ($target -match 'OCTANE_APPLICATION_WINEDEBUG:--all,\+timestamp,\+seh' -and $target -match 'application-launch\.json') 'Target launch must use and record bounded Wine exception logging rather than the recursive default fixme stream.'
+    Check ($target -match 'OCTANE_RESTRICTED_Z_ROOT' -and $target -match 'restrictedWineZDriveAvailable:true' -and $target -match 'broadWineZDriveAvailableToInstalledApplication:false') 'Installed targets must receive the empty restricted Z: compatibility drive rather than Wine access to the Unix root.'
+    Check ($target -match 'end_installer_session' -and $target -match 'wineboot --end-session --force') 'The completed installer must be separated from first application launch by a bounded Wine session end.'
+    Check ($target -match 'wineserver -k' -and $target -match 'installer-session-boundary\.json') 'The prefix-scoped forced termination fallback and its evidence must be explicit.'
+    Check ($target -match 'applicationLaunchAttempted:false') 'Installer-session boundary evidence must state that it is not an application launch retry.'
+    Check ($target -match 'OCTANE_READINESS_ACQUISITION_HOLD_SECONDS' -and $target -match 'readinessAcquisitionSeconds' -and $target -match 'ready_since=0') 'Readiness must be continuously acquired before the measured stability clock begins.'
+    Check ($target -match 'a later disappearance remains an' -and $target -match 'immediate measured failure') 'The readiness acquisition grace must not weaken the measured stability interval.'
+    Check ($target -match 'visualReadinessMinColors' -and $target -match 'measure_window_colors' -and $target -match 'native-readiness-acquired\.png') 'Reference readiness must wait for a visibly rich client before measuring sustained stability.'
+    $componentScript=Get-Content -LiteralPath (Join-Path $root 'scripts/Test-OctaneBrowserComponents.ps1') -Raw
+    Check ($componentScript -match 'pgrep -x Xtigervnc' -and $componentScript -match 'SecurityTypes VncAuth') 'Browser component checks must validate authenticated integrated Xvnc as well as the archived x11vnc profile.'
+    $viewer=Get-Content -LiteralPath (Join-Path $root 'lab/browser/octane.html') -Raw
+    $uploadServer=Get-Content -LiteralPath (Join-Path $root 'lab/browser/octane-upload-server') -Raw
+    Check ($viewer -match "postViewerEvent\('vnc-negotiated'" -and $viewer -match "postViewerEvent\('browser-input'" -and $viewer -match "postViewerEvent\('browser-frame'") 'The viewer must submit authenticated negotiation, input, and browser-canvas frame evidence.'
+    Check ($uploadServer -match 'VIEWER_EVENT_TYPES' -and $uploadServer -match 'viewer-events\.json' -and $uploadServer -match 'secret-bearing-event-rejected') 'The scoped upload service must validate, redact, and persist bounded viewer evidence.'
+    $browserScenario=Get-Content -LiteralPath (Join-Path $root 'automation/browser/octane-reference-scenario.mjs') -Raw
+    $browserWrapper=Get-Content -LiteralPath (Join-Path $root 'scripts/Invoke-OctaneBrowserReferenceScenario.ps1') -Raw
+    Check ($browserScenario -match "open-dialog-for-eight-file-selection" -and $browserScenario -match "browser-qualified-report\.json" -and $browserScenario -match "browser-wheel-scroll") 'The trusted browser scenario must drive real input, dialogs, export, and scrolling through noVNC.'
+    Check ($browserWrapper -match 'Validate-OctaneReport\.ps1' -and $browserWrapper -match "browserEndToEndStatus='PASS'" -and $browserWrapper -match 'manualOperatorActions=0') 'Browser PASS must require machine validation and remain separate from manual observation.'
+    $browserBatch=Get-Content -LiteralPath (Join-Path $root 'scripts/Invoke-OctaneBrowserQualificationBatch.ps1') -Raw
+    $browserLock=Get-Content -LiteralPath (Join-Path $root 'scripts/New-OctaneBrowserCandidateLock.ps1') -Raw
+    Check ($browserBatch -match 'plannedRunIds' -and $browserBatch -match '1\.\.10' -and $browserBatch -match 'scenarioAttempts=1') 'Browser qualification must predeclare ten run identities and allow exactly one scenario attempt per fresh run.'
+    Check ($browserBatch -match 'Start-OctanePreview\.ps1' -and $browserBatch -match 'Invoke-OctaneBrowserReferenceScenario\.ps1' -and $browserBatch -match 'Collect-OctanePreview\.ps1' -and $browserBatch -match 'Stop-OctaneLab\.ps1') 'Browser qualification must use the shared fresh-preview, browser-scenario, collection, and exact-cleanup lifecycle.'
+    Check ($browserBatch -notmatch 'Review-OctaneApplicationExperiment' -and $browserBatch -match 'manualOverrides' -and $browserBatch -match 'forcedRepaintUsed') 'Browser qualification must reject manual promotion and repaint/retry evidence.'
+    Check ($browserLock -match "status='candidate-ready-for-qualification'" -and $browserLock -match 'tigervnc-xvnc' -and $browserLock -match 'Get-OctaneBrowserQualificationFileManifest') 'Browser lock generation must freeze the integrated-Xvnc image and executable harness before a batch.'
+    Check ($preview -match '\[string\]\$RunId' -and $preview -match 'Run identity is already in use') 'Preview startup must accept a predeclared collision-resistant qualification identity without reusing an old run.'
     Check ($preview -match "octane-target','wait-stable" -and $preview -match 'readinessStabilitySeconds') 'Preview startup must enforce the profile-locked sustained-readiness interval.'
+    $stableCall=$preview.IndexOf("octane-target','wait-stable")
+    $webViewCall=$preview.IndexOf("octane-target','webview2")
+    Check ($stableCall -ge 0 -and $webViewCall -ge 0 -and $stableCall -lt $webViewCall) 'Preview startup must complete sustained readiness before WebView2 path inspection starts another Wine process.'
     Check ($preview -match 'useXvfb=if\(\$displayServer -eq ''xvfb''\)' -and $preview -match 'USE_XVFB=\$useXvfb') 'Preview startup must not silently start Xvfb for a separately identified display candidate.'
     $referenceProfile=Get-Content -LiteralPath (Join-Path $root 'profiles/applications/octane-reference.app.json') -Raw | ConvertFrom-Json
     Check ([int]$referenceProfile.application.readinessStabilitySeconds -ge 90) 'The retained reference profile must observe readiness beyond the delayed failure seen in browser smoke testing.'
@@ -133,6 +161,8 @@ try{
     Check ($xorgEntrypoint -notmatch '(?m)^[^#\r\n]*(?:xrdp|xfreerdp|freerdp)') 'Standalone Xorg candidate must not invoke an RDP component.'
     $xvncDockerfile=Get-Content -LiteralPath (Join-Path $root 'lab/Dockerfile.browser-xvnc') -Raw
     Check ($xvncDockerfile -match 'tigervnc-standalone-server' -and $xvncDockerfile -match 'browser-rdp-required="false"') 'Integrated Xvnc candidate must be reproducible and retain the no-RDP identity.'
+    Check ($xvncDockerfile -match 'install -d -m 0555 -o root -g root /opt/octane/empty-z-drive') 'Integrated Xvnc must provide an immutable empty Z: compatibility root.'
+    Check ($xvncDockerfile -match 'octane-upload-server' -and $xvncDockerfile -match 'octane\.html /opt/novnc/octane\.html') 'Integrated Xvnc must carry the current authenticated viewer/evidence implementation rather than a stale base-image copy.'
 
     $scriptText=(Get-ChildItem -LiteralPath (Join-Path $root 'scripts') -Filter '*.ps1' | ForEach-Object {Get-Content -LiteralPath $_.FullName -Raw}) -join "`n"
     Check ($scriptText -notmatch '\bInvoke-Expression\b') 'Controller must not use Invoke-Expression.'

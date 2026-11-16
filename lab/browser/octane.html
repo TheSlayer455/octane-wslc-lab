@@ -73,6 +73,10 @@
     let pendingCredential = '';
     let uploadCredential = '';
     let uploadUrl = null;
+    let sessionRunId = null;
+    let inputFlushTimer = null;
+    let frameTimer = null;
+    const inputCounts = { pointer: 0, keyboard: 0, wheel: 0 };
 
     function record(state, label) {
       stateNode.dataset.state = state;
@@ -89,6 +93,7 @@
         const response = await fetch('./octane-session.json', { cache: 'no-store' });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const value = await response.json();
+        sessionRunId = value.runId;
         sessionNode.textContent = `run ${value.runId} · ${value.display} · ${value.resolution}`;
         if (value.uploadUrl) {
           const candidate = new URL(value.uploadUrl);
@@ -103,6 +108,61 @@
         sessionNode.textContent = 'Session identity unavailable';
       }
     }
+
+    async function postViewerEvent(event, detail = {}) {
+      if (!uploadUrl || !uploadCredential) return;
+      const endpoint = new URL('/viewer-event', uploadUrl);
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${uploadCredential}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ event, runId: sessionRunId, detail }),
+        cache: 'no-store',
+      });
+      if (!response.ok) throw new Error(`Viewer evidence HTTP ${response.status}`);
+    }
+
+    async function captureBrowserFrame(reason) {
+      const canvas = screenNode.querySelector('canvas');
+      if (!canvas || canvas.width < 1 || canvas.height < 1) return;
+      const context = canvas.getContext('2d', { willReadFrequently: true });
+      if (!context) return;
+      const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+      const digest = await crypto.subtle.digest('SHA-256', pixels.buffer);
+      const sha256 = Array.from(new Uint8Array(digest), value => value.toString(16).padStart(2, '0')).join('');
+      const colors = new Set();
+      const pixelCount = canvas.width * canvas.height;
+      const stride = Math.max(1, Math.floor(pixelCount / 4096));
+      for (let pixel = 0; pixel < pixelCount; pixel += stride) {
+        const offset = pixel * 4;
+        colors.add(`${pixels[offset]},${pixels[offset + 1]},${pixels[offset + 2]},${pixels[offset + 3]}`);
+      }
+      await postViewerEvent('browser-frame', {
+        reason,
+        canvasWidth: canvas.width,
+        canvasHeight: canvas.height,
+        sampledUniqueColors: colors.size,
+        rgbaSha256: sha256,
+      });
+    }
+
+    function scheduleFrame(reason) {
+      clearTimeout(frameTimer);
+      frameTimer = setTimeout(() => captureBrowserFrame(reason).catch(error => console.warn('octane-viewer-frame-evidence', error)), 650);
+    }
+
+    function observeBrowserInput(kind) {
+      if (!rfb || !loginNode.hidden) return;
+      inputCounts[kind] += 1;
+      clearTimeout(inputFlushTimer);
+      inputFlushTimer = setTimeout(() => {
+        postViewerEvent('browser-input', { ...inputCounts }).catch(error => console.warn('octane-viewer-input-evidence', error));
+        scheduleFrame('after-browser-input');
+      }, 250);
+    }
+
+    screenNode.addEventListener('pointerdown', () => observeBrowserInput('pointer'), true);
+    screenNode.addEventListener('wheel', () => observeBrowserInput('wheel'), true);
+    document.addEventListener('keydown', () => observeBrowserInput('keyboard'), true);
 
     form.addEventListener('submit', (event) => {
       event.preventDefault();
@@ -137,6 +197,8 @@
         if (uploadUrl) uploadStatus.textContent = 'Ready for explicit file selection';
         loginNode.hidden = true;
         record('vnc-negotiated', 'VNC negotiated; application readiness unverified');
+        postViewerEvent('vnc-negotiated', { displayTarget: 'noVNC canvas' }).catch(error => console.warn('octane-viewer-connect-evidence', error));
+        scheduleFrame('after-vnc-negotiation');
       });
       rfb.addEventListener('disconnect', (event) => {
         pendingCredential = '';

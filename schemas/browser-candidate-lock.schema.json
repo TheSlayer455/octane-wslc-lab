@@ -4,13 +4,38 @@
   "title": "Octane browser candidate lock",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schemaVersion", "kind", "status", "createdAtUtc", "identities", "runtime", "browser", "host", "security", "qualification"],
+  "required": ["schemaVersion", "kind", "status", "createdAtUtc", "identities", "harness", "fixtures", "runtime", "browser", "host", "security", "qualification"],
   "properties": {
     "schemaVersion": { "const": 1 },
     "kind": { "const": "browser-candidate-lock" },
-    "status": { "const": "candidate-end-to-end-blocked" },
+    "status": { "enum": ["candidate-end-to-end-blocked", "candidate-ready-for-qualification", "qualified"] },
     "createdAtUtc": { "type": "string", "format": "date-time" },
     "identities": { "type": "object" },
+    "harness": {
+      "type": "object",
+      "required": ["files"],
+      "properties": {
+        "files": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["path", "sha256"],
+            "properties": {
+              "path": { "type": "string", "minLength": 1 },
+              "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+            }
+          }
+        }
+      }
+    },
+    "fixtures": {
+      "type": "object",
+      "required": ["files"],
+      "properties": {
+        "files": { "type": "array", "minItems": 1 }
+      }
+    },
     "runtime": { "type": "object" },
     "browser": { "type": "object" },
     "host": { "type": "object" },

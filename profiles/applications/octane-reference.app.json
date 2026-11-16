@@ -22,6 +22,7 @@
     "windowTitleRegex": "Octane.*File analysis lab",
     "readinessTimeoutSeconds": 180,
     "readinessStabilitySeconds": 90,
+    "visualReadinessMinColors": 100,
     "webView2": {
       "required": true,
       "distribution": "evergreen",

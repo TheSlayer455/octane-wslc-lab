@@ -48,8 +48,33 @@ foreach($expected in $mountContract){
 $processCheck=Invoke-ContainerCheck 'processes' "ps -eo pid,ppid,user,comm,args; if pgrep -af '(^|/)(xrdp|xrdp-sesman|xfreerdp|wlfreerdp)( |$)'; then exit 9; fi"
 $listenerCheck=Invoke-ContainerCheck 'listeners' "ss -lntp; ! ss -lntH | grep -Eq ':(3389|3350)([[:space:]]|$)'"
 $vncListenerCheck=Invoke-ContainerCheck 'vnc-loopback' 'listeners=$(ss -lntH "( sport = :5901 )"); test -n "$listeners"; printf "%s\n" "$listeners"; ! printf "%s\n" "$listeners" | awk ''{print $4}'' | grep -Ev ''^(127\.0\.0\.1:5901|\[::1\]:5901)$'''
-$displayCheck=Invoke-ContainerCheck 'display' 'test "$DISPLAY" = :1 && test -S /tmp/.X11-unix/X1 && xdpyinfo -display :1 | grep -F "dimensions:    1280x800 pixels" && pgrep -af "x11vnc.*-display :1" && pgrep -af "websockify.*0.0.0.0:3000.*127.0.0.1:5901" && pgrep -af "octane-upload-server"'
-$authCheck=Invoke-ContainerCheck 'authentication' 'test -s /run/octane/viewer-password && pid=$(pgrep -x x11vnc | head -n 1) && tr "\000" " " < "/proc/$pid/cmdline" | grep -F -- "-passwdfile /run/octane/viewer-password" && ! tr "\000" " " < "/proc/$pid/cmdline" | grep -F -- "-nopw"'
+$displayCheck=Invoke-ContainerCheck 'display' @'
+test "$DISPLAY" = :1 &&
+test -S /tmp/.X11-unix/X1 &&
+xdpyinfo -display :1 | grep -F "dimensions:    1280x800 pixels" &&
+if pid=$(pgrep -x Xtigervnc | head -n 1) && test -n "$pid"; then
+    tr "\000" " " < "/proc/$pid/cmdline" | grep -F -- "Xtigervnc :1" &&
+    tr "\000" " " < "/proc/$pid/cmdline" | grep -F -- "-rfbport 5901" &&
+    tr "\000" " " < "/proc/$pid/cmdline" | grep -F -- "-localhost yes"
+else
+    pgrep -af "x11vnc.*-display :1"
+fi &&
+pgrep -af "websockify.*0.0.0.0:3000.*127.0.0.1:5901" &&
+pgrep -af "octane-upload-server"
+'@
+$authCheck=Invoke-ContainerCheck 'authentication' @'
+test -s /run/octane/viewer-password &&
+if pid=$(pgrep -x Xtigervnc | head -n 1) && test -n "$pid"; then
+    test -s /home/wineuser/.octane/vnc-password &&
+    tr "\000" " " < "/proc/$pid/cmdline" | grep -F -- "-SecurityTypes VncAuth" &&
+    tr "\000" " " < "/proc/$pid/cmdline" | grep -F -- "-PasswordFile /home/wineuser/.octane/vnc-password" &&
+    ! tr "\000" " " < "/proc/$pid/cmdline" | grep -F -- "SecurityTypes None"
+else
+    pid=$(pgrep -x x11vnc | head -n 1) && test -n "$pid" &&
+    tr "\000" " " < "/proc/$pid/cmdline" | grep -F -- "-passwdfile /run/octane/viewer-password" &&
+    ! tr "\000" " " < "/proc/$pid/cmdline" | grep -F -- "-nopw"
+fi
+'@
 $wineDisplayCheck=Invoke-ContainerCheck 'wine-display' 'app=$(jq -r ".unixPath" /home/wineuser/.octane/evidence/target/installed-executable.json); pid=""; for proc in /proc/[0-9]*; do test -r "$proc/cmdline" || continue; first=$(tr "\000" "\n" < "$proc/cmdline" | head -n 1); if test "$first" = "$app"; then pid=${proc##*/}; break; fi; done; test -n "$pid" && tr "\000" "\n" < "/proc/$pid/environ" | grep -Fx "DISPLAY=:1" && grep -F "winex11.drv" "/proc/$pid/maps"'
 
 $port=[int]$browserBindings[0].hostPort

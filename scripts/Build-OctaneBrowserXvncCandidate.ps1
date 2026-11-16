@@ -24,6 +24,8 @@ $context=ConvertTo-OctaneRuntimePath -Engine Docker -WslDistro $WslDistro -Path 
 $dockerfile=ConvertTo-OctaneRuntimePath -Engine Docker -WslDistro $WslDistro -Path (Join-Path $root 'lab/Dockerfile.browser-xvnc')
 $arguments=[Collections.Generic.List[string]]::new()
 foreach($value in @('build','--pull=false','--platform','linux/amd64','--build-arg',"BASE_IMAGE=$BaseImage",'-f',$dockerfile,'-t',$Image)){$arguments.Add($value)}
+$arguments.Add('--label');$arguments.Add("com.octanelab.browser-base-image-reference=$BaseImage")
+$arguments.Add('--label');$arguments.Add("com.octanelab.browser-base-image-id=$($base.Id)")
 if($HarnessCommit){$arguments.Add('--label');$arguments.Add("com.octanelab.harness-commit=$HarnessCommit")}
 $arguments.Add($context)
 $build=Invoke-OctaneRuntime -Engine Docker -WslDistro $WslDistro -Arguments $arguments.ToArray() -TimeoutSeconds 1800

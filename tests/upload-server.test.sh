@@ -28,6 +28,7 @@ origin='http://127.0.0.1:3005'
 
 OCTANE_UPLOAD_ROOT="$uploads" \
 OCTANE_UPLOAD_EVIDENCE="$evidence" \
+OCTANE_VIEWER_EVIDENCE="$evidence/viewer" \
 OCTANE_VIEWER_PASSWORD_FILE="$password_file" \
 OCTANE_UPLOAD_CONTAINER_PORT="$port" \
 OCTANE_UPLOAD_MAX_BYTES=64 \
@@ -53,6 +54,22 @@ status=$(curl -sS -o "$temporary/unauthorized.json" -w '%{http_code}' -H "Origin
 check '[[ "$status" = 401 ]]' 'authentication required'
 status=$(curl -sS -o "$temporary/bad-origin.json" -w '%{http_code}' -H 'Origin: http://example.invalid' -H 'Authorization: Bearer unit-test-secret' "http://127.0.0.1:$port/uploads")
 check '[[ "$status" = 403 ]]' 'unapproved origin rejected'
+
+status=$(curl -sS -o "$temporary/viewer-event.json" -w '%{http_code}' -X POST \
+    -H "Origin: $origin" -H 'Authorization: Bearer unit-test-secret' \
+    -H 'Content-Type: application/json' \
+    --data '{"event":"vnc-negotiated","runId":"unit-run","detail":{"displayTarget":"noVNC canvas"}}' \
+    "http://127.0.0.1:$port/viewer-event")
+check '[[ "$status" = 201 ]]' 'authenticated viewer event accepted'
+viewer_event=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["events"][0]["event"])' "$evidence/viewer/viewer-events.json")
+check '[[ "$viewer_event" = vnc-negotiated ]]' 'viewer event persisted to its bounded evidence file'
+status=$(curl -sS -o "$temporary/secret-event.json" -w '%{http_code}' -X POST \
+    -H "Origin: $origin" -H 'Authorization: Bearer unit-test-secret' \
+    -H 'Content-Type: application/json' \
+    --data '{"event":"browser-input","runId":"unit-run","detail":{"token":"must-not-persist"}}' \
+    "http://127.0.0.1:$port/viewer-event")
+check '[[ "$status" = 400 ]]' 'secret-bearing viewer detail rejected'
+check '! grep -R -F "must-not-persist" "$evidence" >/dev/null' 'rejected viewer secret absent from evidence'
 
 printf '%s' 'controlled input' > "$temporary/payload.bin"
 status=$(curl -sS -o "$temporary/upload.json" -w '%{http_code}' -X POST \

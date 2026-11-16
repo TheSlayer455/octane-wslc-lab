@@ -29,6 +29,7 @@ COPY lab/browser/octane-browser-session /usr/local/bin/octane-browser-session
 COPY lab/browser/octane-upload-server /usr/local/bin/octane-upload-server
 COPY lab/browser/octane-target /usr/local/bin/octane-target
 RUN ln -s /home/wineuser/.octane/browser-session.json /opt/novnc/octane-session.json \
+    && install -d -m 0555 -o root -g root /opt/octane/empty-z-drive \
     && chmod 755 /usr/local/bin/octane-browser-session /usr/local/bin/octane-upload-server /usr/local/bin/octane-target \
     && printf '{\n  "schemaVersion": 1,\n  "transport": "noVNC",\n  "noVncCommit": "%s",\n  "websockifyCommit": "%s",\n  "vncServer": "x11vnc",\n  "desktop": "Xvfb/XFCE",\n  "resolution": "1280x800x24",\n  "httpTls": false,\n  "authentication": "per-run RFB password",\n  "clipboard": false,\n  "remoteResize": false\n}\n' \
        "${NOVNC_COMMIT}" "${WEBSOCKIFY_COMMIT}" > /opt/octane/browser-transport.json

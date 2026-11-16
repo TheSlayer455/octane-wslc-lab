@@ -14,7 +14,9 @@ import json
 import os
 import re
 import tempfile
+import threading
 import unicodedata
+from datetime import datetime, timezone
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -33,6 +35,13 @@ PASSWORD_FILE = Path(
 )
 PORT = int(os.environ.get("OCTANE_UPLOAD_CONTAINER_PORT", "3002"))
 MAX_BYTES = int(os.environ.get("OCTANE_UPLOAD_MAX_BYTES", str(512 * 1024 * 1024)))
+MAX_VIEWER_EVENT_BYTES = 64 * 1024
+VIEWER_EVIDENCE = Path(
+    os.environ.get(
+        "OCTANE_VIEWER_EVIDENCE",
+        "/home/wineuser/.octane/evidence/browser-viewer",
+    )
+).resolve()
 ALLOWED_ORIGINS = {
     value for value in os.environ.get("OCTANE_VIEWER_ORIGINS", "").split() if value
 }
@@ -44,6 +53,9 @@ WINDOWS_DEVICES = {
     *(f"COM{i}" for i in range(1, 10)),
     *(f"LPT{i}" for i in range(1, 10)),
 }
+VIEWER_EVENT_TYPES = {"vnc-negotiated", "browser-frame", "browser-input"}
+VIEWER_EVENTS: list[dict[str, object]] = []
+VIEWER_EVENT_LOCK = threading.Lock()
 
 
 def atomic_json(path: Path, value: object) -> None:
@@ -172,6 +184,47 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
+        if parsed.path == "/viewer-event":
+            if not self._authorize():
+                return
+            try:
+                length = int(self.headers.get("Content-Length", "-1"))
+            except ValueError:
+                length = -1
+            if length < 2 or length > MAX_VIEWER_EVENT_BYTES:
+                self._json(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, {"error": "invalid-event-length"})
+                return
+            try:
+                value = json.loads(self.rfile.read(length))
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                self._json(HTTPStatus.BAD_REQUEST, {"error": "invalid-event-json"})
+                return
+            if not isinstance(value, dict) or value.get("event") not in VIEWER_EVENT_TYPES:
+                self._json(HTTPStatus.BAD_REQUEST, {"error": "invalid-event-type"})
+                return
+            detail = value.get("detail", {})
+            if not isinstance(detail, dict) or len(detail) > 24:
+                self._json(HTTPStatus.BAD_REQUEST, {"error": "invalid-event-detail"})
+                return
+            forbidden = {"password", "credential", "authorization", "token"}
+            if any(str(key).casefold() in forbidden for key in detail):
+                self._json(HTTPStatus.BAD_REQUEST, {"error": "secret-bearing-event-rejected"})
+                return
+            with VIEWER_EVENT_LOCK:
+                record = {
+                    "sequence": len(VIEWER_EVENTS) + 1,
+                    "receivedAtUtc": datetime.now(timezone.utc).isoformat(),
+                    "event": value["event"],
+                    "runId": value.get("runId"),
+                    "detail": detail,
+                }
+                VIEWER_EVENTS.append(record)
+                atomic_json(
+                    VIEWER_EVIDENCE / "viewer-events.json",
+                    {"schemaVersion": 1, "events": VIEWER_EVENTS},
+                )
+            self._json(HTTPStatus.CREATED, {"status": "recorded", "sequence": record["sequence"]})
+            return
         if parsed.path != "/upload":
             self._json(HTTPStatus.NOT_FOUND, {"error": "not-found"}, cors=False)
             return
@@ -242,6 +295,7 @@ def main() -> None:
         raise SystemExit("the per-run viewer password file is missing or empty")
     ROOT.mkdir(parents=True, exist_ok=True)
     EVIDENCE.mkdir(parents=True, exist_ok=True)
+    VIEWER_EVIDENCE.mkdir(parents=True, exist_ok=True)
     atomic_json(EVIDENCE / "upload-manifest.json", current_manifest())
     server = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
     server.daemon_threads = True

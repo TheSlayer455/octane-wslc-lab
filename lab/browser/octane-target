@@ -61,18 +61,79 @@ install_target() {
     if [[ "$rc" -eq 124 || "$rc" -eq 137 ]]; then echo 'Installer timed out.' >&2; exit 69; fi
     jq -e --argjson rc "$rc" '.installer.successCodes | index($rc) != null' "$profile" >/dev/null || { echo "Installer exit code $rc is not approved by the profile." >&2; exit 70; }
     # WebView2 updater descendants can remain alive after the NSIS parent has
-    # returned. Waiting for the entire Wine server here would turn a completed
-    # install into an unbounded lifecycle wait. Executable discovery below is
-    # the bounded postcondition for this stage.
+    # returned. First verify the durable install postconditions, then end the
+    # installer Wine session before the application is launched. Without this
+    # phase boundary, retained updater/browser state intermittently caused the
+    # first WebView2 browser process to exit even though an immediate launch in
+    # a new Wine session was stable. This is a prefix-scoped lifecycle action;
+    # it is not an application retry and cannot affect another run.
     discover_executable
+    end_installer_session
     # Wine needs its default Z: mapping to execute the immutable installer
-    # from the read-only Unix artifact mount.  Remove that broad mapping before
-    # the installed target is launched; normal file dialogs then receive only
-    # the declared C:\octane-input and C:\octane-output bridges.
+    # from the read-only Unix artifact mount. WebView2 also requires a valid Z:
+    # drive during initialization, but it does not require access to the Unix
+    # root. Replace the default mapping with an immutable, empty image-owned
+    # directory before target launch. Normal file dialogs then receive only
+    # this empty compatibility drive plus the declared C:\octane-input and
+    # C:\octane-output bridges.
+    restricted_z_root="${OCTANE_RESTRICTED_Z_ROOT:-/opt/octane/empty-z-drive}"
+    [[ -d "$restricted_z_root" ]] || { echo "Restricted Wine Z: root is missing: $restricted_z_root" >&2; exit 73; }
+    [[ ! -w "$restricted_z_root" ]] || { echo "Restricted Wine Z: root must not be writable by the target user: $restricted_z_root" >&2; exit 74; }
+    [[ -z "$(find "$restricted_z_root" -mindepth 1 -maxdepth 1 -print -quit)" ]] || { echo "Restricted Wine Z: root must be empty: $restricted_z_root" >&2; exit 75; }
     rm -f "$WINEPREFIX/dosdevices/z:"
+    ln -s "$restricted_z_root" "$WINEPREFIX/dosdevices/z:"
     jq -n --arg removedAtUtc "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-        '{schemaVersion:1,broadWineZDriveAvailableToInstalledApplication:false,removedAtUtc:$removedAtUtc}' \
+        --arg restrictedRoot "$restricted_z_root" \
+        '{schemaVersion:1,broadWineZDriveAvailableToInstalledApplication:false,restrictedWineZDriveAvailable:true,restrictedRoot:$restrictedRoot,restrictedRootWritable:false,restrictedRootEmpty:true,changedAtUtc:$removedAtUtc}' \
         > "$evidence_dir/application-drive-policy.json"
+}
+
+end_installer_session() {
+    local app_record="$evidence_dir/installed-executable.json"
+    local app_path app_hash_before app_hash_after expected_webview_version runtime_path
+    local clean_timeout clean_rc kill_rc wait_rc
+    app_path=$(jq -r '.unixPath' "$app_record")
+    app_hash_before=$(jq -r '.sha256' "$app_record")
+    [[ -f "$app_path" ]] || { echo 'Installed executable disappeared before the installer session boundary.' >&2; exit 79; }
+
+    expected_webview_version=$(jq -r '.application.webView2.expectedVersion // empty' "$profile")
+    runtime_path=''
+    if [[ "$(jq -r '.application.webView2.required' "$profile")" = true ]]; then
+        if [[ -n "$expected_webview_version" ]]; then
+            runtime_path="$WINEPREFIX/drive_c/Program Files (x86)/Microsoft/EdgeWebView/Application/$expected_webview_version/msedgewebview2.exe"
+        else
+            runtime_path=$(find "$WINEPREFIX/drive_c/Program Files (x86)/Microsoft/EdgeWebView/Application" -mindepth 2 -maxdepth 2 -type f -name msedgewebview2.exe -print -quit 2>/dev/null || true)
+        fi
+        [[ -n "$runtime_path" && -f "$runtime_path" ]] || { echo 'Required WebView2 runtime was not durable at the installer session boundary.' >&2; exit 80; }
+    fi
+
+    clean_timeout="${OCTANE_INSTALL_SESSION_END_TIMEOUT_SECONDS:-45}"
+    set +e
+    WINEDEBUG="${OCTANE_INSTALL_BOUNDARY_WINEDEBUG:--all,+timestamp,+seh}" \
+        timeout --signal=TERM --kill-after=10 "$clean_timeout" wineboot --end-session --force \
+        >"$evidence_dir/logs/installer-session-end.log" 2>&1
+    clean_rc=$?
+    wineserver -k >>"$evidence_dir/logs/installer-session-end.log" 2>&1
+    kill_rc=$?
+    timeout --signal=TERM --kill-after=5 30 wineserver -w >>"$evidence_dir/logs/installer-session-end.log" 2>&1
+    wait_rc=$?
+    set -e
+
+    app_hash_after=$(sha256sum "$app_path" | cut -d' ' -f1)
+    [[ "$app_hash_after" = "$app_hash_before" ]] || { echo 'Installed executable identity changed across the installer session boundary.' >&2; exit 81; }
+    [[ -z "$runtime_path" || -f "$runtime_path" ]] || { echo 'WebView2 runtime disappeared across the installer session boundary.' >&2; exit 82; }
+    [[ "$kill_rc" -eq 0 && "$wait_rc" -eq 0 ]] || { echo 'Wine installer session did not terminate within its bounded shutdown sequence.' >&2; exit 83; }
+    jq -n \
+        --arg endedAtUtc "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+        --arg installedExecutable "$app_path" \
+        --arg installedExecutableSha256 "$app_hash_after" \
+        --arg webView2Runtime "$runtime_path" \
+        --arg expectedWebView2Version "$expected_webview_version" \
+        --argjson cleanEndExitCode "$clean_rc" \
+        --argjson forcedServerTerminationExitCode "$kill_rc" \
+        --argjson waitExitCode "$wait_rc" \
+        '{schemaVersion:1,status:"PASS",scope:"current fresh Wine prefix only",endedAtUtc:$endedAtUtc,cleanEndAttempt:{exitCode:$cleanEndExitCode,timeoutOrForced:($cleanEndExitCode == 124 or $cleanEndExitCode == 137)},prefixServerTermination:{used:true,exitCode:$forcedServerTerminationExitCode,waitExitCode:$waitExitCode},installedExecutable:$installedExecutable,installedExecutableSha256:$installedExecutableSha256,webView2Runtime:($webView2Runtime|if length>0 then . else null end),expectedWebView2Version:($expectedWebView2Version|if length>0 then . else null end),applicationLaunchAttempted:false}' \
+        > "$evidence_dir/installer-session-boundary.json"
 }
 
 discover_executable() {
@@ -101,9 +162,15 @@ discover_executable() {
 launch_target() {
     app=$(discover_executable)
     mapfile -t args < <(jq -r '.application.launchArguments[]' "$profile")
+    application_winedebug="${OCTANE_APPLICATION_WINEDEBUG:--all,+timestamp,+seh}"
     cd "$(dirname "$app")"
-    nohup wine "$app" "${args[@]}" >"$evidence_dir/logs/launch.log" 2>&1 &
+    WINEDEBUG="$application_winedebug" nohup wine "$app" "${args[@]}" >"$evidence_dir/logs/launch.log" 2>&1 &
     printf '%s\n' "$!" > "$evidence_dir/launch-linux-pid.txt"
+    jq -n \
+        --arg launchedAtUtc "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+        --arg wineDebug "$application_winedebug" \
+        '{schemaVersion:1,launchedAtUtc:$launchedAtUtc,wineDebug:$wineDebug,relaunchUsed:false,forcedRepaintUsed:false}' \
+        > "$evidence_dir/application-launch.json"
 }
 
 wait_native() {
@@ -130,6 +197,8 @@ write_stability_result() {
     local observed_seconds="$3"
     local window_id="${4:-}"
     local webview_count="${5:-0}"
+    local acquisition_seconds="${6:-0}"
+    local readiness_colors="${7:-0}"
     jq -n \
         --arg status "$status" \
         --arg reason "$reason" \
@@ -138,8 +207,10 @@ write_stability_result() {
         --arg launchLinuxPid "$launch_pid" \
         --arg windowId "$window_id" \
         --argjson webView2BrowserProcessCount "$webview_count" \
+        --argjson readinessAcquisitionSeconds "$acquisition_seconds" \
+        --argjson readinessUniqueColors "$readiness_colors" \
         --arg observedAtUtc "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-        '{schemaVersion:1,status:$status,reason:$reason,requiredSeconds:$requiredSeconds,observedSeconds:$observedSeconds,launchLinuxPid:$launchLinuxPid,windowId:($windowId|if length>0 then . else null end),webView2BrowserProcessCount:$webView2BrowserProcessCount,observedAtUtc:$observedAtUtc,relaunchUsed:false,forcedRepaintUsed:false,scope:"native process/window stability only; not browser delivery or visible-rendering evidence"}' \
+        '{schemaVersion:1,status:$status,reason:$reason,requiredSeconds:$requiredSeconds,observedSeconds:$observedSeconds,readinessAcquisitionSeconds:$readinessAcquisitionSeconds,readinessUniqueColors:$readinessUniqueColors,launchLinuxPid:$launchLinuxPid,windowId:($windowId|if length>0 then . else null end),webView2BrowserProcessCount:$webView2BrowserProcessCount,observedAtUtc:$observedAtUtc,relaunchUsed:false,forcedRepaintUsed:false,scope:"native process/window stability only; not browser delivery or visible-rendering evidence"}' \
         > "$evidence_dir/application-stability.json"
 }
 
@@ -148,6 +219,15 @@ capture_stability_diagnostics() {
     xwininfo -root -tree > "$evidence_dir/logs/application-stability-windows.txt" 2>&1 || true
     tail -n 400 "$evidence_dir/logs/launch.log" > "$evidence_dir/logs/application-stability-launch-tail.log" 2>/dev/null || true
     import -window root "$evidence_dir/screenshots/application-stability-final-desktop.png" 2>"$evidence_dir/logs/application-stability-import.log" || true
+}
+
+measure_window_colors() {
+    local window_id="$1" image="$2" width height crop_y=40
+    import -window "$window_id" "$image" 2>>"$evidence_dir/logs/readiness-import.log" || { printf '0'; return; }
+    [[ -s "$image" ]] || { printf '0'; return; }
+    read -r width height < <(identify -format '%w %h\n' "$image" 2>/dev/null || printf '0 0\n')
+    if (( width < 1 || height <= crop_y )); then printf '0'; return; fi
+    convert "$image" -crop "${width}x$((height-crop_y))+0+$crop_y" +repage -format '%k' info: 2>/dev/null || printf '0'
 }
 
 count_webview_browser_processes() {
@@ -171,10 +251,63 @@ wait_stable() {
     launch_pid=$(tr -d '[:space:]' < "$evidence_dir/launch-linux-pid.txt")
     [[ "$launch_pid" =~ ^[0-9]+$ ]] || { echo 'Recorded launch PID is missing or invalid.' >&2; exit 77; }
 
-    start_epoch=$(date +%s)
-    deadline=$((start_epoch + stability_seconds))
+    acquisition_started=$(date +%s)
+    acquisition_timeout=$(jq -r '.application.readinessTimeoutSeconds' "$profile")
+    acquisition_deadline=$((acquisition_started + acquisition_timeout))
+    acquisition_hold_seconds="${OCTANE_READINESS_ACQUISITION_HOLD_SECONDS:-3}"
+    visual_min_colors=$(jq -r '.application.visualReadinessMinColors // 0' "$profile")
+    readiness_image="$evidence_dir/screenshots/native-readiness-acquisition.png"
+    readiness_colors=0
+    ready_since=0
     last_window=''
     last_webview_count=0
+    # The native host can replace its initial top-level window while WebView2
+    # attaches. Acquire a continuously ready process/window/browser state
+    # before starting the measured stability clock. No input, repaint action,
+    # relaunch, or retry occurs here; a later disappearance remains an
+    # immediate measured failure.
+    while true; do
+        now=$(date +%s)
+        reason=''
+        if [[ ! -r "/proc/$launch_pid/stat" ]] || ! kill -0 "$launch_pid" 2>/dev/null; then
+            reason='The original application launch process exited before readiness was acquired.'
+        elif [[ "$(awk '{print $3}' "/proc/$launch_pid/stat" 2>/dev/null || true)" = Z ]]; then
+            reason='The original application launch process became a zombie before readiness was acquired.'
+        elif grep -Eq 'panicked at|Failed to setup app:|failed to create webview:' "$evidence_dir/logs/launch.log" 2>/dev/null; then
+            reason='The application launch log recorded a fatal Tauri/WebView setup failure before readiness was acquired.'
+        fi
+        if [[ -n "$reason" ]]; then
+            capture_stability_diagnostics
+            write_stability_result FAIL "$reason" 0 "$last_window" "$last_webview_count" "$((now - acquisition_started))" "$readiness_colors"
+            echo "$reason" >&2
+            exit 78
+        fi
+        last_window=$(xdotool search --onlyvisible --name "$pattern" 2>/dev/null | tail -n 1 || true)
+        last_webview_count=$(count_webview_browser_processes)
+        readiness_colors=0
+        if [[ -n "$last_window" ]]; then
+            readiness_colors=$(measure_window_colors "$last_window" "$readiness_image")
+            [[ "$readiness_colors" =~ ^[0-9]+$ ]] || readiness_colors=0
+        fi
+        if [[ -n "$last_window" && ( "$webview_required" != true || "$last_webview_count" -ge 1 ) && "$readiness_colors" -gt "$visual_min_colors" ]]; then
+            (( ready_since == 0 )) && ready_since=$now
+            if (( now - ready_since >= acquisition_hold_seconds )); then break; fi
+        else
+            ready_since=0
+        fi
+        if (( now >= acquisition_deadline )); then
+            reason='The declared window and required WebView2 browser process did not remain jointly ready before the acquisition deadline.'
+            capture_stability_diagnostics
+            write_stability_result FAIL "$reason" 0 "$last_window" "$last_webview_count" "$((now - acquisition_started))" "$readiness_colors"
+            echo "$reason" >&2
+            exit 78
+        fi
+        sleep 1
+    done
+
+    acquisition_seconds=$(( $(date +%s) - acquisition_started ))
+    start_epoch=$(date +%s)
+    deadline=$((start_epoch + stability_seconds))
     while true; do
         now=$(date +%s)
         observed=$((now - start_epoch))
@@ -200,7 +333,7 @@ wait_stable() {
 
         if [[ -n "$reason" ]]; then
             capture_stability_diagnostics
-            write_stability_result FAIL "$reason" "$observed" "$last_window" "$last_webview_count"
+            write_stability_result FAIL "$reason" "$observed" "$last_window" "$last_webview_count" "$acquisition_seconds" "$readiness_colors"
             echo "$reason" >&2
             exit 78
         fi
@@ -211,7 +344,8 @@ wait_stable() {
     done
 
     capture_stability_diagnostics
-    write_stability_result PASS 'The original process, declared native window, and required WebView2 browser process remained present for the complete stability interval.' "$stability_seconds" "$last_window" "$last_webview_count"
+    cp "$readiness_image" "$evidence_dir/screenshots/native-readiness-acquired.png" 2>/dev/null || true
+    write_stability_result PASS 'The original process, visually ready declared window, and required WebView2 browser process remained present for the complete stability interval after continuous readiness acquisition.' "$stability_seconds" "$last_window" "$last_webview_count" "$acquisition_seconds" "$readiness_colors"
 }
 
 record_webview2() {

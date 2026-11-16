@@ -9,6 +9,7 @@ param(
     [ValidateRange(0,65535)][int]$UploadPort=0,
     [string]$Image='octane-lab:browser-novnc-dev',
     [string]$BuildLabel,
+    [ValidatePattern('^[a-f0-9]{10}$')][string]$RunId,
     [ValidatePattern('^[a-fA-F0-9]{64}$')][string]$ProducerSha256,
     [string]$Provenance,
     [ValidateSet('Standalone','ReplaceActive','Comparison')][string]$LifecycleMode='Standalone',
@@ -46,10 +47,12 @@ if($BuildLabel){$stageArguments.BuildLabel=$BuildLabel}
 if($ProducerSha256){$stageArguments.ProducerSha256=$ProducerSha256}
 if($Provenance){$stageArguments.Provenance=$Provenance}
 $artifact=& (Join-Path $PSScriptRoot 'Stage-OctaneArtifact.ps1') @stageArguments
-$id=[Guid]::NewGuid().ToString('N').Substring(0,10)
+$id=if($RunId){$RunId}else{[Guid]::NewGuid().ToString('N').Substring(0,10)}
 $name="octane-$id"
 $runs=Join-Path $root 'runs'
 $statePath=Join-Path $runs "$name.json"
+$existing=Invoke-OctaneRuntime -Engine Docker -WslDistro $WslDistro -Arguments @('inspect',$name) -TimeoutSeconds 30 -AllowFailure
+if((Test-Path -LiteralPath $statePath) -or $existing.ExitCode -eq 0){throw "Run identity is already in use: $name"}
 $doctorPath=Join-Path $runs "$name-doctor.json"
 $secretDirectory=Join-Path $runs "secrets/$name"
 $password=[Convert]::ToHexString([Security.Cryptography.RandomNumberGenerator]::GetBytes(4)).ToLowerInvariant()
@@ -188,13 +191,18 @@ try{
     $activeStage='application'
     Invoke-OctaneRuntime -Engine Docker -WslDistro $WslDistro -Arguments @('exec','-d','-u','wineuser',$name,'octane-target','launch') -TimeoutSeconds 60 | Out-Null
     $native=Invoke-OctaneRuntime -Engine Docker -WslDistro $WslDistro -Arguments @('exec','-u','wineuser',$name,'octane-target','wait-native') -TimeoutSeconds ([int]$profileValue.application.readinessTimeoutSeconds+30)
+    # Do not start any additional Wine process while WebView2 is establishing
+    # its browser/GPU fallback chain.  In particular, record_webview2 invokes
+    # winepath; running it before this gate caused the original browser process
+    # to exit on the otherwise working Xvnc display.  The readiness gate uses
+    # only /proc and X11 observations, so it is safe during initialization.
+    $stable=Invoke-OctaneRuntime -Engine Docker -WslDistro $WslDistro -Arguments @('exec','-u','wineuser',$name,'octane-target','wait-stable') -TimeoutSeconds ([int]$profileValue.application.readinessTimeoutSeconds+[int]$profileValue.application.readinessStabilitySeconds+30)
     if([bool]$profileValue.application.webView2.required){
         $webview=Invoke-OctaneRuntime -Engine Docker -WslDistro $WslDistro -Arguments @('exec','-u','wineuser',$name,'octane-target','webview2') -TimeoutSeconds 120
         Update-OctaneRunStage -Path $statePath -Stage webviewDiagnostic -Status PASS -Detail 'The required loaded WebView2 browser process, version, executable path, and hash were recorded. This is not browser rendering evidence.' -DurationMs $webview.DurationMs
     }else{
         Update-OctaneRunStage -Path $statePath -Stage webviewDiagnostic -Status NOT_RUN -Detail 'The application profile does not require WebView2.'
     }
-    $stable=Invoke-OctaneRuntime -Engine Docker -WslDistro $WslDistro -Arguments @('exec','-u','wineuser',$name,'octane-target','wait-stable') -TimeoutSeconds ([int]$profileValue.application.readinessStabilitySeconds+30)
     Update-OctaneRunStage -Path $statePath -Stage application -Status BLOCKED -Detail "A matching native X11 window and required application processes remained present for the declared $($profileValue.application.readinessStabilitySeconds)-second stability interval. Browser delivery, visible client rendering, and browser-originated input still require approved/manual browser evidence." -DurationMs ($native.DurationMs+$stable.DurationMs)
     $network=Invoke-OctaneRuntime -Engine Docker -WslDistro $WslDistro -Arguments @('exec','-u','wineuser',$name,'octane-target','probe-network') -TimeoutSeconds 120 -AllowFailure
     $endpointCount=@($profileValue.network.requiredEndpoints).Count
