@@ -153,7 +153,7 @@ Octane-v1/
   checksums.sha256
 ```
 
-The final local release candidate was assembled from package source commit `363846859bdfae09cfccd2478dfc5f040eecd3e6` and the qualified browser harness commit `ad1ba74644bdab49a17ccc40caf26f477d848a6a`. Its separately versioned artifacts are:
+The final local release candidate carries runtime-kit commit `aced057ba3d3979a343247373e68aa7b6cb3a657`, rootfs source commit `363846859bdfae09cfccd2478dfc5f040eecd3e6`, and qualified browser harness commit `ad1ba74644bdab49a17ccc40caf26f477d848a6a`. Its separately versioned artifacts are:
 
 | Artifact | Exact identity |
 | --- | --- |
@@ -161,9 +161,9 @@ The final local release candidate was assembled from package source commit `3638
 | Docker-save archive | 2,085,883,904 bytes; SHA-256 `4cbe35848b9cae5df19ac288e898fe14ac1c9628ab461107ecf898cca9d92dd9` |
 | Zstandard image archive | 2,080,012,879 bytes; SHA-256 `30aa7f68fa63c11fa5f9d3df878e0ef4340a2bda1a545f37f53ce35933204801` |
 | Loaded image | `sha256:6e77b89e7d5f8d3f9472998bd33859413b6982038c9cc64054a9eb035b25e786` |
-| Assembled candidate | 98 files, 2,586,055,481 bytes; manifest SHA-256 `edd693df0eb398d20bc300e3937791f98c2febba62ffef911f437f09d417bec4` |
+| Assembled candidate | 98 files, 2,586,061,421 bytes; manifest SHA-256 `02176b061918de85de755982ed085c41ee4c9d966d934d885a4492020d3fcbeb` |
 
-Extracted-package test `8739fdeafa` passed import, image load, deep doctor, fresh preview/components, collection, exact stop, unregister, and storage cleanup. It is a source-independence/recovery test, not an eleventh browser-qualification run. The published release manifest remains the authority for any repackaged archive because adding documentation changes the package checksum without changing the qualified image.
+Extracted-package test `87945a4f09` passed import, image load, deep doctor, fresh preview/components, collection, exact stop, unregister, and storage cleanup. It is a source-independence/recovery test, not an eleventh browser-qualification run. The published release manifest remains the authority for any repackaged archive because adding documentation changes the package checksum without changing the qualified image.
 
 From Windows PowerShell 7:
 

@@ -46,16 +46,17 @@ Reconciled 2026-11-15. This is the single A-I release-gate ledger. `PASS` is lim
 
 ## Final appliance and transport evidence
 
-- Package source commit: `363846859bdfae09cfccd2478dfc5f040eecd3e6`.
+- Runtime-kit commit: `aced057ba3d3979a343247373e68aa7b6cb3a657`; rootfs source commit: `363846859bdfae09cfccd2478dfc5f040eecd3e6`.
 - Rootfs: 503,298,560 bytes; SHA-256 `cf0350437b0864e1709f23cafafa07dff95ff83267cfdd4d3b85ba985ca24158`.
 - Docker-save archive: 2,085,883,904 bytes; SHA-256 `4cbe35848b9cae5df19ac288e898fe14ac1c9628ab461107ecf898cca9d92dd9`.
 - Compressed image: 2,080,012,879 bytes; SHA-256 `30aa7f68fa63c11fa5f9d3df878e0ef4340a2bda1a545f37f53ce35933204801`.
-- Assembled package: 98 files, 2,586,055,481 bytes.
-- Package manifest SHA-256: `edd693df0eb398d20bc300e3937791f98c2febba62ffef911f437f09d417bec4`.
-- Package checksum-manifest SHA-256: `57055ac31d8fe7449411f7989a67164452415921dd6570be16c59dfe82507192`.
-- Extracted package test: `8739fdeafa`; all five lifecycle stages and cleanup PASS.
-- Package-test result SHA-256: `242ead6a13e203bcb8e330dbd85cd04dbdeab26eebe849aaed85689f465898fc`.
-- Package component-evidence checksum SHA-256: `86468f435448267f77f33f4ae0661c3475def5a832d1ad294caa2927f36a017b`.
+- Assembled package: 98 files, 2,586,061,421 bytes.
+- Package manifest SHA-256: `02176b061918de85de755982ed085c41ee4c9d966d934d885a4492020d3fcbeb`.
+- Package checksum-manifest SHA-256: `d8e38f1f57a4bba3fd629de7e645734226fc7f169815273d75f4c6364533de4c`.
+- Runtime-kit checksum-manifest SHA-256: `04723002945c4e0d13356c930fc8d7f6e7346177ee97bf91c8525171ed07eca6`.
+- Extracted package test: `87945a4f09`; all five lifecycle stages and cleanup PASS.
+- Package-test result SHA-256: `2a662c0c35367e324cd25d48f3bef0f7903bc17c9a14b54099afcf1aedfa8886`.
+- Package component-evidence checksum SHA-256: `e5063a03db168057e9169b365488e82c5595de195fa67141053c60aa136c9829`.
 - New 440,401,920-byte transport result SHA-256: `5f1d2aea8ac757a77fd065a6ae7afdd84ff2d28d232469be8ba57edc3d4224e`; checksum manifest `83729f191824e181f3ed12af7c30765950c775eb3281734b991174fbbe8b6075`.
 
 ## Boundaries retained
