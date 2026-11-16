@@ -103,8 +103,8 @@ check '[[ "$status" = 413 ]]' 'declared oversize request rejected before intake'
 
 status=$(curl -sS -o "$temporary/list.json" -w '%{http_code}' \
     -H "Origin: $origin" -H 'Authorization: Bearer unit-test-secret' "http://127.0.0.1:$port/uploads")
-listed_name=$("$python_cmd" -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["files"][0]["name"])' "$temporary/list.json")
-check '[[ "$status" = 200 && "$listed_name" = "space ü.txt" ]]' 'authenticated manifest listing'
+check '[[ "$status" = 200 ]]' 'authenticated manifest listing status'
+check '"$python_cmd" -c '\''import json,sys; raise SystemExit(json.load(open(sys.argv[1], encoding="utf-8"))["files"][0]["name"] != "space \u00fc.txt")'\'' "$temporary/list.json"' 'authenticated manifest lists the exact Unicode filename'
 check '! grep -R -F "unit-test-secret" "$evidence" "$temporary/server.log" >/dev/null' 'credential absent from evidence and logs'
 
 echo "Browser upload service: $assertions assertions passed (localhost protocol/unit scope; not browser GUI acceptance)."

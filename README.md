@@ -117,7 +117,7 @@ The current local verification consists of:
 - 48 controller/mock assertions.
 - 12 qualification-policy assertions.
 - 30 appliance-packaging assertions.
-- 16 upload/telemetry protocol assertions.
+- 17 upload/telemetry protocol assertions.
 - 19 Node tests.
 - 4 Rust core tests plus doc tests.
 - One final-image exploratory browser pass and a locked 10/10 live browser batch.

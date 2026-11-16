@@ -481,7 +481,7 @@ Current local results:
 - Controller/mock PowerShell contracts: 48 assertions PASS.
 - Qualification-policy contracts: 12 assertions PASS.
 - Appliance-packaging contracts: 30 assertions PASS.
-- Upload/viewer-event protocol: 16 assertions PASS.
+- Upload/viewer-event protocol: 17 assertions PASS.
 - Node tests: 19 PASS.
 - Rust core: 4 tests PASS plus doc tests.
 - Final-image exploratory browser scenario: PASS.
