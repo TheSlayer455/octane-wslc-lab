@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "recordedAtUtc": "2026-11-16T00:56:00Z",
+  "status": "PASS",
+  "qualified": true,
+  "scope": "Exact retained Octane installer and locked Windows 11 -> Ubuntu 24.04 WSL2 -> Docker Engine -> patched Wine-Staging 11.21 -> TigerVNC Xvnc -> Websockify/noVNC configuration only.",
+  "batchId": "browser-qbatch-06f2a54afe0c",
+  "plannedRuns": 10,
+  "passedRuns": 10,
+  "lock": {
+    "path": "profiles/qualification/docker-wine-staging-11.21-visrgn-browser-xvnc.lock.json",
+    "sha256": "db5babdf10bb9c3aef12731c398a75437d280385799512e1b92838f028d68249"
+  },
+  "harnessCommit": "ad1ba74644bdab49a17ccc40caf26f477d848a6a",
+  "image": {
+    "reference": "octane-lab:browser-xvnc-ad1ba74",
+    "id": "sha256:6e77b89e7d5f8d3f9472998bd33859413b6982038c9cc64054a9eb035b25e786",
+    "baseReference": "octane-lab:browser-appliance-v1-136944d",
+    "baseId": "sha256:a43c4441d45ddd57e899c1d77e9461c22414c654213e17a27031be3347191f1a"
+  },
+  "installer": {
+    "sourceCommit": "7088eed9adb8403b9575afe1cc9e9c2984b29049",
+    "sha256": "adde062d79c2857cb2f5e676c5d6870986070252ac3cf7ca7a6b78c8d829080a",
+    "length": 219839154
+  },
+  "automationClient": {
+    "operatingSystem": "Linux in the designated Ubuntu WSL distribution",
+    "driver": "Playwright",
+    "playwrightVersion": "1.65.1",
+    "browser": "Chromium 159.0.8154.6",
+    "windowsBrowserSmoke": "Separately demonstrated through the ChatGPT in-app browser; not counted as an unattended batch run."
+  },
+  "contract": {
+    "freshContainerPrefixInstallAndWebView2Data": "PASS 10/10",
+    "authenticatedNoVncNegotiationAndChangingFramebuffer": "PASS 10/10",
+    "browserPointerKeyboardAndWheelInput": "PASS 10/10",
+    "normalInitialRenderingWithoutRepaintHelperOrRelaunch": "PASS 10/10",
+    "rustWorkload": "PASS 10/10: 8 files, 6 extension groups, 1 duplicate set, 176 bytes, 0 errors",
+    "nativeOpenSaveCancelRepeatAndPostDialogResponsiveness": "PASS 10/10",
+    "independentlyValidatedJsonExportAndInputIntegrity": "PASS 10/10",
+    "noRdp": "PASS 10/10",
+    "exactCleanup": "PASS 10/10"
+  },
+  "runs": [
+    { "sequence": 1, "runId": "513b6385f0", "status": "PASS", "durationMs": 254321 },
+    { "sequence": 2, "runId": "1bb8a0ec9f", "status": "PASS", "durationMs": 253487 },
+    { "sequence": 3, "runId": "23367b15c9", "status": "PASS", "durationMs": 252459 },
+    { "sequence": 4, "runId": "1c2750d422", "status": "PASS", "durationMs": 252986 },
+    { "sequence": 5, "runId": "5fd8ba417d", "status": "PASS", "durationMs": 256071 },
+    { "sequence": 6, "runId": "89019ca3ed", "status": "PASS", "durationMs": 256811 },
+    { "sequence": 7, "runId": "3f42f907d7", "status": "PASS", "durationMs": 258168 },
+    { "sequence": 8, "runId": "e103eef43d", "status": "PASS", "durationMs": 257200 },
+    { "sequence": 9, "runId": "f9f807aa18", "status": "PASS", "durationMs": 264126 },
+    { "sequence": 10, "runId": "a164c028eb", "status": "PASS", "durationMs": 253758 }
+  ],
+  "evidence": {
+    "localPath": "evidence/batches/browser-qbatch-06f2a54afe0c",
+    "fileCount": 416,
+    "totalBytes": 14791752,
+    "batchSummarySha256": "9254405b6f211314a25092f32ddaa5e369ad83d8ed9c841cf9e55502d02b15c0",
+    "checksumManifestSha256": "37c5b7459ced5c393c990b43f295412e9f1d20fb5132718f7e08fe993d45dd07",
+    "junitSha256": "4508d37831ac451cede48f893d10a5f070aa4e9bcefb0be2a44910b7b23d7c93",
+    "doctorSha256": "68457f3bfcaf9e466ab9ca7890254cdc93998589f31ea9ee7c13e03dc51a3773"
+  },
+  "boundaries": [
+    "The historical RDP qualification remains a separate result.",
+    "The minimal native Win32 WebView2 probe still renders white.",
+    "The custom Wine visible-region patch remains a maintenance condition.",
+    "This result does not qualify stock Wine, arbitrary Tauri applications, a proprietary installer, Windows identity parity, or every network/authentication dependency.",
+    "The unattended browser client was Linux Chromium in WSL; Windows-browser access/input was demonstrated separately rather than mislabeled as Windows Edge automation."
+  ]
+}

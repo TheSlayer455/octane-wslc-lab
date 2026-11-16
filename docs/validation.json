@@ -1,27 +1,28 @@
 {
-  "guideRevision": 11,
-  "reconciledAtUtc": "2026-11-15T20:45:00Z",
-  "summary": "Historical Docker/Wine technical feasibility and the exact RDP-era Octane contract remain qualified 10/10. The browser transport now has attributable evidence: run 0e2276a168 authenticated, negotiated noVNC, and delivered the intended XFCE framebuffer in the ChatGPT in-app browser with no RDP path. The installed application did not remain usable: its host exited after WebView2 HRESULT 0x800700AA. A new 90-second sustained-readiness gate then rejected standalone-Xorg run e1e95b2d01 and TigerVNC-Xvnc run 7d9e41587c when CrBrowserMain became defunct after the same Wine virtual_setup_exception stack-overflow signature while the native frame stayed white. Workload, browser-originated input, dialogs, export, and the browser 10/10 batch remain blocked or not run. The appliance/browser runtime kit is therefore an accurately measured diagnostic candidate, not a qualified browser release.",
+  "guideRevision": 12,
+  "reconciledAtUtc": "2026-11-16T00:56:00Z",
+  "summary": "Historical RDP qualification remains preserved for its exact lock. Browser-only Octane acceptance is now independently qualified 10/10 under lock db5babdf10bb9c3aef12731c398a75437d280385799512e1b92838f028d68249 and batch browser-qbatch-06f2a54afe0c. Every fresh run passed authenticated noVNC negotiation, changing browser frames, browser input, normal initial rendering, the real Rust workload, native open/save dialogs, independently validated export, input integrity, no-RDP checks, evidence collection, and exact cleanup without repaint, relaunch, hidden retry, manual action, or manual override. This exact result does not generalize to the still-white minimal WebView2 probe, stock Wine, another installer, or Windows identity/network parity.",
   "verdict": "QUALIFIED_EXACT_10_OF_10_UNATTENDED_FRESH_PREFIX_CONTRACT",
   "technicalFeasibility": "demonstrated",
   "fullAcceptance": "qualified against the declared 10/10 unattended fresh-prefix contract for the exact recorded installer and configuration",
-  "browserWorkflowStatus": "Transport demonstrated; installed application sustained readiness failed; browser workload/input/dialog/export and unattended 10/10 qualification remain blocked or not run.",
+  "browserWorkflowStatus": "QUALIFIED 10/10 for the exact locked retained Octane installer and browser configuration; other applications remain independently untested.",
   "browserCandidate": {
-    "runtimeCommit": "136944da9e8b0ee4f3c6727613d062abbd958857",
-    "imageId": "sha256:a43c4441d45ddd57e899c1d77e9461c22414c654213e17a27031be3347191f1a",
-    "lockSha256": "5227a24f4279a599679ff6adb00138776b93fd5205e8627ef11780b26acb4fff",
-    "referenceRun": "3ca7d5cbb6",
+    "runtimeCommit": "ad1ba74644bdab49a17ccc40caf26f477d848a6a",
+    "imageId": "sha256:6e77b89e7d5f8d3f9472998bd33859413b6982038c9cc64054a9eb035b25e786",
+    "lockSha256": "db5babdf10bb9c3aef12731c398a75437d280385799512e1b92838f028d68249",
+    "referenceRun": "f1a1ba7401",
     "componentStatus": "PASS",
-    "manualBrowserSmoke": "FAIL: noVNC negotiation/framebuffer PASS, installed Octane visibility FAIL after original host exit",
-    "automatedBrowserAcceptance": "BLOCKED / NOT_RUN",
-    "browserQualification": "BLOCKED; stable application prerequisite failed; 0/10 executed",
+    "manualBrowserSmoke": "PASS through Windows-side ChatGPT in-app browser; separately classified and not counted as an unattended batch run",
+    "automatedBrowserAcceptance": "PASS through authenticated noVNC framebuffer/input path",
+    "browserQualification": "QUALIFIED 10/10 in batch browser-qbatch-06f2a54afe0c",
     "noVncCommit": "63107bd06d9e1f6136ff21aeda8cd62cbf0d433e",
     "websockifyCommit": "e81894751365afc19fe64fc9d0e5c6fc52655c36",
-    "recoveryArchiveSha256": "5ef18bde39da0d3d56b48b416300034ef0f0a92355468e012ec21a8960039ebe",
-    "recoveryArchiveBytes": 2083894784,
+    "batchSummarySha256": "9254405b6f211314a25092f32ddaa5e369ad83d8ed9c841cf9e55502d02b15c0",
+    "batchChecksumsSha256": "37c5b7459ced5c393c990b43f295412e9f1d20fb5132718f7e08fe993d45dd07",
+    "browserAutomation": "Playwright 1.65.1 / Chromium 159.0.8154.6 in the designated Ubuntu WSL distribution",
     "largeArtifactTransport": "PASS for a 440401920-byte synthetic transport fixture; not a second executable installer result",
     "secondRealInstaller": "NOT_TESTED; unavailable",
-    "fileCapability": "PASS for explicit selected/uploaded/output separation, source/container hash verification, authenticated atomic upload, and Wine-visible Unicode path; browser-origin upload and target ingestion remain NOT_RUN",
+    "fileCapability": "PASS for explicit selected/uploaded/output separation, source/container hash verification, authenticated atomic upload, Wine-visible Unicode path, browser-origin selected-file ingestion, export, and input integrity; browser-upload-to-application ingestion remains a separate target scenario",
     "networkCapability": "PASS for declared Linux-container curl reachability classification; target/Wine/WebView2/authentication paths remain target-specific"
   },
   "applianceCandidate": {
@@ -45,7 +46,7 @@
     "defaultLocalAppDataInstall": "PLAN/HASH PASS; live import used a project-scoped WSL-visible root because the Codex sandbox projects LocalAppData outside wsl.exe visibility"
   },
   "conditionalFinding": "The qualified profile contains one pinned community win32u visible-region patch. That is a maintenance condition and prevents extrapolation to stock Wine or arbitrary Tauri applications, but no repaint helper or reduced-security profile was used in qualification.",
-  "recommendedLifecycleDesign": "IMPLEMENTED AND COMPONENT-TESTED: keep the WSL/Docker/Wine foundation cached while creating marker-owned WSL-native fresh per-build sessions; validate immutable intake before one-active-build replacement; retain explicit isolated comparison; separate selected/uploaded/output views; authenticate and atomically manifest scoped uploads; collect before exact cleanup. Browser-originated upload/ingestion and two-distinct-build application acceptance remain untested.",
+  "recommendedLifecycleDesign": "IMPLEMENTED AND BROWSER-QUALIFIED FOR OCTANE: keep the WSL/Docker/Wine foundation cached while creating marker-owned WSL-native fresh per-build sessions; validate immutable intake before one-active-build replacement; retain explicit isolated comparison; separate selected/uploaded/output views; authenticate and atomically manifest scoped uploads; collect before exact cleanup. Two-distinct-real-build application acceptance and another target remain untested.",
   "sourceConversation": {
     "id": "6af79ffb-6048-83ea-b689-8269484af53d",
     "title": "Run Windows App Containers",
@@ -85,6 +86,8 @@
   "current40PageGuideSha256": "fc1c71a60b442b3e333467ac8b98c73f67ae14e4b502004fa2b7023cb1e9edc2",
   "previous44PageGuideSha256": "7279304a464d4698753c3dc0084ddbb657009a9597c1465e53246ab6245320ab",
   "currentRevision10GuideSha256": "4a8b1394e1c40c40f9a9fab64f671f7e0bd7bf53f4e96f093d20139f905f1b27",
+  "currentRevision12GuideSha256": "602f6f096052372ab9cad07147d0d2b5ccc618ce0dcb779969623a37e803fa5e",
+  "currentRevision12GuidePages": 48,
   "windowsBuild": "Historical PASS: Windows Server 2022 run 43560204604 on implementation commit 61991552b7d2cb278e8d11d39b01795e9260d4cb. That build is not the Wine-tested installer. No new native-Windows GUI qualification was available in this iteration.",
   "runUrl": "https://github.com/TheSlayer455/octane-wslc-lab/actions/runs/43560204604",
   "measuredInstallerRunUrl": "https://github.com/TheSlayer455/octane-wslc-lab/actions/runs/43540018084",
@@ -220,6 +223,11 @@
       "batchId": "qbatch-e2aaafff4b38",
       "result": "10/10 qualified for final schema v3",
       "classification": "final contract with exact Unicode/space and deliberate missing-input report validation"
+    },
+    {
+      "batchId": "browser-qbatch-06f2a54afe0c",
+      "result": "10/10 qualified for the exact browser-only Xvnc/noVNC lock",
+      "classification": "fresh container/prefix/install/WebView2 data; authenticated browser frames/input; workload/dialog/export/integrity/no-RDP/evidence/cleanup PASS; no repaint/relaunch/retry/manual action"
     }
   ],
   "diagnosticAcceptance": "FAIL: the native x64 probe initialized WebView2 157.0.4341.60, navigated local offline content, and emitted DOM/input/timer activity under baseline, control, and candidate profiles, but reviewed native client pixels stayed white with pixel delta 0.",
@@ -227,9 +235,9 @@
   "workloadAcceptance": "PASS 10/10: the real installed GUI invoked the Rust backend and produced 8 files, 6 extension groups, 1 duplicate set, 176 bytes, and 0 errors; independent fixture-relative hashes and duplicate membership were validated.",
   "nativeDialogAcceptance": "PASS 10/10: native open cancel, exact Unicode/space selection, deliberate missing-input selection, repeated eight-file selection, save cancel, new-file save, existing-path confirmation, and subsequent reopen all completed unattended. The separate app-matching Win32 probe also passed 7/7 before and after installation.",
   "exportAcceptance": "PASS 10/10: Unicode-path, missing-input, and standard workload reports were produced through the GUI; the main JSON independently validated; the pre-existing destination and every input hash remained unchanged.",
-  "repeatabilityAcceptance": "PASS 10/10 under lock 0137c535f4eb0d15c12628801020b71f1952a18c65c524b7ac26874f6e6377c1. Earlier 5/10 and 9/10 batches remain retained failures that localized an inter-run port-release wait and a foreground-synchronization race.",
+  "repeatabilityAcceptance": "Historical RDP PASS 10/10 under lock 0137c535f4eb0d15c12628801020b71f1952a18c65c524b7ac26874f6e6377c1. Browser-only PASS 10/10 under lock db5babdf10bb9c3aef12731c398a75437d280385799512e1b92838f028d68249 and batch browser-qbatch-06f2a54afe0c. Earlier failures remain retained and were not promoted.",
   "webviewAcceptance": "PASS for installed Octane under the exact locked profile: normal initial presentation occurred in 19.000-19.084 seconds in all ten runs without resize/minimize/restore readiness manipulation. The separate minimal native WebView2 probe remains a white-client FAIL and is not rewritten by the Octane result.",
-  "scriptVerification": "PASS locally: 19 Node tests, 48 mocked PowerShell assertions, 12 qualification-policy assertions, 61 browser/runtime assertions, 30 appliance-packaging assertions, and 12 direct upload-protocol assertions, plus Bash syntax, PowerShell parsing, exact-path dialog-probe validation, independent JSON fixture/report validation, and git diff checks. Static/mock/component results remain separate from historical live 10/10 qualification and failed browser application readiness.",
+  "scriptVerification": "PASS locally: 19 Node tests, 48 mocked PowerShell assertions, 12 qualification-policy assertions, 82 browser/runtime assertions, 30 appliance-packaging assertions, 16 direct upload/viewer-event protocol assertions, and 4 Rust core tests plus doc tests. Bash/Python/Node/PowerShell parsing, independent JSON validation, and git diff checks also passed. Static/mock/component results remain separate from both live 10/10 qualifications.",
   "security": {
     "exceptions": [
       "Historical RDP qualification only: FreeRDP /cert:ignore for the per-run self-signed XRDP certificate on a localhost-only published port. The browser candidate does not use this exception."
@@ -246,9 +254,9 @@
     ],
     "promptSuppression": "WINEDLLOVERRIDES=mscoree,mshtml= only suppresses unrelated Wine Mono/Gecko add-on prompts; it is not a WebView2 sandbox bypass."
   },
-  "cleanup": "PASS for completed historical, exploratory browser, replacement, upload, doctor, listener, network, and transport resources: exact containers/secrets/session markers/storage roots were removed and verified absent. The first WSL-storage failure remains preserved in evidence, and cleanup was retried successfully after removing an unintended host-jq dependency. No managed Octane container, volume, network, run journal, or active-run file remained after the 2026-11-15 browser experiments. The original Ubuntu-24.04 distro, historical and browser images, private recovery archives, WSLC VHD backup, v0.1.1 assets, unrelated Docker resources, and unrelated WSL distributions were untouched. No global prune or WSL shutdown was used.",
-  "evidenceSummary": "Historical batch qbatch-e2aaafff4b38 remains qualified 10/10 through XFCE/Xorgxrdp. Browser run 0e2276a168 passed noVNC negotiation and framebuffer delivery but failed installed-app visibility after WebView2 HRESULT 0x800700AA; checksum-manifest SHA-256 3bf8bb7b8a652ce71804dd6a5c83a8c8fd54d4321fb36fa6af4df0bfff07b833. Standalone-Xorg run e1e95b2d01 and integrated-Xvnc run 7d9e41587c failed sustained readiness after a CrBrowserMain stack-overflow signature; checksum-manifest SHA-256 values 5538833a527a4e4c3e00508f131d19048e2774f23c58265b6bf9b176b81c92ee and ddee868a31043f6bace23a877a392a2777b058de5f526222e578357156a6a02d. All exact resources were cleaned. Browser input/workload/dialog/export, two distinct real builds, and browser 10/10 remain blocked or not run.",
+  "cleanup": "PASS for completed historical, exploratory, replacement, upload, doctor, transport, and browser-qualification resources. Every browser batch row has exact cleanup PASS; no managed container or /var/lib/octane/sessions child remained after the batch. The original Ubuntu-24.04 distro, historical images/evidence, private archives, WSLC VHD backup, v0.1.1 assets, unrelated Docker resources, and unrelated WSL distributions were untouched. No global prune or WSL shutdown was used.",
+  "evidenceSummary": "Historical RDP batch qbatch-e2aaafff4b38 remains qualified 10/10. Final browser batch browser-qbatch-06f2a54afe0c independently passed 10/10 under lock db5babdf10bb9c3aef12731c398a75437d280385799512e1b92838f028d68249; batch-summary SHA-256 9254405b6f211314a25092f32ddaa5e369ad83d8ed9c841cf9e55502d02b15c0 and checksum-manifest SHA-256 37c5b7459ced5c393c990b43f295412e9f1d20fb5132718f7e08fe993d45dd07. Earlier Xvfb/Xorg/Xvnc failures remain preserved as failures. A second distinct real installer and target-specific external authentication remain NOT_TESTED.",
   "finalScreenshotCaption": "Final locked qualification: the actual installed Octane client visibly reports the independently validated 8-file, 6-group, 1-duplicate, 176-byte Rust workload without a readiness repaint helper.",
-  "nextMilestone": "Capture one bounded Wine exception/backtrace reproduction of the WebView2 CrBrowserMain stack overflow on integrated Xvnc and compare it with the same unchanged installer under the historically qualified Xorgxrdp lock. Do not add another display variant or begin browser 10/10 until the original browser process survives the 90-second stability gate.",
+  "nextMilestone": "Repackage and recovery-test the source-independent appliance with the qualified Xvnc image/runtime kit. For another application, onboard its unchanged installer and profile, then measure its own browser scenario without inheriting Octane's result.",
   "wineAcceptance": "QUALIFIED for the exact recorded Octane installer and schema-v3 Docker/Wine/WSL2 lock. The custom visible-region patch remains a maintenance condition; stock Wine and other Tauri applications are not established."
 }

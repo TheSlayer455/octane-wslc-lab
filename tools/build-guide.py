@@ -120,7 +120,7 @@ def image_grid(items):
 page(1, "Octane<br/>Windows installer compatibility lab")
 p(
     "<b>Complete implementation, operation, and measured-validation reference</b><br/>"
-    "Guide revision 11 | November 15, 2026 | Windows x64 + packaged WSL/Docker + Wine 11.21 + measured browser candidates"
+    "Guide revision 12 | November 15, 2026 | Windows x64 + packaged WSL/Docker + Wine 11.21 + qualified browser delivery"
 )
 p(
     "Octane is a repository-independent, container-runtime-independent lab for a real "
@@ -142,7 +142,7 @@ h("What is delivered")
 p(
     "The public source repository contains the Rust/Tauri reference app, fixtures, Windows NSIS "
     "build workflow, explicit WSLC and Docker adapters, WineGUI and Docker-Wine controls, "
-    "a noVNC browser candidate, an importable WSL/Docker appliance, generic target profiles, a runtime doctor, normalized run-state "
+    "a qualified noVNC/TigerVNC browser profile, an importable WSL/Docker appliance, generic target profiles, a runtime doctor, normalized run-state "
     "and evidence tooling, a source-independent runtime kit, regression checks, and this guide. "
     "The measured installer and matching manifest remain retained in the historical v0.1.1 release."
 )
@@ -155,11 +155,10 @@ p(
     "Pages 18-25 preserve the failure diagnosis and historical WineGUI, Docker-Wine, controlled "
     "ole32, native SER8, and early Wine 11.21 results. Pages 26-28 record dialog localization, "
     "normal repainting, the locked runner, and the final historical ten-run qualification. Pages 29-30 "
-    "record historical verification, inventory, sources, and continuing work. Pages 31-36 define "
-    "the browser candidate, daily workflow, security/file/network boundaries, runtime kit, blocked "
-    "qualification, and operator handoff. Pages 37-40 define the packaged WSL appliance, one-command "
-    "operator workflow, recovery/test evidence, and exact remaining boundary. Pages 41-44 record the implemented "
-    "fresh-build replacement lifecycle, WSL-backed ingestion/upload model, physical storage placement, and measured boundary. Commands run in "
+    "record historical verification, inventory, sources, and continuing work. Pages 31-44 preserve the pre-qualification "
+    "browser/appliance candidate record, daily workflow, security/file/network boundaries, runtime kit, operator handoff, "
+    "packaging, replacement, and ingestion design. Pages 45-48 supersede that candidate snapshot with the locked browser "
+    "10/10 result, final runtime-kit contract, daily workflow, and exact release boundaries. Commands run in "
     "<b>PowerShell 7 from the repository root</b> unless a desktop terminal is named."
 )
 
@@ -188,17 +187,19 @@ topics = [
     "Appliance build, recovery, and live test", "Appliance verdict and maintenance boundary",
     "Implemented fresh-build session model", "One-active-build replacement and comparison",
     "WSL-backed file ingestion and upload", "Storage placement and measured boundaries",
+    "Final browser qualification", "Qualified appliance and runtime kit",
+    "Daily clean-build workflow", "Release verdict and maintenance contract",
 ]
 contents_rows = []
-for offset in range(22):
+for offset in range(24):
     contents_rows.append([
         str(offset + 1), topics[offset],
-        str(offset + 23), topics[offset + 22],
+        str(offset + 25), topics[offset + 24],
     ])
 table(["Page", "Topic", "Page", "Topic"], contents_rows, [27, 214, 27, 224], compact=True)
 p(
     "<b>Delivered scope:</b> explicit WSLC and Docker adapters; Windows-host Docker through "
-    "a named WSL distribution; a browser/noVNC candidate with generic unchanged-installer intake; "
+    "a named WSL distribution; a qualified browser/noVNC path with generic unchanged-installer intake; "
     "historical WineGUI/Selkies, Docker-Wine/RDP, and native-SER8 controls; fresh-prefix installation; "
     "machine-readable stages; evidence copy-out and exact cleanup."
 )
@@ -228,7 +229,7 @@ Pipeline/manual download -> unchanged setup.exe + data-only profile
                               |
  fresh container/prefix/install/settings/WebView2 user data/output
                               |
- pinned Wine 11.21 candidate -> winex11 -> Xvfb/XFCE :1
+ pinned Wine 11.21 candidate -> winex11 -> TigerVNC Xvnc/XFCE :1
                               |
     loopback x11vnc <- Websockify/noVNC <- Windows browser
                               |
@@ -280,14 +281,14 @@ p(
 )
 h("Environment profiles")
 table(["Profile", "Desktop / user", "State and evidence"], [
-    ["DockerWineStaging1121VisRgnBrowser", "noVNC/Websockify -> x11vnc -> Xvfb/XFCE / wineuser", "fresh .octane prefix; candidate only; browser acceptance blocked"],
+    ["DockerWineStaging1121VisRgnBrowser", "noVNC/Websockify -> TigerVNC Xvnc/XFCE / wineuser", "fresh .octane prefix; browser-qualified 10/10 for retained Octane"],
     ["WineGui", "Selkies HTTPS :3001 / octane", "/config; /config/octane-evidence"],
     ["DockerWine", "xrdp RDP :3389 / wineuser", "/home/wineuser/.octane; .octane/evidence"],
     ["DockerWineStaging1121Control", "same RDP desktop / wineuser", "pinned source control; fresh .octane prefix"],
     ["DockerWineStaging1121VisRgn", "same RDP desktop / wineuser", "exact control plus one verified win32u patch"],
 ], [92, 184, 216], compact=True)
 p(
-    "The current browser candidate layers pinned noVNC/Websockify and x11vnc over the exact historically "
+    "The final browser profile layers pinned noVNC/Websockify and TigerVNC Xvnc over the exact historically "
     "qualified Wine image; it does not substitute an upstream WineGUI runtime. WineGUI and Docker-Wine remain "
     "historical controls. All paths consume unchanged installers and keep transport, runtime, target profile, "
     "scenario, and evidence claims separate."
@@ -1280,11 +1281,11 @@ for label, url in [
     ("Source conversation: Run Windows App Containers", "chatgpt-conversation://6af79ffb-6048-83ea-b689-8269484af53d"),
 ]:
     link(label, url)
-h("Next milestone")
+h("Next maintenance milestone")
 p(status.get("nextMilestone", "Qualify the identical installer on supported Windows."))
 h("After compatibility is understood")
 p(
-    "First complete approved browser smoke and ten-run qualification. Later, add a separately versioned Fixed "
+    "Browser smoke and the fresh ten-run browser qualification are complete for the retained Octane artifact. Later, add a separately versioned Fixed "
     "Version WebView2 diagnostic; execute native Windows GUI automation; validate the thin GitLab wrapper on an "
     "actual project if needed; compare fresh and prepared-preview performance without confusing their claims; "
     "then add SBOM, vulnerability "
@@ -1298,9 +1299,10 @@ p(
 )
 
 
-page(31, "Browser candidate status and exact identity")
+page(31, "Historical browser-candidate status and identity")
 p(
-    "The delivered browser layer is a new candidate, not a relabeling of the historical RDP result. It preserves "
+    "This page preserves the pre-qualification browser-candidate snapshot and its failures. Pages 45-48 supersede its "
+    "then-current status without rewriting the first outcomes. The candidate was not a relabeling of the historical RDP result. It preserved "
     "the exact qualified Wine/Staging/visible-region foundation, changes the display session to Xvfb/XFCE and the "
     "viewer to x11vnc/Websockify/noVNC, and keeps browser acceptance independent. A later manual run proved noVNC "
     "negotiation and framebuffer delivery, then exposed an installed WebView2 host failure."
@@ -1841,6 +1843,129 @@ p(
 )
 
 
+page(45, "Final browser-only qualification")
+p(
+    "This page is the current result and supersedes the candidate-status snapshot on pages 31-44. Batch "
+    "<b>browser-qbatch-06f2a54afe0c</b> passed ten of ten predeclared, sequential, unattended fresh-container runs. "
+    "Every row used the same retained installer, final image, profile, fixtures, lock, and trusted browser scenario."
+)
+table(["Run", "Scenario", "Components", "Report", "Evidence", "Cleanup"], [
+    ["513b6385f0", "PASS", "PASS", "PASS", "PASS", "PASS"],
+    ["1bb8a0ec9f", "PASS", "PASS", "PASS", "PASS", "PASS"],
+    ["23367b15c9", "PASS", "PASS", "PASS", "PASS", "PASS"],
+    ["1c2750d422", "PASS", "PASS", "PASS", "PASS", "PASS"],
+    ["5fd8ba417d", "PASS", "PASS", "PASS", "PASS", "PASS"],
+    ["89019ca3ed", "PASS", "PASS", "PASS", "PASS", "PASS"],
+    ["3f42f907d7", "PASS", "PASS", "PASS", "PASS", "PASS"],
+    ["e103eef43d", "PASS", "PASS", "PASS", "PASS", "PASS"],
+    ["f9f807aa18", "PASS", "PASS", "PASS", "PASS", "PASS"],
+    ["a164c028eb", "PASS", "PASS", "PASS", "PASS", "PASS"],
+], [90, 80, 80, 80, 80, 82], compact=True)
+code("""Harness commit: ad1ba74644bdab49a17ccc40caf26f477d848a6a
+Image: octane-lab:browser-xvnc-ad1ba74
+Image ID: sha256:6e77b89e7d5f8d3f9472998bd33859413b6982038c9cc64054a9eb035b25e786
+Browser lock SHA-256: db5babdf10bb9c3aef12731c398a75437d280385799512e1b92838f028d68249
+Installer SHA-256: adde062d79c2857cb2f5e676c5d6870986070252ac3cf7ca7a6b78c8d829080a
+Batch summary SHA-256: 9254405b6f211314a25092f32ddaa5e369ad83d8ed9c841cf9e55502d02b15c0
+Batch checksum-manifest SHA-256: 37c5b7459ced5c393c990b43f295412e9f1d20fb5132718f7e08fe993d45dd07""")
+p(
+    "The authenticated noVNC client received changing application frames and sent the interaction used for the real "
+    "8-file, 6-group, 1-duplicate, 176-byte Rust workload, native open/save dialogs, cancellation/reopen behavior, "
+    "JSON export, existing-output protection, and post-dialog responsiveness. No RDP process, repaint helper, relaunch, "
+    "hidden retry, operator action, or manual override entered the ten measured runs."
+)
+
+
+page(46, "Qualified appliance and runtime kit")
+p(
+    "The Windows-facing distribution keeps Docker Engine in the imported Ubuntu 24.04 WSL appliance and keeps Wine, "
+    "WebView2, Xvnc/XFCE, noVNC, Websockify, and the installed target inside the separately versioned Docker image. "
+    "The image archive is loaded after import; a populated /var/lib/docker is never baked into the rootfs."
+)
+table(["Deliverable", "Identity / contract"], [
+    ["Runtime kit", "Source-independent scripts, schemas, profiles, fixtures, trusted reference scenario, guide, and checksums; no target source or provider account."],
+    ["WSL rootfs", "Ubuntu 24.04 rootfs and pinned Docker Engine; exact source commit, length, and SHA-256 are carried in its sibling build manifest."],
+    ["Docker image archive", "Final loaded image ID sha256:6e77b89e...; Docker-save and compressed SHA-256 values are distinct and carried in the release manifest."],
+    ["Extracted-kit test", "Import, image load, deep doctor, fresh preview, collection, exact stop, unregister, and storage cleanup are tested from a path containing spaces and Unicode."],
+    ["Release checksums", "The top-level release manifest and checksums file are generated after assembly; exact final values belong in the release evidence, avoiding self-referential guide hashes."],
+], [138, 354], compact=True)
+code(r"""# One-time Windows PowerShell 7
+.\Install-Octane.ps1
+
+# Daily operation after installation
+octane open 'C:\Builds\Application-setup.exe' `
+  -Profile 'C:\Targets\example-app-octane\app.json' `
+  -InputDirectory 'C:\Octane\Input' `
+  -OutputDirectory 'C:\Octane\Output'
+""")
+p(
+    "The launcher admits and hashes immutable bytes, creates a fresh container/prefix/settings/WebView2 data/output tree, "
+    "installs the unchanged Windows EXE through Wine, starts the authenticated loopback viewer, copies the per-run "
+    "credential to the Windows clipboard, and opens the Windows default browser."
+)
+
+
+page(47, "Daily clean-build workflow")
+table(["Action", "Measured or implemented behavior"], [
+    ["open", "Validate the new installer first, collect and exactly retire the prior active run, then launch a clean build."],
+    ["compare", "Keep two separately journaled runs with distinct ports, secrets, prefixes, inputs, outputs, and evidence."],
+    ["input", "Hash/copy selected Windows files into WSL-native staging; expose them read-only at stable Wine paths."],
+    ["upload", "Authenticated, exact-origin, bounded, atomic no-overwrite upload into a separate read-only target view."],
+    ["output", "Keep a distinct writable target output; collect it even when the GUI fails."],
+    ["stop", "Collect first, then remove only marker-owned container/session/secret resources; no global prune."],
+], [98, 394], compact=True)
+h("Clean-state invariant")
+p(
+    "The Ubuntu appliance, Docker Engine, pinned browser/Wine image, fixtures, and optional verified artifact cache may "
+    "remain. Every application build receives a new container, Wine prefix, registry/settings, user profile, WebView2 "
+    "user-data directory, installation, output directory, credential, and run journal. Exports and evidence have a "
+    "separate retained lifecycle and cannot seed the next application run."
+)
+h("Large artifacts and build identity")
+p(
+    "The transport contract streams and hashes with bounded buffers, detects source mutation and incomplete copies, "
+    "uses atomic completion, and keys identity by bytes rather than a reused setup.exe name. A 440,401,920-byte synthetic "
+    "fixture passed capacity, interruption, same-name/different-content, mismatch, reuse, and cleanup tests. It is not a "
+    "second executable installer or a second application acceptance result."
+)
+h("File and network limits")
+p(
+    "Loopback viewer exposure is not egress isolation. Required endpoints are explicit and bounded. Linux curl reachability "
+    "does not prove Wine, WebView2, target protocol, TLS, proxy, domain identity, client certificate, mapped drive, or "
+    "integrated-authentication behavior. Never copy Windows credentials, cookies, certificates, or machine identity into "
+    "the appliance automatically."
+)
+
+
+page(48, "Release verdict and maintenance contract")
+table(["Conclusion", "Measured scope"], [
+    ["Historical RDP qualification", "Preserved, separate 10/10 result under its original lock; not evidence for browser transport."],
+    ["Browser-only Octane qualification", "QUALIFIED 10/10 for the exact retained installer, final Xvnc/noVNC image, lock, fixtures, scenario, and host record."],
+    ["Reusable product", "Profile-driven unchanged-installer intake, clean replacement, browser launch, controlled files, evidence, cleanup, appliance, and runtime kit are delivered."],
+    ["External application", "UNTESTED until its exact installer/profile is previewed or scenario-tested; it never inherits Octane qualification."],
+    ["General WebView2/Wine", "NOT established. The minimal native probe remains white and the custom visible-region patch is a maintenance condition."],
+], [154, 338], compact=True)
+h("Requalification triggers")
+p(
+    "Re-freeze and rerun relevant acceptance after changes to installer bytes, Wine/Staging or patches, WebView2, "
+    "Xvnc/XFCE/noVNC/Websockify, browser client, resolution/DPI/renderer, application profile, trusted scenario, fixtures, "
+    "security policy, or executable harness. Do not silently pull latest, warm a prefix, swap a backend, or promote a "
+    "manual review to an unattended pass."
+)
+h("Protected history and safety")
+p(
+    "The original v0.1.1 assets, historical RDP/browser failures, WSLC VHD backup, unrelated WSL distributions, Docker "
+    "resources, and private raw evidence remain untouched. The final profile uses loopback publication and authentication; "
+    "it does not use privileged mode, host networking, Docker-socket mounts, broad host mounts, host-GPU passthrough, "
+    "ptrace escalation, disabled sandboxing, global pruning, or machine-wide security changes."
+)
+p(
+    "<b>Verdict:</b> the actual installed Windows Octane application is demonstrated and qualified through the localhost "
+    "browser path for its exact recorded configuration. That is a bounded compatibility result, not a promise that every "
+    "Windows or Tauri application behaves like native Windows under Wine."
+)
+
+
 def decorate(canvas, doc):
     canvas.setTitle("Octane - Complete Windows Installer Compatibility Lab Guide")
     canvas.setAuthor("Octane Lab")
@@ -1848,7 +1973,7 @@ def decorate(canvas, doc):
     canvas.line(54, 44, 558, 44)
     canvas.setFont("Helvetica", 8)
     canvas.setFillColor(colors.HexColor("#657989"))
-    canvas.drawString(54, 30, "OCTANE / PUBLIC SOURCE REFERENCE / GUIDE REVISION 11")
+    canvas.drawString(54, 30, "OCTANE / PUBLIC SOURCE REFERENCE / GUIDE REVISION 12")
     canvas.drawRightString(558, 30, str(doc.page))
 
 

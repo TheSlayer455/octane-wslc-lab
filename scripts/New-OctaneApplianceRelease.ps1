@@ -4,8 +4,8 @@ param(
     [Parameter(Mandatory=$true)][string]$ImageArchive,
     [Parameter(Mandatory=$true)][string]$RuntimeKitDirectory,
     [Parameter(Mandatory=$true)][string]$OutputDirectory,
-    [string]$Version='1.0.0-candidate',
-    [string]$ImageReference='octane-lab:browser-candidate-v1',
+    [string]$Version='1.0.0',
+    [string]$ImageReference='octane-lab:browser-xvnc-ad1ba74',
     [Parameter(Mandatory=$true)][ValidatePattern('^sha256:[a-f0-9]{64}$')][string]$ImageId,
     [Parameter(Mandatory=$true)][ValidatePattern('^[a-f0-9]{64}$')][string]$UncompressedImageArchiveSha256
 )
@@ -73,7 +73,14 @@ try{
         }
         launcher=@{defaultPort=3005;browser='Windows default browser';authentication='per-run credential copied to clipboard immediately before browser open'}
         exclusions=@('target installer','target source','credentials','raw evidence','populated Docker data root')
-        qualification=@{historicalRdp='QUALIFIED exact 10/10';browser='BLOCKED; candidate only; 0/10 browser runs executed'}
+        qualification=@{
+            historicalRdp='QUALIFIED exact 10/10 under its separate historical lock'
+            browser='QUALIFIED exact 10/10 for the retained Octane installer under the recorded browser lock'
+            browserBatchId='browser-qbatch-06f2a54afe0c'
+            browserLockSha256='db5babdf10bb9c3aef12731c398a75437d280385799512e1b92838f028d68249'
+            browserHarnessCommit='ad1ba74644bdab49a17ccc40caf26f477d848a6a'
+            externalApplications='UNTESTED until separately profiled and measured'
+        }
     }
     $manifest | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath (Join-Path $output 'manifest.json') -Encoding utf8
     $lines=Get-ChildItem -LiteralPath $output -Recurse -File | Sort-Object FullName | ForEach-Object {

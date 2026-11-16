@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory=$true)][string]$OutputPath,
-    [ValidatePattern('^[0-9A-Za-z][0-9A-Za-z.-]{0,63}$')][string]$Version='1.0.0-candidate',
+    [ValidatePattern('^[0-9A-Za-z][0-9A-Za-z.-]{0,63}$')][string]$Version='1.0.0',
     [string]$WslDistro='Ubuntu-24.04',
     [string]$UbuntuBase='ubuntu@sha256:2198e4c65076e9cb0b3d695219df667c0e3b0072da64ca3c2648aca17dcecaf5',
     [string]$DockerCeVersion='5:29.6.2-1~ubuntu.24.04~noble',

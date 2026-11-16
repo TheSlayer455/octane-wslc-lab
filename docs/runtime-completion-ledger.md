@@ -1,56 +1,58 @@
 # Browser runtime-kit completion ledger
 
-Reconciled 2026-11-15. This is the single A–I release-gate ledger for the browser/appliance candidate. `PASS` applies only to the named scope; browser acceptance cannot be inferred from an HTTP response, native X11 screenshot, component PASS, installer PASS, or upload-protocol PASS.
+Reconciled 2026-11-15. This is the single A-I release-gate ledger. `PASS` is limited to the recorded artifact, lock, environment, and evidence. Historical RDP acceptance and final browser acceptance remain independent.
 
-| Gate | Status | Evidence and exact meaning | Remaining item |
+| Gate | Status | Evidence and exact meaning | Remaining boundary |
 | --- | --- | --- | --- |
-| A. Historical baseline preserved and recoverable | PASS | Historical lock SHA-256 `0137c535...`, image ID `0443029e...`, batch `qbatch-e2aaafff4b38`, v0.1.1, guide records, retained handoff container, and WSLC backup were not changed or deleted. | None for preservation. |
-| B. Browser-only desktop from Windows without RDP | TRANSPORT PASS; APPLICATION FAIL | Run `0e2276a168` authenticated and negotiated noVNC and displayed the intended XFCE framebuffer in the ChatGPT in-app browser with no RDP process/protocol. Octane was absent because its original host exited; browser target input/workload was therefore NOT_RUN. | Stabilize the original WebView2 browser process, then repeat input/application smoke. |
-| C. Unchanged external-installer intake and generic profiles | PASS | `schemas/application-profile.schema.json`, `New/Test-OctaneTarget`, immutable `Stage-OctaneArtifact`, and `Start-OctanePreview`. The retained external EXE SHA-256 `adde062d...` was rehashed inside fresh containers and one exact executable/WebView2 runtime was identified. | Another target remains separately UNTESTED. |
-| D. AI-assisted onboarding from one document and kit | PASS for document/overlay/component scope; application interaction FAIL | `docs/OCTANE-AI-HANDOFF.md` records the originating ChatGPT conversation and repository contracts. The source-independent package passed from a path containing spaces/Unicode. Browser-attributable transport evidence now exists, but the app failed before interaction. | Rebuild/package only after a stable browser candidate exists. |
-| E. Two-build replacement and ~400 MiB transport | PASS for replacement mechanics and transport; BLOCKED for two distinct real builds | Live pair `750fc957af` → `603b83b9bf` proved validate-first, collect/exact-remove-old, reuse ports, fresh state, active-journal transfer, and cleanup. Both used the same retained installer. Synthetic 420 MiB evidence `evidence/artifact-transport-moonshot-136944d` proved interruption rejection, same-name/different-content identities, immutable reuse, and exact cleanup. | Supply a second authorized real installer for two-distinct-build application validation. |
-| F. File and network capabilities | PASS for selected/uploaded/output and declared generic network scopes | Selected Windows input is hashed/staged into WSL-native storage and mounted read-only. Authenticated upload enforces exact origin/bearer, 512 MiB/file, safe names, atomic completion, no overwrite/download/listing, SHA-256 manifest, and read-only target view. Run `3ca7d5cbb6` proved a Unicode upload visible at `C:\octane-input\uploaded`; browser-origin click and target ingestion remain NOT_RUN. Existing controlled Linux-curl reachable/unavailable endpoint classification remains valid only for that probe path. | Browser-origin upload/ingestion plus target-specific Wine/WebView2/network/auth paths. |
-| G. New 10/10 browser-only Octane batch | BLOCKED | Planned browser runs remain 0/10. Historical RDP runs are excluded. The current candidates fail the new 90-second sustained-readiness prerequisite before a batch can be frozen. | Diagnose the WebView2 browser-process exit, then freeze a new candidate and obtain approved unattended browser control. |
-| H. Failure recovery, exact cleanup, integrity, security tests | PASS for available scope | 61 browser/runtime assertions, 30 appliance assertions, 12 upload protocol assertions, 48 PowerShell harness assertions, 12 qualification-policy assertions, and 19 Node tests passed (182 counted assertions/tests across separate suites). Failed Xorg/Xvnc runs were preserved and exactly cleaned; no global prune/WSL shutdown or security bypass was used. | Browser-originated target input and batch failure cases remain unavailable until readiness passes. |
-| I. Runtime kit, appliance/image recovery, shared commands, docs, release integrity | BLOCKED as a qualified release; refreshed component lifecycle PASS | New rootfs SHA-256 `1c8cb6e3...`; Docker-save SHA-256 `5ef18bde...`; compressed archive SHA-256 `bf47e58e...`; executable candidate image ID `a43c4441...`. Test `2164864404` passed source-independent import, internal Docker/image load, deep doctor, fresh preview/components, collection, stop, distro unregister, and storage cleanup from a spaces/Unicode path. | Browser qualification remains mandatory for a qualified release. |
+| A. Historical baseline preserved and recoverable | PASS | Historical lock SHA-256 `0137c535...`, image ID `0443029e...`, batch `qbatch-e2aaafff4b38`, v0.1.1, evidence, retained private assets, and the WSLC backup were not rewritten or deleted. | None for preservation. |
+| B. Browser-only desktop from Windows without RDP | PASS | Windows-browser smoke `deb9c3adfc` displayed and controlled the real Octane client through authenticated noVNC/TigerVNC. The final path had no XRDP/FreeRDP process or listener. | The smoke is separate from unattended qualification. |
+| C. Unchanged external-installer intake and generic profiles | PASS | The retained installer bytes were staged, rehashed, installed, discovered, and launched unchanged. Versioned data-only profiles, overlay generation, and validation do not require target source or producer-pipeline changes. | Another target remains independently `UNTESTED`. |
+| D. AI-assisted onboarding from one document and kit | PASS for the reference contract | `docs/OCTANE-AI-HANDOFF.md` is self-contained and records the source conversation, architecture, schemas, daily commands, boundaries, troubleshooting, and a generic AI prompt. The runtime kit excludes installer bytes, credentials, Git metadata, and provider dependencies. | External-app selectors and expectations require real one-time discovery. |
+| E. Two-build replacement and approximately 400 MiB transport | PASS for lifecycle and transport | Live pair `750fc957af` to `603b83b9bf` proved validate-first, collect/exact-remove-old, reuse ports, fresh state, active-journal transfer, and cleanup. Synthetic 440,401,920-byte evidence proved interruption rejection, same-name/different-content identity, immutable reuse, and cleanup. | A second distinct executable installer was unavailable and is `NOT_TESTED`. |
+| F. File and network capabilities | PASS for declared generic scopes | Selected Windows input is hashed/staged to WSL-native storage and mounted read-only; upload is authenticated, exact-origin, bounded, atomic, no-overwrite, and read-only to the target; outputs are separate and collected. Controlled endpoint classification passed only for its declared probe. | Corporate identity, Wine/WebView2 protocol, certificates, shares, and target-specific authentication remain separate capabilities. |
+| G. New 10/10 browser-only Octane batch | PASS | Batch `browser-qbatch-06f2a54afe0c` passed every gate in all ten predeclared fresh runs under lock SHA-256 `db5babdf...`. Browser frames/input, normal initial rendering, workload, dialogs, export, integrity, no-RDP, evidence, and exact cleanup passed without repaint, relaunch, hidden retry, manual action, or override. | Result does not transfer to another installer. |
+| H. Failure recovery, exact cleanup, integrity, and security tests | PASS | Current suites pass: 82 browser/runtime assertions, 48 harness assertions, 12 qualification-policy assertions, 30 appliance assertions, 16 upload protocol assertions, 19 Node tests, and 4 Rust core tests plus doc tests. All final batch resources were exactly cleaned; no global prune or WSL shutdown was used. | Raw sensitive evidence stays local/private. |
+| I. Runtime kit, appliance/image recovery, shared commands, docs, and release integrity | IN_PROGRESS | Qualified runtime-kit and release builders now carry the final browser lock, final image reference, scenario, automation client, schemas, docs, and checksums. Guide revision 12 is 48 visually inspected pages, SHA-256 `602f6f09...`. | Rebuild the rootfs/image archive and run the exact extracted-package lifecycle before publication. |
 
-## Executable candidate identity
+## Qualified browser identity
 
-- Runtime commit: `136944da9e8b0ee4f3c6727613d062abbd958857`.
-- Image reference: `octane-lab:browser-appliance-v1-136944d`.
-- Image ID: `sha256:a43c4441d45ddd57e899c1d77e9461c22414c654213e17a27031be3347191f1a`.
-- Base image ID: `sha256:0443029e26be1d0590fd37491d69ab8fc1e186ef7e80d4d75cb191628188259c`.
-- Candidate lock: `profiles/candidates/docker-wine-staging-11.21-visrgn-browser-appliance-136944d.candidate.lock.json`.
-- Candidate lock SHA-256: `5227a24f4279a599679ff6adb00138776b93fd5205e8627ef11780b26acb4fff`.
-- Installer: SHA-256 `adde062d79c2857cb2f5e676c5d6870986070252ac3cf7ca7a6b78c8d829080a`, 219,839,154 bytes.
-- Final executable run: `3ca7d5cbb6`; component checksum manifest SHA-256 `52747f5868cafeab3e2e24426974f6f60db20a829779750deb5141cf2b89eb86`; collection manifest SHA-256 `58369ee228bcca30203371cda3333ca431929f2e3f479b15a8b3827c930e6e81`.
-- Historical operator handoff run `octane-c71f9b509b` was retained at its checkpoint and later removed by exact cleanup. It is not a live endpoint and must not be assumed available.
+- Harness commit: `ad1ba74644bdab49a17ccc40caf26f477d848a6a`.
+- Image reference: `octane-lab:browser-xvnc-ad1ba74`.
+- Image ID: `sha256:6e77b89e7d5f8d3f9472998bd33859413b6982038c9cc64054a9eb035b25e786`.
+- Base image: `octane-lab:browser-appliance-v1-136944d`, ID `sha256:a43c4441d45ddd57e899c1d77e9461c22414c654213e17a27031be3347191f1a`.
+- Browser lock: `profiles/qualification/docker-wine-staging-11.21-visrgn-browser-xvnc.lock.json`.
+- Lock SHA-256: `db5babdf10bb9c3aef12731c398a75437d280385799512e1b92838f028d68249`.
+- Installer source commit: `7088eed9adb8403b9575afe1cc9e9c2984b29049`.
+- Installer: 219,839,154 bytes; SHA-256 `adde062d79c2857cb2f5e676c5d6870986070252ac3cf7ca7a6b78c8d829080a`.
+- Batch: `browser-qbatch-06f2a54afe0c`.
+- Batch summary SHA-256: `9254405b6f211314a25092f32ddaa5e369ad83d8ed9c841cf9e55502d02b15c0`.
+- Batch checksum-manifest SHA-256: `37c5b7459ced5c393c990b43f295412e9f1d20fb5132718f7e08fe993d45dd07`.
+- Windows-browser manual smoke: `deb9c3adfc`, separately classified and not counted in the unattended batch.
 
-## Implemented lifecycle and file result
+## Ten-run matrix
 
-- `open` defaults to `ReplaceActive`: immutable intake succeeds before the prior active run is collected or removed.
-- `compare` is explicit and keeps an independently isolated run with separate viewer/upload ports.
-- Every run gets a marker-journaled `/var/lib/octane/sessions/octane-<id>` tree, fresh Wine home/prefix/WebView2/application/output state, and exact cleanup.
-- Selected input and installer mounts are read-only. Upload staging is writable only to the upload service and read-only in the target view. Collected output/evidence has a separate lifecycle.
-- Wine `Z:` is available while NSIS executes, then removed before the installed target starts. The preserved `9500a6e5d0` failure proves why those phases must remain distinct.
-- The live replacement pair used identical installer bytes; it validates lifecycle behavior, not application behavior across two builds.
+| Run | Scenario | Components | Report | Evidence | Cleanup |
+| --- | --- | --- | --- | --- | --- |
+| `513b6385f0` | PASS | PASS | PASS | PASS | PASS |
+| `1bb8a0ec9f` | PASS | PASS | PASS | PASS | PASS |
+| `23367b15c9` | PASS | PASS | PASS | PASS | PASS |
+| `1c2750d422` | PASS | PASS | PASS | PASS | PASS |
+| `5fd8ba417d` | PASS | PASS | PASS | PASS | PASS |
+| `89019ca3ed` | PASS | PASS | PASS | PASS | PASS |
+| `3f42f907d7` | PASS | PASS | PASS | PASS | PASS |
+| `e103eef43d` | PASS | PASS | PASS | PASS | PASS |
+| `f9f807aa18` | PASS | PASS | PASS | PASS | PASS |
+| `a164c028eb` | PASS | PASS | PASS | PASS | PASS |
 
-## Refreshed local appliance artifacts
+## Boundaries retained
 
-- Rootfs TAR: 503,298,560 bytes; SHA-256 `1c8cb6e36a880dcf491aaa12dc1d52c0819824902a2b272b36d3837c451e3368`.
-- Docker-save TAR: 2,083,894,784 bytes; SHA-256 `5ef18bde39da0d3d56b48b416300034ef0f0a92355468e012ec21a8960039ebe`.
-- Compressed image: 2,078,023,379 bytes; SHA-256 `bf47e58e50ef56396ee3e1d43fdecda5de0426ede6c37342609c01c154240b05`.
-- Assembled package: 84 files, 2,583,977,275 bytes; manifest SHA-256 `c7793d91bddeb39857661aa0ff350a1303a7dca999aedbd92a9fa0479d0601c9`; top-level checksum manifest SHA-256 `78ca4892559cce8c2a6b5339602affd0fee9116140637e0514df0ec7fcf9b514`.
-- Live package test `2164864404`, container `octane-3fd2c8f429`: all five lifecycle stages and final cleanup PASS. Result SHA-256 `8ad04f36734b35b2a22e7578791fd4cc81889fc7e35f457a9682a870b005073f`; browser-component checksum manifest SHA-256 `7f023762d400fed8b43e4bf9e3348718a8597782a81f62ccefd460016f73e288`.
-- The unique test distro and state root are absent after cleanup. No managed Octane container, volume, network, run journal, or active-run file remained after the 2026-11-15 browser experiments. The image and package archives are retained local candidate artifacts, not published binaries and not proof of browser acceptance.
+- The minimal native Win32 WebView2 probe remains white.
+- The custom Wine visible-region patch remains a maintenance condition.
+- Stock Wine and arbitrary Tauri applications are not qualified.
+- A Linux Playwright/Chromium client drove the unattended batch; the Windows in-app-browser smoke is recorded separately.
+- The synthetic 420 MiB-plus transport fixture is not a second real installer or application pass.
+- Windows identity, domain authentication, certificates, mapped shares, device compliance, and proprietary target behavior are not inferred.
 
 ## Release decision
 
-The historical RDP qualification remains valid for its exact scope. The browser/appliance candidate is implemented and its transport is now browser-observed, but the unchanged installed application fails sustained WebView2 readiness on all three tested browser display profiles. This is **not a qualified browser release** and no new qualified tag/release replaces v0.1.1.
-
-## Browser validation update (2026-11-15)
-
-- `0e2276a168`, Xvfb/x11vnc image `sha256:a43c4441...`: noVNC negotiation and framebuffer PASS; Octane application visibility FAIL after host panic `HRESULT 0x800700AA`; evidence checksum-manifest SHA-256 `3bf8bb7b...`; exact cleanup PASS.
-- `e1e95b2d01`, standalone Xorg image `sha256:8d611400...`: install/native frame PASS; sustained readiness FAIL after two seconds because `CrBrowserMain` became defunct following Wine `virtual_setup_exception` stack overflow; white client area; evidence checksum-manifest SHA-256 `5538833a...`; exact cleanup PASS.
-- `7d9e41587c`, TigerVNC Xvnc image `sha256:10205a6e...`: the same stack-overflow/browser-process failure occurred after one second; evidence checksum-manifest SHA-256 `ddee868a...`; exact cleanup PASS.
-- Harness commit `3571e20` introduced the 90-second sustained-readiness contract; current candidate implementation is `5362c09`. No repaint helper, relaunch, manual PASS override, RDP process, privileged mode, or host-GPU mapping was used.
+Historical Docker/Wine/RDP qualification is preserved for its original scope. Browser-only Octane acceptance is qualified for the exact final lock. Publication of the v1 appliance remains contingent only on the final source-independent package/recovery test and release-integrity recording; no mandatory browser-application gate remains blocked.

@@ -1,0 +1,268 @@
+{
+  "schemaVersion": 1,
+  "kind": "browser-candidate-lock",
+  "status": "candidate-ready-for-qualification",
+  "createdAtUtc": "2026-11-16T00:09:48.3780538Z",
+  "identities": {
+    "harnessCommit": "ad1ba74644bdab49a17ccc40caf26f477d848a6a",
+    "imageReference": "octane-lab:browser-xvnc-ad1ba74",
+    "imageId": "sha256:6e77b89e7d5f8d3f9472998bd33859413b6982038c9cc64054a9eb035b25e786",
+    "imageRepoDigests": [
+      "octane-lab@sha256:6e77b89e7d5f8d3f9472998bd33859413b6982038c9cc64054a9eb035b25e786"
+    ],
+    "baseImageReference": "octane-lab:browser-appliance-v1-136944d",
+    "baseImageId": "sha256:a43c4441d45ddd57e899c1d77e9461c22414c654213e17a27031be3347191f1a",
+    "installerSourceCommit": "7088eed9adb8403b9575afe1cc9e9c2984b29049",
+    "installerSha256": "adde062d79c2857cb2f5e676c5d6870986070252ac3cf7ca7a6b78c8d829080a",
+    "installerLength": 219839154,
+    "installerManifestPath": "runs/artifacts/installer-adde062d79c2857cb2f5e676c5d6870986070252ac3cf7ca7a6b78c8d829080a.manifest.json",
+    "installerManifestSha256": "06713216c314333a9ca969b095cdf507bade5066bfa07fb177131813fe87d6ca",
+    "applicationProfileId": "octane-reference",
+    "applicationProfilePath": "profiles/applications/octane-reference.app.json",
+    "applicationProfileSha256": "0c0cb587ab93a5f9175dd7a0d804fe5f8b767d1dba939927e1aae034b7a725c7",
+    "fixtureFileCount": 8,
+    "historicalQualificationLockSha256": "0137c535f4eb0d15c12628801020b71f1952a18c65c524b7ac26874f6e6377c1"
+  },
+  "harness": {
+    "files": [
+      {
+        "path": "automation/browser/octane-reference-scenario.mjs",
+        "sha256": "3b0853a61df061127cd5e6b3dadf587e3fa491f276779a21a2e14f37729af6c5"
+      },
+      {
+        "path": "automation/browser/package-lock.json",
+        "sha256": "817bef1ed63147a9d44d2c330e0c963ab09c0dd2fb1a0e067fbf3cdbf0dc8ab0"
+      },
+      {
+        "path": "lab/Dockerfile.browser-xvnc",
+        "sha256": "05a0914f11fd69720665ec2605d698d89643d70cffb44c5a56cca06a5373c7dc"
+      },
+      {
+        "path": "lab/browser/octane-browser-session",
+        "sha256": "05665b3a578a759001db3f1f1803dacf9549c0b1a100040b16fcee5b7d317bb7"
+      },
+      {
+        "path": "lab/browser/octane-target",
+        "sha256": "17715e513154a4d9f73321980c76893d730702abea4c2fa3a5d67d09757726ad"
+      },
+      {
+        "path": "lab/browser/octane-upload-server",
+        "sha256": "c234f4ec42684a6619df1472afef6f684dd9ae1eb8d2e36cde90471d88c6373d"
+      },
+      {
+        "path": "lab/browser/octane.html",
+        "sha256": "27e7283df2883a57d2267c789cbe9bcc531853ed9b05b86386f4f66269f0ad39"
+      },
+      {
+        "path": "profiles/applications/octane-reference.app.json",
+        "sha256": "0c0cb587ab93a5f9175dd7a0d804fe5f8b767d1dba939927e1aae034b7a725c7"
+      },
+      {
+        "path": "schemas/application-profile.schema.json",
+        "sha256": "7fb3385c340bfe5deaa6cecbaef7345a8f869703e99c2f553e8b7f40e19fb963"
+      },
+      {
+        "path": "scripts/Collect-OctanePreview.ps1",
+        "sha256": "d5e5865e81f15cf6c9e02f13a3b7a85c78b595cfdc1ae0e3c8420a8f2eed49ba"
+      },
+      {
+        "path": "scripts/Invoke-OctaneBrowserQualificationBatch.ps1",
+        "sha256": "2d57c452cecb44924710c81a623308e9a2dea9764467c68bc2d371474d2a3c85"
+      },
+      {
+        "path": "scripts/Invoke-OctaneBrowserReferenceScenario.ps1",
+        "sha256": "1ab3b70b23d7a1af16b2b090abc56a17f7c2ba40f68cfd88539dfb4b4c119387"
+      },
+      {
+        "path": "scripts/New-OctaneBrowserCandidateLock.ps1",
+        "sha256": "91f7ce408380a8c5568cc28b2e63d950e32748125f9f6d1a9ce65766b40f5e99"
+      },
+      {
+        "path": "scripts/Qualification.ps1",
+        "sha256": "71dfa8aec87bc528e6f62352f845e09fe101445057ded773b0608710ea3c1c93"
+      },
+      {
+        "path": "scripts/Start-OctanePreview.ps1",
+        "sha256": "c696f6c3fc9e2a68be4c7e3dcad369cad02284768bbeac861a846fdb31bf7cb6"
+      },
+      {
+        "path": "scripts/Stop-OctaneLab.ps1",
+        "sha256": "de0e89d1b1eeb8d6626f7be3fee4f7a2a6ab31a037c575329413ee64196284ad"
+      },
+      {
+        "path": "scripts/Test-OctaneBrowserComponents.ps1",
+        "sha256": "b60fe9e9b72e13d7050aee7e264b7ee007a761b37588ad11792dcbfd71d2ed14"
+      },
+      {
+        "path": "scripts/Validate-OctaneReport.ps1",
+        "sha256": "1add3445e639a0e5dfe68ca8ff61168f907cd295c3798abf87e01b3a8a8d404f"
+      }
+    ]
+  },
+  "fixtures": {
+    "files": [
+      {
+        "path": "fixtures/config.json",
+        "length": 28,
+        "sha256": "7f85f9e5a912d91985995b677b1e2021b1d002649869b704f36f0b8e24ad917c"
+      },
+      {
+        "path": "fixtures/data.csv",
+        "length": 21,
+        "sha256": "b98731ba15c769924bf53163485f71f855a3da2b3d50f4f94ff5dffc04c83fae"
+      },
+      {
+        "path": "fixtures/hello-copy.txt",
+        "length": 6,
+        "sha256": "5891b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03"
+      },
+      {
+        "path": "fixtures/hello.txt",
+        "length": 6,
+        "sha256": "5891b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03"
+      },
+      {
+        "path": "fixtures/LICENSE",
+        "length": 28,
+        "sha256": "83982633257a709ee201df769e69da535c6685aef5330b38bbd586ab648eb142"
+      },
+      {
+        "path": "fixtures/notes.txt",
+        "length": 21,
+        "sha256": "a2f06fd976cc21f438c9bb87917af54558c5da9a512a54bdd091bcd8eadf4f56"
+      },
+      {
+        "path": "fixtures/page.html",
+        "length": 50,
+        "sha256": "230c4972d4d927dbb77d53870ee9239a12c422811c7a973eeb186e6e88760265"
+      },
+      {
+        "path": "fixtures/readme.md",
+        "length": 16,
+        "sha256": "0669e0df3bafef7a04bbeddf3d388cdf9170b8135d7b82a8c1be1c602402fc70"
+      }
+    ]
+  },
+  "runtime": {
+    "architecture": "amd64",
+    "wineVersion": "11.21",
+    "wineVariant": "solid-edge-visrgn",
+    "wineSourceCommit": "2528aff26208257fdbf980666a4f0e66d47563ce",
+    "wineStagingCommit": "04414fee61f7d283072d40905816b928875b2d4b",
+    "winePatchSha256": "f0ea7e56c4b86ce6e1f99940c4c18ac80f2bee86442c800bc58c2f36bde92752",
+    "winePrefixArchitecture": "win64",
+    "windowsVersion": "default",
+    "webView2Distribution": "evergreen",
+    "expectedWebView2Version": "157.0.4341.60",
+    "display": ":1",
+    "displayServer": "TigerVNC Xvnc",
+    "x11Driver": "winex11",
+    "desktop": "TigerVNC Xvnc/XFCE",
+    "resolution": "1280x800x24",
+    "renderer": "Mesa llvmpipe (verify per run)",
+    "packageVersions": {
+      "curl": "8.5.0-2ubuntu10.16",
+      "git": "1:2.43.0-1ubuntu7.4",
+      "iproute2": "6.1.0-1ubuntu6.4",
+      "python3-jwcrypto": "1.5.4-1",
+      "python3-numpy": "1:1.26.4+ds-6ubuntu1",
+      "python3-redis": "4.3.4-3",
+      "python3-requests": "2.31.0+dfsg-1ubuntu1.2",
+      "tigervnc-standalone-server": "1.13.1+dfsg-2build2",
+      "tigervnc-tools": "1.13.1+dfsg-2build2"
+    }
+  },
+  "browser": {
+    "transport": "noVNC over Websockify to TigerVNC Xvnc",
+    "viewerPath": "/octane.html",
+    "noVncCommit": "63107bd06d9e1f6136ff21aeda8cd62cbf0d433e",
+    "websockifyCommit": "e81894751365afc19fe64fc9d0e5c6fc52655c36",
+    "serverResolution": "1280x800",
+    "remoteResize": false,
+    "clipboard": false,
+    "httpTls": false,
+    "httpPolicy": "plaintext authenticated loopback only; no remote secure-context requirement",
+    "authentication": "per-run random 8-character RFB password file",
+    "automation": {
+      "clientOs": "linux",
+      "driver": "Playwright",
+      "playwright": "1.65.1",
+      "browser": "159.0.8154.6"
+    },
+    "upload": {
+      "service": "Octane authenticated raw-file intake",
+      "containerPort": 3002,
+      "maxBytes": 536870912,
+      "overwrites": false,
+      "downloads": false,
+      "directoryBrowsing": false,
+      "credential": "same per-run credential, browser memory only",
+      "originPolicy": "exact viewer origins"
+    }
+  },
+  "host": {
+    "doctorRecordSha256": "56f6df2d938931a7551c7ae17a4047aa526181663ac2bdc98d35ae2511a30b6e",
+    "wslDistro": "Ubuntu-24.04",
+    "facts": {
+      "windowsVersion": "Microsoft Windows NT 10.0.26200.0",
+      "wslVersion": "WSL version: 3.0.1.0\r\nKernel version: 6.18.40.1-1\r\nWSLg version: 1.0.79\r\nMSRDC version: 1.2.7214\r\nDirect3D version: 1.611.1-81528511\r\nDXCore version: 10.0.26100.1-240331-1435.ge-release\r\nWindows version: 10.0.26200.8875",
+      "wslDistribution": "Ubuntu-24.04",
+      "linuxRelease": "Ubuntu 24.04.4 LTS",
+      "linuxKernel": "6.18.40.1-microsoft-standard-WSL2",
+      "architecture": "x86_64",
+      "memoryGiB": 15.08,
+      "dockerContext": "default",
+      "dockerEndpoint": "unix:///var/run/docker.sock",
+      "dockerServerName": "JAKESPC",
+      "dockerRootDirectory": "/var/lib/docker",
+      "dockerRootFreeGiB": 682.48
+    },
+    "runtimeVersion": "29.6.2",
+    "context": "docker:wsl:Ubuntu-24.04:default"
+  },
+  "security": {
+    "publishedAddress": "127.0.0.1 only",
+    "publishedPorts": [
+      "authenticated viewer",
+      "authenticated scoped upload"
+    ],
+    "rawVncPublished": false,
+    "rdpRequired": false,
+    "privileged": false,
+    "hostNetwork": false,
+    "dockerSocketMounted": false,
+    "hostGpuMapped": false,
+    "noSandboxAdded": false,
+    "ptraceAdded": false,
+    "credentialStorage": "per-run ignored file, read-only mounted; never included in evidence",
+    "fileMounts": [
+      "WSL-native disposable home read-write",
+      "selected input read-only",
+      "uploaded input read-only in application view",
+      "upload staging read-write",
+      "installer artifact read-only"
+    ]
+  },
+  "qualification": {
+    "status": "READY",
+    "reason": "Fresh final-image exploratory run passed browser framebuffer/input, workload, native dialogs, export, component, integrity, and exact-cleanup gates without RDP, forced repainting, relaunch, hidden retries, or manual override.",
+    "plannedRuns": 10,
+    "executedRuns": 0,
+    "historicalRdpBatchIsNotBrowserEvidence": true,
+    "readiness": {
+      "timeoutSeconds": 180,
+      "stabilitySeconds": 90,
+      "visualMinColors": 100
+    },
+    "exploratoryEvidence": {
+      "liveRun": "runs/octane-f1a1ba7401.json",
+      "liveRunSha256": "fe9157e70b7fcc3f35e4fd9be4953613ecbb22bbbcd7f32d1a11c70300815359",
+      "browserResult": "evidence/octane-f1a1ba7401-final-image-browser-scenario/browser-reference-result.json",
+      "browserResultSha256": "712c22a769087ff5ce769f26ffbd39977cd01175b0fbb4b635b0d1b48eaa172c",
+      "componentResult": "evidence/octane-f1a1ba7401-final-image-components/browser-component-results.json",
+      "componentResultSha256": "dd39fa2a973cc920a43736bed433c0b0ea6a3b07ad1f4c9829cf32e770d35569"
+    },
+    "lifecycle": "new container, Wine prefix, application install, WebView2 data, and output for every run",
+    "permittedAutomation": "one browser scenario attempt; no application relaunch, repaint helper, manual promotion, or hidden recovery"
+  }
+}

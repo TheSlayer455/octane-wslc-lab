@@ -25,7 +25,7 @@ try{
     Copy-Item -LiteralPath (Join-Path $root 'templates/example-app/MANUAL-CHECKLIST.md') -Destination (Join-Path $outputPath 'MANUAL-CHECKLIST.md')
     [ordered]@{
         schemaVersion=1
-        octaneRelationship='browser-runtime-kit-v1-candidate'
+        octaneRelationship='octane-browser-runtime-kit-1.0.0'
         createdAtUtc=[DateTime]::UtcNow.ToString('o')
         targetId=$Id
         sourceRequired=$false

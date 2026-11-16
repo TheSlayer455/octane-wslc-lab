@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory=$true)][string]$OutputDirectory,
-    [string]$Version='browser-runtime-kit-v1-candidate',
+    [string]$Version='1.0.0',
     [ValidatePattern('^[a-f0-9]{7,40}$')][string]$HarnessCommit
 )
 
@@ -20,18 +20,23 @@ try{
         Get-ChildItem -LiteralPath (Join-Path $root $relative) -Force | Copy-Item -Destination $target -Recurse -Force
     }
     New-Item -ItemType Directory -Path (Join-Path $destination 'lab') -Force | Out-Null
-    Copy-Item -LiteralPath (Join-Path $root 'lab/Dockerfile.browser-novnc') -Destination (Join-Path $destination 'lab/Dockerfile.browser-novnc')
-    Copy-Item -LiteralPath (Join-Path $root 'lab/Dockerfile.wsl-appliance') -Destination (Join-Path $destination 'lab/Dockerfile.wsl-appliance')
+    foreach($dockerfile in @('Dockerfile.browser-novnc','Dockerfile.browser-xvnc','Dockerfile.wsl-appliance')){
+        Copy-Item -LiteralPath (Join-Path $root "lab/$dockerfile") -Destination (Join-Path $destination "lab/$dockerfile")
+    }
+    New-Item -ItemType Directory -Path (Join-Path $destination 'automation/browser') -Force | Out-Null
+    foreach($browserFile in @('octane-reference-scenario.mjs','package.json','package-lock.json')){
+        Copy-Item -LiteralPath (Join-Path $root "automation/browser/$browserFile") -Destination (Join-Path $destination "automation/browser/$browserFile")
+    }
     New-Item -ItemType Directory -Path (Join-Path $destination 'scripts') -Force | Out-Null
     $scripts=@(
-        'Build-OctaneBrowserImage.ps1','Build-OctaneWslAppliance.ps1','Collect-Evidence.ps1','Collect-OctanePreview.ps1','Compress-OctaneImageArchive.ps1','Doctor-OctaneLab.ps1','FileAccess.ps1',
-        'Export-OctaneBrowserImage.ps1','Get-OctaneViewerCredential.ps1','Import-OctaneBrowserImage.ps1','New-OctaneBrowserCandidateLock.ps1','New-OctaneBrowserQualificationPlan.ps1','New-OctaneTarget.ps1','RunState.ps1','Runtime.ps1','RuntimeProfiles.ps1',
+        'Build-OctaneBrowserImage.ps1','Build-OctaneBrowserXvncCandidate.ps1','Build-OctaneWslAppliance.ps1','Collect-Evidence.ps1','Collect-OctanePreview.ps1','Compress-OctaneImageArchive.ps1','Doctor-OctaneLab.ps1','FileAccess.ps1',
+        'Export-OctaneBrowserImage.ps1','Get-OctaneViewerCredential.ps1','Import-OctaneBrowserImage.ps1','Invoke-OctaneBrowserQualificationBatch.ps1','Invoke-OctaneBrowserReferenceScenario.ps1','New-OctaneBrowserCandidateLock.ps1','New-OctaneBrowserQualificationPlan.ps1','New-OctaneTarget.ps1','Qualification.ps1','RunState.ps1','Runtime.ps1','RuntimeProfiles.ps1',
         'New-OctaneApplianceRelease.ps1','Show-OctaneManualBrowserHandoff.ps1','Stage-OctaneArtifact.ps1','Start-OctanePreview.ps1','Stop-OctaneLab.ps1',
-        'Test-OctaneAppliancePackage.ps1','Test-OctaneArtifactTransport.ps1','Test-OctaneBrowserComponents.ps1','Test-OctaneTargetProfile.ps1'
+        'Test-OctaneAppliancePackage.ps1','Test-OctaneArtifactTransport.ps1','Test-OctaneBrowserComponents.ps1','Test-OctaneTargetProfile.ps1','Validate-OctaneReport.ps1'
     )
     foreach($script in $scripts){Copy-Item -LiteralPath (Join-Path $root "scripts/$script") -Destination (Join-Path $destination "scripts/$script")}
     New-Item -ItemType Directory -Path (Join-Path $destination 'docs') -Force | Out-Null
-    foreach($document in @('OCTANE-AI-HANDOFF.md','BROWSER-CANDIDATE-QUICKSTART.md','runtime-completion-ledger.md','compatibility-matrix.md','research-evidence-ledger.md','validation.json','Octane-Complete-Guide.pdf','THIRD-PARTY-NOTICES.md')){
+    foreach($document in @('OCTANE-AI-HANDOFF.md','BROWSER-CANDIDATE-QUICKSTART.md','browser-qualification-summary.json','runtime-completion-ledger.md','compatibility-matrix.md','research-evidence-ledger.md','validation.json','Octane-Complete-Guide.pdf','THIRD-PARTY-NOTICES.md')){
         $source=Join-Path $root "docs/$document"
         if(Test-Path -LiteralPath $source){Copy-Item -LiteralPath $source -Destination (Join-Path $destination "docs/$document")}
     }
@@ -41,7 +46,14 @@ try{
         schemaVersion=1;version=$Version;createdAtUtc=[DateTime]::UtcNow.ToString('o')
         harnessCommit=if($HarnessCommit){$HarnessCommit}else{$null};sourceIndependent=$true
         excludes=@('target source','installer bytes','container image bytes','credentials','Git metadata','provider credentials')
-        browserAcceptance='BLOCKED';browserAcceptanceReason='Candidate implementation has not been exercised through an approved controllable browser.'
+        browserAcceptance='QUALIFIED';browserAcceptanceContract='10/10 unattended fresh-prefix runs for the retained Octane installer under the exact browser lock.'
+        browserQualification=@{
+            batchId='browser-qbatch-06f2a54afe0c'
+            lockPath='profiles/qualification/docker-wine-staging-11.21-visrgn-browser-xvnc.lock.json'
+            lockSha256='db5babdf10bb9c3aef12731c398a75437d280385799512e1b92838f028d68249'
+            harnessCommit='ad1ba74644bdab49a17ccc40caf26f477d848a6a'
+        }
+        boundaries=@('The minimal native WebView2 probe remains white.','The custom Wine visible-region patch remains a maintenance condition.','Another installer requires its own profile and evidence; it does not inherit Octane qualification.')
     }
     $manifest | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath (Join-Path $destination 'runtime-kit.json') -Encoding utf8
     $lines=Get-ChildItem -LiteralPath $destination -Recurse -File | Sort-Object FullName | ForEach-Object {
