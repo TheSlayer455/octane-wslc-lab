@@ -6,6 +6,8 @@ The Octane reference application is qualified 10/10 for the exact browser lock a
 
 The validated local v1 candidate contains 98 files (2,586,061,421 bytes), loads image ID `sha256:6e77b89e7d5f8d3f9472998bd33859413b6982038c9cc64054a9eb035b25e786`, and passed clean import/preview/collection/uninstall test `87945a4f09` from an extracted path containing spaces and Unicode. Use the package's own `manifest.json` and `checksums.sha256` as the exact identity after download.
 
+Release: `https://github.com/TheSlayer455/octane-wslc-lab/releases/tag/v1.0.0`. Extract `Octane-v1.0.0-runtime.zip`, place the two large assets at the paths declared by `v1.0.0-release-assets.json`, and run `PlanOnly` before importing.
+
 From Windows PowerShell 7 in the extracted release:
 
 ```powershell

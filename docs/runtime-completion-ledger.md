@@ -58,6 +58,8 @@ Reconciled 2026-11-15. This is the single A-I release-gate ledger. `PASS` is lim
 - Package-test result SHA-256: `2a662c0c35367e324cd25d48f3bef0f7903bc17c9a14b54099afcf1aedfa8886`.
 - Package component-evidence checksum SHA-256: `e5063a03db168057e9169b365488e82c5595de195fa67141053c60aa136c9829`.
 - New 440,401,920-byte transport result SHA-256: `5f1d2aea8ac757a77fd065a6ae7afdd84ff2d28d232469be8ba57edc3d4224e`; checksum manifest `83729f191824e181f3ed12af7c30765950c775eb3281734b991174fbbe8b6075`.
+- Public v1.0.0 release: `https://github.com/TheSlayer455/octane-wslc-lab/releases/tag/v1.0.0`; release ID `446512455`; published 2026-11-16T01:36:28Z.
+- GitHub reported all five assets `uploaded` and returned matching server-side SHA-256 digests for the runtime ZIP, guide, release manifest, rootfs, and image archive.
 
 ## Boundaries retained
 
@@ -70,4 +72,4 @@ Reconciled 2026-11-15. This is the single A-I release-gate ledger. `PASS` is lim
 
 ## Release decision
 
-Historical Docker/Wine/RDP qualification is preserved for its original scope. Browser-only Octane acceptance is qualified for the exact final lock. All mandatory A-I product gates pass for the declared reference scope. Another application remains untested until its own unchanged installer, profile, scenario, and evidence are measured.
+Historical Docker/Wine/RDP qualification is preserved for its original scope. Browser-only Octane acceptance is qualified for the exact final lock. All mandatory A-I product gates pass for the declared reference scope, the repository is public, and v1.0.0 is published without replacing v0.1.1. Another application remains untested until its own unchanged installer, profile, scenario, and evidence are measured.

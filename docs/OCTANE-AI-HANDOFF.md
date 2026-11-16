@@ -165,6 +165,8 @@ The final local release candidate carries runtime-kit commit `aced057ba3d3979a34
 
 Extracted-package test `87945a4f09` passed import, image load, deep doctor, fresh preview/components, collection, exact stop, unregister, and storage cleanup. It is a source-independence/recovery test, not an eleventh browser-qualification run. The published release manifest remains the authority for any repackaged archive because adding documentation changes the package checksum without changing the qualified image.
 
+The public v1.0.0 release is `https://github.com/TheSlayer455/octane-wslc-lab/releases/tag/v1.0.0`. GitHub reported all five assets as uploaded and returned server-side SHA-256 digests matching the local runtime ZIP, guide, asset manifest, rootfs, and image archive. Historical v0.1.1 remains untouched.
+
 From Windows PowerShell 7:
 
 ```powershell

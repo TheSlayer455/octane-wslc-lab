@@ -13,6 +13,8 @@ The browser batch used ten predeclared, sequential fresh containers and Wine pre
 
 See [the qualification summary](docs/browser-qualification-summary.json), [compatibility matrix](docs/compatibility-matrix.md), and [single AI/operator handoff](docs/OCTANE-AI-HANDOFF.md).
 
+Public release: [Octane v1.0.0 — Browser appliance](https://github.com/TheSlayer455/octane-wslc-lab/releases/tag/v1.0.0). Download all three package assets and follow `v1.0.0-release-assets.json`; GitHub's server-side digests match the locally recorded SHA-256 values.
+
 The v1 appliance lifecycle also passes from an extracted path containing spaces and Unicode: exact package/runtime hashes, unique WSL import, Docker startup, exact qualified-image load, deep doctor, fresh unchanged-installer preview, component checks, collection, exact stop, distro unregister, and storage cleanup. The final local package contains 98 files (2,586,061,421 bytes); its manifest SHA-256 is `02176b061918de85de755982ed085c41ee4c9d966d934d885a4492020d3fcbeb`. GitHub publication status is recorded separately.
 
 ## Architecture
