@@ -4,6 +4,8 @@ The Octane reference application is qualified 10/10 for the exact browser lock a
 
 ## Packaged appliance
 
+The validated local v1 candidate contains 98 files (2,586,055,481 bytes), loads image ID `sha256:6e77b89e7d5f8d3f9472998bd33859413b6982038c9cc64054a9eb035b25e786`, and passed clean import/preview/collection/uninstall test `8739fdeafa` from an extracted path containing spaces and Unicode. Use the package's own `manifest.json` and `checksums.sha256` as the exact identity after download.
+
 From Windows PowerShell 7 in the extracted release:
 
 ```powershell

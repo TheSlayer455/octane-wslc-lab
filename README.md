@@ -13,6 +13,8 @@ The browser batch used ten predeclared, sequential fresh containers and Wine pre
 
 See [the qualification summary](docs/browser-qualification-summary.json), [compatibility matrix](docs/compatibility-matrix.md), and [single AI/operator handoff](docs/OCTANE-AI-HANDOFF.md).
 
+The v1 appliance lifecycle also passes from an extracted path containing spaces and Unicode: exact package/runtime hashes, unique WSL import, Docker startup, exact qualified-image load, deep doctor, fresh unchanged-installer preview, component checks, collection, exact stop, distro unregister, and storage cleanup. The package contains 98 files (2,586,055,481 bytes); its manifest SHA-256 is `edd693df0eb398d20bc300e3937791f98c2febba62ffef911f437f09d417bec4`. These values identify the locally tested package candidate; GitHub publication status is recorded separately.
+
 ## Architecture
 
 ```text
